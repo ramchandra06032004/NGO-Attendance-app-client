@@ -16,6 +16,7 @@ import AdminPanelScreen from './screens/admin/AdminPanelScreen';
 import AddClassScreen from './screens/college/AddClassScreen';
 import AddCollegeScreen from './screens/admin/AddCollegeScreen';
 import AddNgoScreen from './screens/admin/AddNgoScreen';
+import AddEventScreen from './screens/ngo/AddEventScreen';
 import { NavigationContext } from './context/NavigationContext';
 
 export default function AppContainer() {
@@ -72,6 +73,8 @@ export default function AppContainer() {
     case 'AdminPanel':
       Screen = <AdminPanelScreen />;
       break;
+    case 'AddEvent':
+      Screen = <AddEventScreen/>;
     default:
       Screen = <HomeScreen />;
   }
