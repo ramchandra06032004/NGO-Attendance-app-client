@@ -155,7 +155,7 @@ export default function NgoLoginScreen() {
             { backgroundColor: colors.iconBg, borderColor: colors.border },
           ]}
           contentContainerStyle={{ padding: 6 }}
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={true}
         >
           {loading ? (
             <ActivityIndicator size="small" color={colors.textPrimary} />

@@ -7,6 +7,7 @@ import {
   TextInput,
   ScrollView,
   Pressable,
+  FlatList,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
 import { AttendanceContext } from "../../context/AttendanceContext";
@@ -45,10 +46,13 @@ export default function CollegeLoginScreen() {
       }
       const data = await response.json();
       console.log("API Response:", data); // Debug log
-      // derive NGOs array from common response shapes
-      // Get NGOs array from statusCode
-      const collegesArray = data.statusCode || [];
-      data.colleges || data.data || (Array.isArray(data) ? data : []);
+      const collegesArray =
+        (Array.isArray(data?.colleges) && data.colleges) ||
+        (Array.isArray(data?.statusCode) && data.statusCode) || // <— your case
+        (Array.isArray(data?.data) && data.data) ||
+        (Array.isArray(data) && data) ||
+        [];
+
       setCollegesList(Array.isArray(collegesArray) ? collegesArray : []);
       setLoadingColleges(false);
     } catch (err) {
@@ -87,19 +91,19 @@ export default function CollegeLoginScreen() {
         <Text style={[styles.label, { color: colors.textPrimary }]}>
           Select college
         </Text>
-        <ScrollView
+        {/* <ScrollView
           style={[
             styles.picker,
             { backgroundColor: colors.iconBg, borderColor: colors.border },
           ]}
           contentContainerStyle={{ padding: 6 }}
         >
-          {collegesList.map((c) => {
-            const active = selectedCollege === c;
+          {collegesList.map((college) => {
+            const active = selectedCollege?.id === college.id;
             return (
               <Pressable
-                key={c}
-                onPress={() => setSelectedCollege(c)}
+                key={college.id}
+                onPress={() => setSelectedCollege(college)}
                 style={[
                   styles.pickerItem,
                   active && {
@@ -120,7 +124,7 @@ export default function CollegeLoginScreen() {
                     { color: colors.textPrimary },
                   ]}
                 >
-                  {c}
+                  {college.name}
                 </Text>
                 {active ? (
                   <Text style={[styles.check, { color: colors.accent }]}>
@@ -130,19 +134,92 @@ export default function CollegeLoginScreen() {
               </Pressable>
             );
           })}
-        </ScrollView>
+        </ScrollView> */}
+        {/*
+         */}
 
+        <View
+          style={[
+            styles.picker,
+            { backgroundColor: colors.iconBg, borderColor: colors.border },
+          ]}
+        >
+          <FlatList
+            data={collegesList}
+            keyExtractor={(item, index) =>
+              String(item?.id ?? item?._id ?? item?.code ?? index)
+            }
+            renderItem={({ item, index }) => {
+              const id = String(item?.id ?? item?._id ?? item?.code ?? index);
+              const selectedId = String(
+                selectedCollege?.id ??
+                  selectedCollege?._id ??
+                  selectedCollege?.code ??
+                  ""
+              );
+              const active = selectedId === id;
+              const label =
+                item?.name ??
+                item?.collegeName ??
+                item?.title ??
+                item?.label ??
+                item?.instituteName ??
+                `College ${index + 1}`;
+
+              return (
+                <Pressable
+                  onPress={() => setSelectedCollege(item)}
+                  style={[
+                    styles.pickerItem,
+                    active && {
+                      backgroundColor: darkMode ? "#ffffff12" : "#fcfbf7ff",
+                      borderWidth: 1,
+                      borderColor: colors.accent,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.pickerItemText,
+                      active && styles.pickerItemTextActive,
+                      { color: colors.textPrimary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {label}
+                  </Text>
+                  {active ? (
+                    <Text style={[styles.check, { color: colors.accent }]}>
+                      ✓
+                    </Text>
+                  ) : null}
+                </Pressable>
+              );
+            }}
+            ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+            contentContainerStyle={{ padding: 6 }}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <Text style={[styles.hint, { color: colors.textSecondary }]}>
+                {loadingColleges ? "Loading colleges..." : "No colleges found"}
+              </Text>
+            }
+            style={{ maxHeight: 240 }}
+          />
+        </View>
+
+        {/*  */}
         {selectedCollege ? (
           <View style={styles.loginArea}>
             <Text style={[styles.logging, { color: colors.textPrimary }]}>
               Logging in as{" "}
               <Text style={{ fontWeight: "700", color: colors.header }}>
-                {selectedCollege}
+                {selectedCollege.name}
               </Text>
             </Text>
             <TextInput
               placeholder="Email"
-              value={email}
+              value={selectedCollege.email}
               onChangeText={setEmail}
               style={[
                 styles.input,
