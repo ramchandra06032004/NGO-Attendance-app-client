@@ -48,13 +48,10 @@ export default function NgoLoginScreen() {
       console.log("API Response:", data); // Debug log
 
       // derive NGOs array from common response shapes
-      const ngosArray =
-        (data && (data.ngos || data.data)) ||
-        (Array.isArray(data) ? data : []) ||
-        [];
-      const finalNgos = Array.isArray(ngosArray) ? ngosArray : [];
-
-      setNgoList(finalNgos);
+      // Get NGOs array from statusCode
+      const ngosArray = data.statusCode || [];
+      data.ngos || data.data || (Array.isArray(data) ? data : []);
+      setNgoList(Array.isArray(ngosArray) ? ngosArray : []);
       setLoading(false);
 
       // success toast
@@ -145,7 +142,9 @@ export default function NgoLoginScreen() {
           { backgroundColor: colors.cardBg, borderColor: colors.border },
         ]}
       >
-        <Text style={[styles.cardTitle, { color: colors.header }]}>NGO Login</Text>
+        <Text style={[styles.cardTitle, { color: colors.header }]}>
+          NGO Login
+        </Text>
 
         <Text style={[styles.label, { color: colors.textPrimary }]}>
           Select NGO
