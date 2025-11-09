@@ -175,7 +175,7 @@ export default function NgoLoginScreen() {
                   { opacity: pressed ? 0.7 : 1 },
                 ]}
                 onPress={() => {
-                  setSelectedNgo(ngo.name);
+                  setSelectedNgo(ngo);
                   setEmail(ngo.email);
                 }}
               >
@@ -183,12 +183,13 @@ export default function NgoLoginScreen() {
                   style={[
                     styles.pickerItemText,
                     { color: colors.textPrimary },
-                    selectedNgo === ngo.name && styles.pickerItemTextActive,
+                    selectedNgo.name === ngo.name &&
+                      styles.pickerItemTextActive,
                   ]}
                 >
                   {ngo.name}
                 </Text>
-                {selectedNgo === ngo.name && (
+                {selectedNgo.name === ngo.name && (
                   <Text style={styles.check}>✓</Text>
                 )}
               </Pressable>
@@ -198,7 +199,9 @@ export default function NgoLoginScreen() {
 
         {selectedNgo ? (
           <>
-            <Text style={styles.signingText}>Signing in as: {selectedNgo}</Text>
+            <Text style={styles.signingText}>
+              Signing in as: {selectedNgo.name}
+            </Text>
             <TextInput
               placeholder="Email"
               value={email}

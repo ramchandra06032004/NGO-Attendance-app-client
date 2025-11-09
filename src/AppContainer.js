@@ -1,80 +1,97 @@
-import React, { useContext } from 'react';
-import { View, StyleSheet } from 'react-native';
-import HomeScreen from './screens/HomeScreen';
-import NgoEventsScreen from './screens/ngo/NgoEventsScreen';
-import EventDetailScreen from './screens/ngo/EventDetailScreen';
-import EventInfoScreen from './screens/ngo/EventInfoScreen';
-import SelectCollegeScreen from './screens/ngo/SelectCollegeScreen';
-import StudentsListScreen from './screens/ngo/StudentsListScreen';
-import CollegeClassesScreen from './screens/college/CollegeClassesScreen';
-import ClassStudentsScreen from './screens/college/ClassStudentsScreen';
-import StudentEventsScreen from './screens/college/StudentEventsScreen';
-import NgoLoginScreen from './screens/ngo/NgoLoginScreen';
-import CollegeLoginScreen from './screens/college/CollegeLoginScreen';
-import AdminLoginScreen from './screens/admin/AdminLoginScreen';
-import AdminPanelScreen from './screens/admin/AdminPanelScreen';
-import AddClassScreen from './screens/college/AddClassScreen';
-import AddCollegeScreen from './screens/admin/AddCollegeScreen';
-import AddNgoScreen from './screens/admin/AddNgoScreen';
-import AddEventScreen from './screens/ngo/AddEventScreen';
-import { NavigationContext } from './context/NavigationContext';
+import React, { useContext } from "react";
+import { View, StyleSheet } from "react-native";
+import HomeScreen from "./screens/HomeScreen";
+import NgoEventsScreen from "./screens/ngo/NgoEventsScreen";
+import EventDetailScreen from "./screens/ngo/EventDetailScreen";
+import EventInfoScreen from "./screens/ngo/EventInfoScreen";
+import SelectCollegeScreen from "./screens/ngo/SelectCollegeScreen";
+import StudentsListScreen from "./screens/ngo/StudentsListScreen";
+import CollegeClassesScreen from "./screens/college/CollegeClassesScreen";
+import ClassStudentsScreen from "./screens/college/ClassStudentsScreen";
+import StudentEventsScreen from "./screens/college/StudentEventsScreen";
+import NgoLoginScreen from "./screens/ngo/NgoLoginScreen";
+import CollegeLoginScreen from "./screens/college/CollegeLoginScreen";
+import AdminLoginScreen from "./screens/admin/AdminLoginScreen";
+import AdminPanelScreen from "./screens/admin/AdminPanelScreen";
+import AddClassScreen from "./screens/college/AddClassScreen";
+import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
+import AddNgoScreen from "./screens/admin/AddNgoScreen";
+import AddEventScreen from "./screens/ngo/AddEventScreen";
+import { NavigationContext } from "./context/NavigationContext";
 
 export default function AppContainer() {
-  console.log('AppContainer render');
+  console.log("AppContainer render");
   const { route } = useContext(NavigationContext);
 
   let Screen = null;
   switch (route.name) {
-    case 'Home':
+    case "Home":
       Screen = <HomeScreen />;
       break;
-    case 'NgoLogin':
+    case "NgoLogin":
       Screen = <NgoLoginScreen />;
       break;
-    case 'CollegeLogin':
+    case "CollegeLogin":
       Screen = <CollegeLoginScreen />;
       break;
-    case 'NgoEvents':
+    case "NgoEvents":
       Screen = <NgoEventsScreen ngo={route.params?.ngo} />;
       break;
-    case 'EventDetail':
+    case "EventDetail":
       Screen = <EventDetailScreen eventId={route.params?.eventId} />;
       break;
-    case 'EventInfo':
-      Screen = <EventInfoScreen eventId={route.params?.eventId} />;
+    case "EventInfo":
+      // pass the whole route so EventInfoScreen can read route.params.event (or item)
+      Screen = <EventInfoScreen route={route} />;
       break;
-    case 'SelectCollege':
+    case "SelectCollege":
       Screen = <SelectCollegeScreen eventId={route.params?.eventId} />;
       break;
-    case 'StudentsList':
-      Screen = <StudentsListScreen eventId={route.params?.eventId} college={route.params?.college} />;
+    case "StudentsList":
+      Screen = (
+        <StudentsListScreen
+          eventId={route.params?.eventId}
+          college={route.params?.college}
+        />
+      );
       break;
-    case 'CollegeClasses':
+    case "CollegeClasses":
       Screen = <CollegeClassesScreen college={route.params?.college} />;
       break;
-    case 'AddClass':
+    case "AddClass":
       Screen = <AddClassScreen college={route.params?.college} />;
       break;
-    case 'AddCollege':
+    case "AddCollege":
       Screen = <AddCollegeScreen />;
       break;
-    case 'AddNgo':
+    case "AddNgo":
       Screen = <AddNgoScreen />;
       break;
-    case 'ClassStudents':
-      Screen = <ClassStudentsScreen college={route.params?.college} className={route.params?.className} />;
+    case "ClassStudents":
+      Screen = (
+        <ClassStudentsScreen
+          college={route.params?.college}
+          className={route.params?.className}
+        />
+      );
       break;
-    case 'StudentEvents':
-      Screen = <StudentEventsScreen college={route.params?.college} studentId={route.params?.studentId} />;
+    case "StudentEvents":
+      Screen = (
+        <StudentEventsScreen
+          college={route.params?.college}
+          studentId={route.params?.studentId}
+        />
+      );
       break;
-    case 'AdminLogin':
+    case "AdminLogin":
       Screen = <AdminLoginScreen />;
       break;
-    case 'AdminPanel':
+    case "AdminPanel":
       Screen = <AdminPanelScreen />;
       break;
-    case 'AddEvent':
-      Screen = <AddEventScreen/>;
+    case "AddEvent":
+      Screen = <AddEventScreen />;
+      break;
     default:
       Screen = <HomeScreen />;
   }

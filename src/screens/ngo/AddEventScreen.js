@@ -6,11 +6,9 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Platform,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
-import DateTimePicker from '@react-native-community/datetimepicker';
 const api = require("../../../apis/api");
 
 export default function AddEventScreen() {
@@ -22,17 +20,11 @@ export default function AddEventScreen() {
   const [aim, setAim] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState("");
+  // date & time fields
   const [eventDate, setEventDate] = useState(new Date());
-  const [showDatePicker, setShowDatePicker] = useState(false);
 
-  const onDateChange = (event, selectedDate) => {
-    const currentDate = selectedDate || eventDate;
-    setShowDatePicker(Platform.OS === 'ios');
-    setEventDate(currentDate);
-  };
-
-  const showDatepicker = () => {
-    setShowDatePicker(true);
+  const onDateChange = (date) => {
+    setEventDate(new Date(date));
   };
 
   const handleSubmit = async () => {
@@ -47,6 +39,7 @@ export default function AddEventScreen() {
 
       const response = await fetch(api.eventAllAPI, {
         method: "POST",
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -56,7 +49,9 @@ export default function AddEventScreen() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.message || `HTTP error! status: ${response.status}`
+        );
       }
 
       const data = await response.json();
@@ -80,8 +75,9 @@ export default function AddEventScreen() {
       ]}
     >
       <ScrollView contentContainerStyle={styles.formContainer}>
-        <Text style={[styles.title, { color: colors.header }]}>Add New Event</Text>
-        
+        <Text style={[styles.title, { color: colors.header }]}>
+          Add New Event
+        </Text>
         <TextInput
           placeholder="Location"
           value={location}
@@ -96,7 +92,6 @@ export default function AddEventScreen() {
           ]}
           placeholderTextColor={colors.textSecondary}
         />
-
         <TextInput
           placeholder="Aim"
           value={aim}
@@ -111,7 +106,6 @@ export default function AddEventScreen() {
           ]}
           placeholderTextColor={colors.textSecondary}
         />
-
         <TextInput
           placeholder="Description"
           value={description}
@@ -129,7 +123,6 @@ export default function AddEventScreen() {
           ]}
           placeholderTextColor={colors.textSecondary}
         />
-
         <TextInput
           placeholder="Images (URLs separated by commas)"
           value={images}
@@ -144,33 +137,27 @@ export default function AddEventScreen() {
           ]}
           placeholderTextColor={colors.textSecondary}
         />
-
-        <TouchableOpacity
-          onPress={showDatepicker}
-          style={[
-            styles.dateButton,
-            {
+        <View style={styles.dateInputContainer}>
+          <Text style={[styles.dateLabel, { color: colors.textPrimary }]}>
+            Select Date:
+          </Text>
+          <input
+            type="date"
+            value={eventDate.toISOString().split("T")[0]}
+            onChange={(e) => onDateChange(e.target.value)}
+            style={{
               backgroundColor: colors.iconBg,
               borderColor: colors.border,
-            },
-          ]}
-        >
-          <Text style={[styles.dateButtonText, { color: colors.textPrimary }]}>
-            Select Date: {eventDate.toLocaleDateString()}
-          </Text>
-        </TouchableOpacity>
-
-        {showDatePicker && (
-          <DateTimePicker
-            testID="dateTimePicker"
-            value={eventDate}
-            mode="date"
-            is24Hour={true}
-            display="default"
-            onChange={onDateChange}
+              color: colors.textPrimary,
+              padding: 12,
+              borderWidth: 1,
+              borderRadius: 8,
+              fontSize: 16,
+              marginBottom: 16,
+              width: "100%",
+            }}
           />
-        )}
-
+        </View>
         <TouchableOpacity
           style={[styles.submitButton, { backgroundColor: colors.primary }]}
           onPress={handleSubmit}
@@ -186,6 +173,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#fff",
+  },
+  dateInputContainer: {
+    marginBottom: 16,
+  },
+  dateLabel: {
+    marginBottom: 8,
+    fontSize: 16,
   },
   formContainer: {
     padding: 20,
