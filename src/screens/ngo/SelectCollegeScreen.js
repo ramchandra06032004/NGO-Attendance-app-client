@@ -146,6 +146,7 @@ export default function SelectCollegeScreen({ eventId }) {
           onPress={() =>
             navigate("StudentsList", {
               college: selectedCollege, // pass whole object
+              eventId: eventId
             })
           }
           disabled={!selectedCollege}

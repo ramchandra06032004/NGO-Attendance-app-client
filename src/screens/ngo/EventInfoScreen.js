@@ -69,6 +69,32 @@ export default function EventInfoScreen({ route }) {
           <Text style={styles.actionText}>Mark Attendance</Text>
         </TouchableOpacity>
 
+        {/* New button: View marked attendance records */}
+        <TouchableOpacity
+          style={[
+            styles.actionSecondary,
+            {
+              borderColor: colors.border,
+              backgroundColor: colors.cardBg,
+            },
+          ]}
+          // onPress={() =>
+          //   { console.log(event),
+          //     navigate("AttendanceRecords", {  event  })
+          //   }
+          // }
+          onPress={() =>
+  { 
+    console.log("Event BEFORE Navigation:", event), // <--- CHECK THIS OUTPUT!
+    navigate("AttendanceRecords", { event: event })
+  }
+}
+        >
+          <Text style={[styles.actionTextSecondary, { color: colors.textPrimary }]}>
+            View Attendance Records
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.link} onPress={() => goBack()}>
           <Text style={[{ color: colors.textPrimary }]}>Back</Text>
         </TouchableOpacity>
@@ -102,4 +128,16 @@ const styles = StyleSheet.create({
   },
   actionText: { color: "#fff", fontWeight: "700" },
   link: { marginTop: 12, alignItems: "center" },
+
+  /* Secondary action (view records) */
+  actionSecondary: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 1,
+  },
+  actionTextSecondary: {
+    fontWeight: "700",
+  },
 });
