@@ -17,7 +17,7 @@ import AddClassScreen from "./screens/college/AddClassScreen";
 import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
 import AddNgoScreen from "./screens/admin/AddNgoScreen";
 import AddEventScreen from "./screens/ngo/AddEventScreen";
-import AttendanceRecords from "./screens/ngo/AttendanceRecords"
+import AttendanceRecords from "./screens/ngo/AttendanceRecords";
 import { NavigationContext } from "./context/NavigationContext";
 
 export default function AppContainer() {
@@ -94,7 +94,7 @@ export default function AppContainer() {
       Screen = <AddEventScreen />;
       break;
     case "AttendanceRecords":
-      Screen = <AttendanceRecords/>
+      Screen = <AttendanceRecords route={route} />;
       break;
     default:
       Screen = <HomeScreen />;
