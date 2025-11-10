@@ -46,12 +46,11 @@ export default function CollegeLoginScreen() {
       }
       const data = await response.json();
       console.log("API Response:", data); // Debug log
-      const collegesArray =
-        (Array.isArray(data?.colleges) && data.colleges) ||
-        (Array.isArray(data?.statusCode) && data.statusCode) || // <— your case
-        (Array.isArray(data?.data) && data.data) ||
-        (Array.isArray(data) && data) ||
-        [];
+      const collegesArray = data?.data?.colleges || [];
+        if (!Array.isArray(collegesArray)) {
+          console.error("Invalid colleges data:", collegesArray);
+          throw new Error("Invalid response format");
+        }
 
       setCollegesList(Array.isArray(collegesArray) ? collegesArray : []);
       setLoadingColleges(false);
