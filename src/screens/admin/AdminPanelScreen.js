@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { AttendanceContext } from "../../context/AttendanceContext";
 import { NavigationContext } from "../../context/NavigationContext";
+import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import Toast from "react-native-toast-message";
 import * as api from "../../../apis/api";
@@ -16,6 +17,7 @@ import * as api from "../../../apis/api";
 export default function AdminPanelScreen() {
   const { addCollege, addNgo } = useContext(AttendanceContext);
   const { navigate } = useContext(NavigationContext);
+  const { logout } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
@@ -23,12 +25,12 @@ export default function AdminPanelScreen() {
   const [ngosList, setNgosList] = useState([]);
   const [loadingColleges, setLoadingColleges] = useState(false);
   const [loadingNgos, setLoadingNgos] = useState(false);
-  // const [ngoList, setNgoList] = useState([]);
-  // const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     fetchNgos();
     fetchColleges();
   }, []);
+
   const fetchColleges = async () => {
     try {
       const response = await fetch(api.getAllCollegeAPI, {
@@ -36,7 +38,6 @@ export default function AdminPanelScreen() {
         credentials: "include",
         headers: {
           Accept: "application/json",
-
           "Content-Type": "application/json",
         },
       });
@@ -45,19 +46,16 @@ export default function AdminPanelScreen() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const data = await response.json();
-      console.log("API Response:", data); // Debug log
-      // derive NGOs array from common response shapes
-      // Get NGOs array from statusCode
-      const collegesArray = data.statusCode || [];
-      data.colleges || data.data || (Array.isArray(data) ? data : []);
+      console.log("API Response:", data);
+      const collegesArray = data?.data?.colleges || [];
       setCollegesList(Array.isArray(collegesArray) ? collegesArray : []);
       setLoadingColleges(false);
     } catch (err) {
       console.error("Error fetching Colleges: ", err);
-
       setLoadingColleges(false);
     }
   };
+
   const fetchNgos = async () => {
     try {
       const response = await fetch(api.getAllNgoAPI, {
@@ -73,37 +71,23 @@ export default function AdminPanelScreen() {
       }
 
       const data = await response.json();
-      console.log("API Response:", data); // Debug log
-
-      // derive NGOs array from common response shapes
-      // Get NGOs array from statusCode
-      const ngosArray = data.statusCode || [];
-      data.ngos || data.data || (Array.isArray(data) ? data : []);
+      console.log("API Response:", data);
+      const ngosArray = data.statusCode || data.ngos || data.data || [];
       setNgosList(Array.isArray(ngosArray) ? ngosArray : []);
       setLoadingNgos(false);
-
-      // success toast
-      // Toast.show({
-      //   type: "success",
-      //   text1: "NGOs loaded",
-      //   text2: `${finalNgos.length} NGO(s) found`,
-      // });
     } catch (err) {
       console.error("Error fetching NGOs:", err);
-      setError("Failed to fetch NGOs");
       setLoadingNgos(false);
-
-      // error toast
-      // Toast.show({
-      //   type: "error",
-      //   text1: "Failed to load NGOs",
-      //   text2: err.message || "Network or server error",
-      // });
     }
   };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("Home");
+  };
+
   const renderItemName = (item) => {
     if (!item) return null;
-    // try common shapes: string, { name }, { title }, { email } fallback to JSON string
     if (typeof item === "string") return item;
     if (item.name) return item.name;
     if (item.title) return item.title;
@@ -126,8 +110,11 @@ export default function AdminPanelScreen() {
         <Text style={[styles.title, { color: colors.header }]}>
           Admin Panel
         </Text>
-        <TouchableOpacity onPress={() => navigate("Home")}>
-          <Text style={{ color: colors.textPrimary }}>Home</Text>
+        <TouchableOpacity
+          style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
+          onPress={handleLogout}
+        >
+          <Text style={{ color: "#fff", fontWeight: "700" }}>Logout</Text>
         </TouchableOpacity>
       </View>
 
@@ -235,6 +222,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: { fontSize: 22, fontWeight: "800", color: "#065f46" },
+  logoutBtn: {
+    backgroundColor: "#10b981",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
   card: {
     backgroundColor: "#fff",
     padding: 14,

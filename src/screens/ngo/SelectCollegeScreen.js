@@ -20,7 +20,7 @@ export default function SelectCollegeScreen({ eventId }) {
   const colors = darkMode ? darkTheme : lightTheme;
 
   const [colleges, setColleges] = useState([]);
-  const [selected, setSelected] = useState(colleges[0] || "");
+  const [selectedCollege, setSelectedCollege] = useState(null); // store entire object
   const [loading, setLoading] = useState(colleges.length === 0);
   const [error, setError] = useState("");
 
@@ -45,8 +45,8 @@ export default function SelectCollegeScreen({ eventId }) {
         if (!res.ok) throw new Error("Failed to load colleges: " + res.status);
         const data = await res.json();
         console.log("API Response:", data);
-        // colleges array is in data.statusCode
-        const list = data?.statusCode || [];
+        // colleges array is in data.statusCode or data.data.colleges
+        const list = data?.data?.colleges || data?.statusCode || [];
         if (!Array.isArray(list)) {
           console.error("Invalid colleges data:", list);
           throw new Error("Invalid response format");
@@ -54,7 +54,8 @@ export default function SelectCollegeScreen({ eventId }) {
         console.log("Processed college list:", list);
         if (!mounted) return;
         setColleges(list);
-        setSelected((prev) => prev || (list[0] ? getCollegeName(list[0]) : ""));
+        // set the whole object as selected (not just name)
+        setSelectedCollege((prev) => prev || (list[0] ? list[0] : null));
       } catch (err) {
         console.error("Error fetching colleges", err);
         if (mounted) setError(err.message || "Error fetching colleges");
@@ -121,10 +122,10 @@ export default function SelectCollegeScreen({ eventId }) {
               return (
                 <Pressable
                   key={key}
-                  onPress={() => setSelected(name)}
+                  onPress={() => setSelectedCollege(c)}
                   style={[
                     styles.item,
-                    selected === name && {
+                    getCollegeName(selectedCollege) === name && {
                       backgroundColor: darkMode ? "#ffffff12" : "#fef3c7",
                     },
                   ]}
@@ -144,16 +145,11 @@ export default function SelectCollegeScreen({ eventId }) {
           style={[styles.action, { backgroundColor: colors.accent }]}
           onPress={() =>
             navigate("StudentsList", {
-              eventId,
-              college: selected,
-              route: {
-                params: {
-                  eventId,
-                  college: selected,
-                },
-              },
+              college: selectedCollege, // pass whole object
+              eventId: eventId
             })
           }
+          disabled={!selectedCollege}
         >
           <Text style={styles.actionText}>Get Students list</Text>
         </TouchableOpacity>

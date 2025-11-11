@@ -7,6 +7,8 @@ import {
   FlatList,
   ActivityIndicator,
 } from "react-native";
+import { AuthContext } from "../../context/AuthContext";
+
 import { AttendanceContext } from "../../context/AttendanceContext";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -18,11 +20,34 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const colors = darkMode ? darkTheme : lightTheme;
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+ const { logout } = useContext(AuthContext);
 
   useEffect(() => {
     fetchEvents();
   }, []);
+  const handleLogout = async () => {
+    // try {
+    //   const response = await fetch(api.logoutAPI, {
+    //     method: "POST",
+    //     credentials: "include",
+    //     headers: {
+    //       Accept: "application/json",
+    //       "Content-Type": "application/json",
+    //     },
+    //   });
 
+    //   if (!response.ok) {
+    //     throw new Error(`HTTP error! status: ${response.status}`);
+    //   }
+
+    //   console.log("Logged out successfully");
+    // } catch (error) {
+    //   console.error("Error logging out:", error);
+    // }
+     await logout();
+    navigate("Home");
+
+  };
   const fetchEvents = async () => {
     try {
       const response = await fetch(api.eventAllAPI, {
@@ -47,7 +72,8 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
       setLoading(false);
     }
   };
-
+  
+// ...existing code...
   return (
     <View
       style={[
@@ -61,9 +87,9 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+        {/* <TouchableOpacity onPress={goBack} style={styles.backBtn}>
           <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <Text style={[styles.title, { color: colors.header }]}>Events</Text>
 
@@ -86,7 +112,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
             </Text>
             <TouchableOpacity
               style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
-              onPress={() => navigate("Home")}
+              onPress={() => { handleLogout()}}
             >
               <Text style={{ color: "#fff" }}>Logout</Text>
             </TouchableOpacity>
