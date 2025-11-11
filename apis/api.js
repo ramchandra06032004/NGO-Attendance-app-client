@@ -4,7 +4,7 @@ export const host = "http://localhost:3000"; //Development
 //login auth apis
 export const auth_host = `${host}/api/v1/auth`;
 export const loginAPI = `${auth_host}/login`;
-export const logoutAPI = `${auth_host}/loguout`;
+export const logoutAPI = `${auth_host}/logout`;
 
 //Admin features apis
 export const admin_host = `${host}/api/v1/admin`;

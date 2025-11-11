@@ -5,40 +5,74 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
+import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
-import axios from "axios";
 const api = require("../../../apis/api");
 
 export default function AdminLoginScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const { navigate, goBack } = useContext(NavigationContext);
+  const { loginUser, switchUserType } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const colors = darkMode ? darkTheme : lightTheme;
 
-  function onLogin() {
-    // static admin auth
+  async function onLogin() {
+    if (!email || !password) {
+      alert("Please enter email and password");
+      return;
+    }
+
+    setIsLoggingIn(true);
     const reqBody = { email: email, password: password, userType: "admin" };
-    // axios.post(api.loginAPI , reqBody)
-    
-    fetch(api.loginAPI, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(reqBody),
-    })
-      .then((response) => {
-        navigate("AdminPanel");
-        console.log(response.data);
-      })
-      .catch((err) => {
-        console.log("Error in sending login API", err);
+    console.log(reqBody);
+
+    try {
+      // Switch user type (logs out if different user was logged in)
+      await switchUserType("admin");
+
+      const response = await fetch(api.loginAPI, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(reqBody),
       });
+
+      if (!response.ok) {
+        let errMsg = `HTTP error! status: ${response.status}`;
+        try {
+          const errData = await response.json();
+          if (errData && errData.message) errMsg = errData.message;
+        } catch {}
+        throw new Error(errMsg);
+      }
+
+      const data = await response.json();
+      console.log("Login response:", data);
+
+      // Extract tokens and user data from response
+      const accessToken = data.accessToken || data.token;
+      const refreshToken = data.refreshToken;
+      const userData = data.user || { email: email };
+
+      // Store in AuthContext
+      await loginUser(userData, accessToken, refreshToken, "admin");
+
+      alert("Login successful");
+      navigate("AdminPanel");
+    } catch (err) {
+      console.log("Error in sending login API", err);
+      alert("Login failed: " + err.message);
+    } finally {
+      setIsLoggingIn(false);
+    }
   }
 
   return (
@@ -76,7 +110,10 @@ export default function AdminLoginScreen() {
               color: colors.textPrimary,
             },
           ]}
+          keyboardType="email-address"
+          autoCapitalize="none"
           placeholderTextColor={colors.textSecondary}
+          editable={!isLoggingIn}
         />
         <TextInput
           placeholder="Password"
@@ -92,15 +129,28 @@ export default function AdminLoginScreen() {
           ]}
           secureTextEntry
           placeholderTextColor={colors.textSecondary}
+          editable={!isLoggingIn}
         />
         <TouchableOpacity
-          style={[styles.loginBtn, { backgroundColor: colors.accent }]}
+          style={[
+            styles.loginBtn,
+            { backgroundColor: colors.accent, opacity: isLoggingIn ? 0.6 : 1 },
+          ]}
           onPress={onLogin}
+          disabled={isLoggingIn}
         >
-          <Text style={[styles.loginText, { color: "#fff" }]}>Login</Text>
+          {isLoggingIn ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Text style={[styles.loginText, { color: "#fff" }]}>Login</Text>
+          )}
         </TouchableOpacity>
       </View>
-      <TouchableOpacity onPress={goBack} style={{ marginTop: 12 }}>
+      <TouchableOpacity
+        onPress={goBack}
+        style={{ marginTop: 12 }}
+        disabled={isLoggingIn}
+      >
         <Text style={{ color: colors.textPrimary }}>Cancel</Text>
       </TouchableOpacity>
     </View>

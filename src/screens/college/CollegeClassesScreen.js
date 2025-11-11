@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
 import { useTheme } from '../../context/ThemeContext';
+import { AuthContext } from "../../context/AuthContext";
 
 export default function CollegeClassesScreen({ college }) {
   const { route, navigate, goBack } = useContext(NavigationContext);
@@ -11,10 +12,21 @@ export default function CollegeClassesScreen({ college }) {
   const colors = darkMode ? darkTheme : lightTheme;
   const classes = getClasses(college);
   const [newClass, setNewClass] = useState('');
-
+   const { logout } = useContext(AuthContext);
+ const handleLogout = async () => {
+    await logout();
+    navigate("Home");
+  };
   return (
     <View style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }]}>
+      <TouchableOpacity
+                style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
+                onPress={handleLogout}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Logout</Text>
+              </TouchableOpacity>
       <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+        
         <Text style={[styles.title, { color: colors.header }]}>Classes:</Text>
 
         <ScrollView style={{ maxHeight: 380 }}>
@@ -41,6 +53,12 @@ export default function CollegeClassesScreen({ college }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
+  logoutBtn: {
+    backgroundColor: "#10b981",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
   card: { padding: 16, borderRadius: 12, borderWidth: 1 },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   classItem: { padding: 12, borderRadius: 8, marginBottom: 8 },

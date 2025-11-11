@@ -1,5 +1,5 @@
-import React, { useContext } from "react";
-import { View, StyleSheet } from "react-native";
+import React, { useContext, useEffect } from "react";
+import { View, StyleSheet, ActivityIndicator } from "react-native";
 import HomeScreen from "./screens/HomeScreen";
 import NgoEventsScreen from "./screens/ngo/NgoEventsScreen";
 import EventDetailScreen from "./screens/ngo/EventDetailScreen";
@@ -19,10 +19,47 @@ import AddNgoScreen from "./screens/admin/AddNgoScreen";
 import AddEventScreen from "./screens/ngo/AddEventScreen";
 import AttendanceRecords from "./screens/ngo/AttendanceRecords";
 import { NavigationContext } from "./context/NavigationContext";
+import { AuthContext } from "./context/AuthContext";
 
 export default function AppContainer() {
-  console.log("AppContainer render");
-  const { route } = useContext(NavigationContext);
+  
+  const { route, navigate } = useContext(NavigationContext);
+  console.log("AppContainer render, current route:", route.name);
+  const { loading, isAuthenticated, userType, user } = useContext(AuthContext);
+
+  // Auto-redirect ONLY on app startup when loading changes
+  useEffect(() => {
+    if (!loading && isAuthenticated && route.name === "Home") {
+      // Only redirect if user is authenticated AND on Home page
+      if (userType === "ngo") {
+        navigate("NgoEvents", { ngo: user });
+      } else if (userType === "college") {
+        navigate("CollegeClasses", { college: user });
+      } else if (userType === "admin") {
+        navigate("AdminPanel");
+      }
+    }
+  }, [loading]); // Only depend on loading, not on route changes
+
+  // Show loading screen while validating token
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#0ea5a4" />
+      </View>
+    );
+  }
+
+  // Block access to login screens if already authenticated
+  if (isAuthenticated && (route.name === "NgoLogin" || route.name === "CollegeLogin" || route.name === "AdminLogin")) {
+    if (userType === "ngo") {
+      return <NgoEventsScreen ngo={user} />;
+    } else if (userType === "college") {
+      return <CollegeClassesScreen college={user} />;
+    } else if (userType === "admin") {
+      return <AdminPanelScreen />;
+    }
+  }
 
   let Screen = null;
   switch (route.name) {
@@ -35,15 +72,17 @@ export default function AppContainer() {
     case "CollegeLogin":
       Screen = <CollegeLoginScreen />;
       break;
+    case "AdminLogin":
+      Screen = <AdminLoginScreen />;
+      break;
     case "NgoEvents":
-      Screen = <NgoEventsScreen ngo={route.params?.ngo} />;
+      Screen = <NgoEventsScreen ngo={route.params?.ngo || user} />;
       break;
     case "EventDetail":
       Screen = <EventDetailScreen eventId={route.params?.eventId} />;
       break;
     case "EventInfo":
-      // pass the whole route so EventInfoScreen can read route.params.event (or item)
-      Screen = <EventInfoScreen route={route} />;
+      Screen = <EventInfoScreen event={route.params?.event} route={route} />;
       break;
     case "SelectCollege":
       Screen = <SelectCollegeScreen eventId={route.params?.eventId} />;
@@ -57,7 +96,7 @@ export default function AppContainer() {
       );
       break;
     case "CollegeClasses":
-      Screen = <CollegeClassesScreen college={route.params?.college} />;
+      Screen = <CollegeClassesScreen college={route.params?.college || user} />;
       break;
     case "AddClass":
       Screen = <AddClassScreen college={route.params?.college} />;
@@ -84,9 +123,6 @@ export default function AppContainer() {
         />
       );
       break;
-    case "AdminLogin":
-      Screen = <AdminLoginScreen />;
-      break;
     case "AdminPanel":
       Screen = <AdminPanelScreen />;
       break;
@@ -105,4 +141,8 @@ export default function AppContainer() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  centerContent: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });
