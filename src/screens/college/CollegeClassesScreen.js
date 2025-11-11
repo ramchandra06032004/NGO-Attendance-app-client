@@ -43,9 +43,9 @@ export default function CollegeClassesScreen({ college }) {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>
+        {/* <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>
           <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
     </View>
   );

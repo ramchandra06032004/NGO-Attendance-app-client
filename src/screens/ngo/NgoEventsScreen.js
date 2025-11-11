@@ -87,9 +87,9 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
     >
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={goBack} style={styles.backBtn}>
+        {/* <TouchableOpacity onPress={goBack} style={styles.backBtn}>
           <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> */}
 
         <Text style={[styles.title, { color: colors.header }]}>Events</Text>
 
