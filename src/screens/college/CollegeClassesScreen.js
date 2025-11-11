@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
@@ -7,12 +7,15 @@ import { AuthContext } from "../../context/AuthContext";
 
 export default function CollegeClassesScreen({ college }) {
   const { route, navigate, goBack } = useContext(NavigationContext);
-  const { getClasses, addClass } = useContext(AttendanceContext);
+  const { addClass } = useContext(AttendanceContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
-  const classes = getClasses(college);
+  const classes = college.classes || [];
   const [newClass, setNewClass] = useState('');
    const { logout } = useContext(AuthContext);
+  useEffect(()=>{
+    console.log(college);
+  },[])
  const handleLogout = async () => {
     await logout();
     navigate("Home");
@@ -31,15 +34,15 @@ export default function CollegeClassesScreen({ college }) {
 
         <ScrollView style={{ maxHeight: 380 }}>
           {classes.map((c) => (
-            <TouchableOpacity key={c} style={[styles.classItem, { backgroundColor: colors.iconBg, borderColor: colors.border }]} onPress={() => navigate('ClassStudents', { college, className: c })}>
-              <Text style={{ color: colors.textPrimary }}>{c}</Text>
+            <TouchableOpacity key={c._id || c.className} style={[styles.classItem, { backgroundColor: colors.iconBg, borderColor: colors.border }]} onPress={() => navigate('ClassStudents', { college, className: c.className })}>
+              <Text style={{ color: colors.textPrimary }}>{c.className}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
 
         <View style={{ marginTop: 12 }}>
           <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.iconBg, marginTop: 8, borderWidth: 1, borderColor: colors.border }]} onPress={() => navigate('AddClass', { college })}>
-            <Text style={{ color: colors.textPrimary }}>Add class (with students / upload)</Text>
+            <Text style={{ color: colors.textPrimary }}>Add new class</Text>
           </TouchableOpacity>
         </View>
 

@@ -14,6 +14,7 @@ import CollegeLoginScreen from "./screens/college/CollegeLoginScreen";
 import AdminLoginScreen from "./screens/admin/AdminLoginScreen";
 import AdminPanelScreen from "./screens/admin/AdminPanelScreen";
 import AddClassScreen from "./screens/college/AddClassScreen";
+import AddStudentScreen from "./screens/college/AddStudentScreen";
 import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
 import AddNgoScreen from "./screens/admin/AddNgoScreen";
 import AddEventScreen from "./screens/ngo/AddEventScreen";
@@ -100,6 +101,14 @@ export default function AppContainer() {
       break;
     case "AddClass":
       Screen = <AddClassScreen college={route.params?.college} />;
+      break;
+    case "AddStudent":
+      Screen = (
+        <AddStudentScreen
+          college={route.params?.college}
+          className={route.params?.className}
+        />
+      );
       break;
     case "AddCollege":
       Screen = <AddCollegeScreen />;
