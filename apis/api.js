@@ -1,5 +1,5 @@
-export const host = "http://localhost:3000"; //Development
-// export const host = "https://your-production-domainBackEndUrl.com" //Production
+//export const host = "http://localhost:3000"; //Development
+export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
 
 //login auth apis
 export const auth_host = `${host}/api/v1/auth`;

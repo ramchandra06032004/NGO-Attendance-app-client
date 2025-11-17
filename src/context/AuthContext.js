@@ -63,8 +63,12 @@ export function AuthProvider({ children }) {
   };
 
   const loginUser = async (userData, token, refreshTok, type) => {
-    await AsyncStorage.setItem("accessToken", token);
-    await AsyncStorage.setItem("refreshToken", refreshTok);
+    if (token !== null && token !== undefined) {
+      await AsyncStorage.setItem("accessToken", token);
+    }
+    if (refreshTok !== null && refreshTok !== undefined) {
+      await AsyncStorage.setItem("refreshToken", refreshTok);
+    }
     await AsyncStorage.setItem("user", JSON.stringify(userData));
     await AsyncStorage.setItem("userType", type);
     setAccessToken(token);
