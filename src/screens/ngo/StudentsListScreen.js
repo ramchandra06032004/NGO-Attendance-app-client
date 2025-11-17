@@ -192,118 +192,129 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
       <View
         style={[
           styles.card,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
+          {
+            backgroundColor: colors.cardBg,
+            borderColor: colors.border,
+            flex: 1,
+          },
         ]}
       >
-        <Text style={[styles.title, { color: colors.header }]}>
-          Students — {college?.name || college?.collegeName || "College"}
-        </Text>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
+          <Text style={[styles.title, { color: colors.header }]}>
+            Students — {college?.name || college?.collegeName || "College"}
+          </Text>
 
-        {/* Vertical dropdown filter for classes */}
-        <View style={{ marginBottom: 12 }}>
-          <TouchableOpacity
-            onPress={() => setShowDropdown((s) => !s)}
-            style={[
-              styles.dropdownToggle,
-              { borderColor: colors.border, backgroundColor: colors.iconBg },
-            ]}
-          >
-            <Text style={[styles.filterText, { color: colors.textPrimary }]}>
-              {selectedClass}
-            </Text>
-          </TouchableOpacity>
-
-          {showDropdown && (
-            <View
+          {/* Vertical dropdown filter for classes */}
+          <View style={{ marginBottom: 12 }}>
+            <TouchableOpacity
+              onPress={() => setShowDropdown((s) => !s)}
               style={[
-                styles.dropdownList,
-                { borderColor: colors.border, backgroundColor: colors.cardBg },
+                styles.dropdownToggle,
+                { borderColor: colors.border, backgroundColor: colors.iconBg },
               ]}
             >
-              <ScrollView
-                style={{ maxHeight: 220 }}
-                showsVerticalScrollIndicator={true}
+              <Text style={[styles.filterText, { color: colors.textPrimary }]}>
+                {selectedClass}
+              </Text>
+            </TouchableOpacity>
+
+            {showDropdown && (
+              <View
+                style={[
+                  styles.dropdownList,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.cardBg,
+                  },
+                ]}
               >
-                {classes.map((className) => (
-                  <TouchableOpacity
-                    key={className}
-                    onPress={() => {
-                      setSelectedClass(className);
-                      setShowDropdown(false);
-                    }}
-                    style={[
-                      styles.dropdownItem,
-                      { borderColor: colors.border },
-                      selectedClass === className && {
-                        backgroundColor: colors.accent,
-                        borderColor: colors.accent,
-                      },
-                    ]}
-                  >
-                    <Text
+                <ScrollView
+                  style={{ maxHeight: 220 }}
+                  showsVerticalScrollIndicator={true}
+                >
+                  {classes.map((className) => (
+                    <TouchableOpacity
+                      key={className}
+                      onPress={() => {
+                        setSelectedClass(className);
+                        setShowDropdown(false);
+                      }}
                       style={[
-                        styles.filterText,
-                        { color: colors.textPrimary },
-                        selectedClass === className && { color: "#fff" },
+                        styles.dropdownItem,
+                        { borderColor: colors.border },
+                        selectedClass === className && {
+                          backgroundColor: colors.accent,
+                          borderColor: colors.accent,
+                        },
                       ]}
                     >
-                      {className}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-
-        <ScrollView style={styles.list} showsVerticalScrollIndicator={true}>
-          {classObjects.length === 0 ? (
-            <Text style={[styles.error, { color: colors.textSecondary }]}>
-              No classes / students found
-            </Text>
-          ) : selectedClass === "All Classes" ? (
-            classObjects.map((cls) => (
-              <View key={cls._id} style={{ marginBottom: 12 }}>
-                <Text style={[styles.classHeader, { color: colors.header }]}>
-                  {cls.name}
-                </Text>
-                {renderStudentsForClass(cls)}
+                      <Text
+                        style={[
+                          styles.filterText,
+                          { color: colors.textPrimary },
+                          selectedClass === className && { color: "#fff" },
+                        ]}
+                      >
+                        {className}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
-            ))
-          ) : (
-            (() => {
-              const cls = classObjects.find((c) => c.name === selectedClass);
-              return cls ? (
-                <View>
+            )}
+          </View>
+
+          <View style={styles.list}>
+            {classObjects.length === 0 ? (
+              <Text style={[styles.error, { color: colors.textSecondary }]}>
+                No classes / students found
+              </Text>
+            ) : selectedClass === "All Classes" ? (
+              classObjects.map((cls) => (
+                <View key={cls._id} style={{ marginBottom: 12 }}>
                   <Text style={[styles.classHeader, { color: colors.header }]}>
-                    {selectedClass}
+                    {cls.name}
                   </Text>
                   {renderStudentsForClass(cls)}
                 </View>
-              ) : (
-                <Text style={[styles.error, { color: colors.textSecondary }]}>
-                  No students found for {selectedClass}
-                </Text>
-              );
-            })()
-          )}
-        </ScrollView>
+              ))
+            ) : (
+              (() => {
+                const cls = classObjects.find((c) => c.name === selectedClass);
+                return cls ? (
+                  <View>
+                    <Text
+                      style={[styles.classHeader, { color: colors.header }]}
+                    >
+                      {selectedClass}
+                    </Text>
+                    {renderStudentsForClass(cls)}
+                  </View>
+                ) : (
+                  <Text style={[styles.error, { color: colors.textSecondary }]}>
+                    No students found for {selectedClass}
+                  </Text>
+                );
+              })()
+            )}
+          </View>
 
-        <View style={{ marginTop: 12 }}>
-          <TouchableOpacity
-            onPress={handleSubmit}
-            style={[
-              styles.action,
-              { backgroundColor: colors.accent, alignItems: "center" },
-            ]}
-          >
-            <Text style={styles.actionText}>Submit Attendance</Text>
+          <View style={{ marginTop: 12 }}>
+            <TouchableOpacity
+              onPress={handleSubmit}
+              style={[
+                styles.action,
+                { backgroundColor: colors.accent, alignItems: "center" },
+              ]}
+            >
+              <Text style={styles.actionText}>Submit Attendance</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.link} onPress={() => goBack()}>
+            <Text style={{ color: colors.textPrimary }}>Back</Text>
           </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity style={styles.link} onPress={() => goBack()}>
-          <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity>
+        </ScrollView>
       </View>
     </View>
   );
