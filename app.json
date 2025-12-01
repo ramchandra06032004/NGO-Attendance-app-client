@@ -24,7 +24,8 @@
       "package": "com.omdhavale15.NGOAttendanceApp"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
     "extra": {
       "eas": {

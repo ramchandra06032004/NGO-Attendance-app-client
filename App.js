@@ -1,4 +1,4 @@
-import React from 'react';
+import "./global.css";
 import { AttendanceProvider } from './src/context/AttendanceContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import AppContainer from './src/AppContainer';

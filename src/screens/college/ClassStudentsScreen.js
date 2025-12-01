@@ -31,7 +31,7 @@ export default function ClassStudentsScreen({ college, className }) {
       )} />
 
       <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={() => navigate('AddStudent', { college, className })}>
-        <Text style={{ color: '#fff', fontWeight: '700' }}>Add Student</Text>
+        <Text style={{ color: '#fff', fontWeight: '700' }} className="text-white">Add Student </Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>

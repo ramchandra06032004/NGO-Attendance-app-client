@@ -30,7 +30,7 @@ export default function CollegeClassesScreen({ college }) {
               </TouchableOpacity>
       <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
         
-        <Text style={[styles.title, { color: colors.header }]}>Classes:</Text>
+        <Text>Classes:</Text>
 
         <ScrollView style={{ maxHeight: 380 }}>
           {classes.map((c) => (
