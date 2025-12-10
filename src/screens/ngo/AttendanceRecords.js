@@ -2,11 +2,11 @@ import React, { useState, useEffect, useContext, Platform } from "react";
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
   Platform as RNPlatform,
+  ScrollView,
 } from "react-native";
 import * as XLSX from "xlsx";
 import { ngo_host } from "../../../apis/api";
@@ -20,8 +20,6 @@ if (RNPlatform.OS !== "web") {
   FileSystem = require("expo-file-system");
   Sharing = require("expo-sharing");
 }
-
-// AttendanceRecords.js
 
 export default function AttendanceRecords({ route = {} }) {
   const { params = {} } = route;
@@ -97,12 +95,15 @@ export default function AttendanceRecords({ route = {} }) {
         [`Date: ${eventDate}`],
         [`Total Students Present: ${totalPresent}`],
         [],
-        ["Student Name", "College", "Department", "Class"],
+        ["Student Name", "College", "Department", "Class", "Attendance Marked Date"],
         ...attendanceData.attendance.map((student) => [
           student.name || "",
           getCollegeName(student.classId._id) || "",
           student.department || "",
           student.classId?.className || "",
+          student.attendanceMarkedAt
+            ? new Date(student.attendanceMarkedAt).toLocaleDateString()
+            : "N/A",
         ]),
       ]);
 
@@ -112,26 +113,26 @@ export default function AttendanceRecords({ route = {} }) {
         { wch: 25 },
         { wch: 20 },
         { wch: 20 },
+        { wch: 22 },
       ];
 
       // Set row heights
       ws["!rows"] = [
-        { hpx: 15 },   // Row 1: Empty
-        { hpx: 32 },   // Row 2: NGO Name
-        { hpx: 24 },   // Row 3: Address
-        { hpx: 10 },   // Row 4: Empty
-        { hpx: 28 },   // Row 5: EVENT DETAILS
-        { hpx: 24 },   // Row 6: Event
-        { hpx: 22 },   // Row 7: Location
-        { hpx: 22 },   // Row 8: Date
-        { hpx: 22 },   // Row 9: Total
-        { hpx: 10 },   // Row 10: Empty
-        { hpx: 28 },   // Row 11: Table Header
+        { hpx: 15 },
+        { hpx: 32 },
+        { hpx: 24 },
+        { hpx: 10 },
+        { hpx: 28 },
+        { hpx: 24 },
+        { hpx: 22 },
+        { hpx: 22 },
+        { hpx: 22 },
+        { hpx: 10 },
+        { hpx: 28 },
       ];
 
       if (!ws["!merges"]) ws["!merges"] = [];
 
-      // Merge and style rows
       const styleCell = (cell, options = {}) => {
         const {
           bold = false,
@@ -159,41 +160,33 @@ export default function AttendanceRecords({ route = {} }) {
         };
       };
 
-      // Row 2 - NGO Name
       styleCell("A2", { bold: true, size: 18, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 3 } });
+      ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 4 } });
 
-      // Row 3 - NGO Address
       styleCell("A3", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 3 } });
+      ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 4 } });
 
-      // Row 5 - EVENT DETAILS
       styleCell("A5", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      ws["!merges"].push({ s: { r: 4, c: 0 }, e: { r: 4, c: 3 } });
+      ws["!merges"].push({ s: { r: 4, c: 0 }, e: { r: 4, c: 4 } });
 
-      // Row 6 - Event Name
       styleCell("A6", { bold: true, size: 14, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 5, c: 0 }, e: { r: 5, c: 3 } });
+      ws["!merges"].push({ s: { r: 5, c: 0 }, e: { r: 5, c: 4 } });
 
-      // Row 7 - Location
       styleCell("A7", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 6, c: 0 }, e: { r: 6, c: 3 } });
+      ws["!merges"].push({ s: { r: 6, c: 0 }, e: { r: 6, c: 4 } });
 
-      // Row 8 - Date
       styleCell("A8", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 7, c: 0 }, e: { r: 7, c: 3 } });
+      ws["!merges"].push({ s: { r: 7, c: 0 }, e: { r: 7, c: 4 } });
 
-      // Row 9 - Total Students
       styleCell("A9", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 3 } });
+      ws["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 4 } });
 
-      // Row 11 - Table Headers
       styleCell("A11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
       styleCell("B11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
       styleCell("C11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
       styleCell("D11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
+      styleCell("E11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
 
-      // Style data rows
       attendanceData.attendance.forEach((row, idx) => {
         const rowNum = 12 + idx;
         const bgColor = idx % 2 === 0 ? "FFFFFF" : "F2F2F2";
@@ -202,6 +195,7 @@ export default function AttendanceRecords({ route = {} }) {
         styleCell(`B${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
         styleCell(`C${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
         styleCell(`D${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
+        styleCell(`E${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
       });
 
       XLSX.utils.book_append_sheet(wb, ws, "Attendance");
@@ -283,52 +277,6 @@ export default function AttendanceRecords({ route = {} }) {
     );
   }
 
-  const renderAttendanceRow = ({ item }) => (
-    <View
-      style={[
-        styles.tableRow,
-        { backgroundColor: colors.cardBg, borderColor: colors.border },
-      ]}
-    >
-      <Text
-        style={[
-          styles.tableCell,
-          styles.studentNameCell,
-          { color: colors.textPrimary },
-        ]}
-      >
-        {item.name}
-      </Text>
-      <Text
-        style={[
-          styles.tableCell,
-          styles.collegeCell,
-          { color: colors.textPrimary },
-        ]}
-      >
-        {getCollegeName(item.classId._id)}
-      </Text>
-      <Text
-        style={[
-          styles.tableCell,
-          styles.departmentCell,
-          { color: colors.textSecondary },
-        ]}
-      >
-        {item.department}
-      </Text>
-      <Text
-        style={[
-          styles.tableCell,
-          styles.classNameCell,
-          { color: colors.textSecondary },
-        ]}
-      >
-        {item.classId.className}
-      </Text>
-    </View>
-  );
-
   return (
     <View
       style={[
@@ -384,55 +332,63 @@ export default function AttendanceRecords({ route = {} }) {
         </Text>
       ) : (
         <>
-          {/* Table Header */}
-          <View
-            style={[styles.tableHeader, { backgroundColor: colors.headerBg }]}
-          >
-            <Text
-              style={[
-                styles.tableHeaderCell,
-                styles.studentNameCell,
-                { color: colors.headerText },
-              ]}
-            >
-              Student
-            </Text>
-            <Text
-              style={[
-                styles.tableHeaderCell,
-                styles.collegeCell,
-                { color: colors.headerText },
-              ]}
-            >
-              College
-            </Text>
-            <Text
-              style={[
-                styles.tableHeaderCell,
-                styles.departmentCell,
-                { color: colors.headerText },
-              ]}
-            >
-              Department
-            </Text>
-            <Text
-              style={[
-                styles.tableHeaderCell,
-                styles.classNameCell,
-                { color: colors.headerText },
-              ]}
-            >
-              Class
-            </Text>
-          </View>
+          {/* Horizontal Scrolling Table */}
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableScrollView}>
+            <View>
+              {/* Table Header */}
+              <View
+                style={[styles.tableHeader, { backgroundColor: colors.accent }]}
+              >
+                <Text style={[styles.tableHeaderCell, styles.studentNameCell, { color: "#fff" }]}>
+                  Student
+                </Text>
+                <Text style={[styles.tableHeaderCell, styles.collegeCell, { color: "#fff" }]}>
+                  College
+                </Text>
+                <Text style={[styles.tableHeaderCell, styles.departmentCell, { color: "#fff" }]}>
+                  Department
+                </Text>
+                <Text style={[styles.tableHeaderCell, styles.classNameCell, { color: "#fff" }]}>
+                  Class
+                </Text>
+                <Text style={[styles.tableHeaderCell, styles.markedDateCell, { color: "#fff" }]}>
+                  Marked Date
+                </Text>
+              </View>
 
-          {/* Table Data */}
-          <FlatList
-            data={attendanceData.attendance}
-            keyExtractor={(item) => item._id}
-            renderItem={renderAttendanceRow}
-            style={styles.tableList}
-          />
+              {/* Table Data Rows */}
+              {attendanceData.attendance.map((item, index) => (
+                <View
+                  key={item._id}
+                  style={[
+                    styles.tableRow,
+                    {
+                      backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.tableCell, styles.studentNameCell, { color: colors.textPrimary }]}>
+                    {item.name}
+                  </Text>
+                  <Text style={[styles.tableCell, styles.collegeCell, { color: colors.textPrimary }]}>
+                    {getCollegeName(item.classId._id)}
+                  </Text>
+                  <Text style={[styles.tableCell, styles.departmentCell, { color: colors.textSecondary }]}>
+                    {item.department}
+                  </Text>
+                  <Text style={[styles.tableCell, styles.classNameCell, { color: colors.textSecondary }]}>
+                    {item.classId.className}
+                  </Text>
+                  <Text style={[styles.tableCell, styles.markedDateCell, { color: colors.textSecondary }]}>
+                    {item.attendanceMarkedAt
+                      ? new Date(item.attendanceMarkedAt).toLocaleDateString()
+                      : "N/A"}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </>
       )}
     </View>
@@ -481,15 +437,14 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 20,
   },
-  tableList: {},
+  tableScrollView: {
+    flex: 1,
+  },
   tableHeader: {
     flexDirection: "row",
-    paddingVertical: 10,
-    borderBottomWidth: 2,
-    borderColor: "#ccc",
-    marginBottom: 5,
-    borderRadius: 8,
-    overflow: "hidden",
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 2,
   },
   tableHeaderCell: {
     fontWeight: "bold",
@@ -500,8 +455,8 @@ const styles = StyleSheet.create({
   tableRow: {
     flexDirection: "row",
     padding: 10,
-    borderRadius: 8,
-    marginBottom: 8,
+    borderRadius: 6,
+    marginBottom: 2,
     borderWidth: 1,
     alignItems: "center",
   },
@@ -511,16 +466,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   studentNameCell: {
-    flex: 3,
+    width: 150,
   },
   collegeCell: {
-    flex: 3,
+    width: 150,
   },
   departmentCell: {
-    flex: 2,
+    width: 120,
   },
   classNameCell: {
-    flex: 2,
+    width: 120,
+  },
+  markedDateCell: {
+    width: 130,
   },
   noRecords: {
     textAlign: "center",
