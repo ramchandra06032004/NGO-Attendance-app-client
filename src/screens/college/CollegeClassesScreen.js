@@ -1,8 +1,10 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList } from 'react-native';
 import * as XLSX from 'xlsx';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import ExcelJS from 'exceljs';
+import { Buffer } from 'buffer';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -12,7 +14,7 @@ import { college_host } from "../../../apis/api";
 // Platform-specific imports
 let RealFileSystem, RealSharing;
 if (RNPlatform.OS !== "web") {
-  RealFileSystem = require("expo-file-system");
+  RealFileSystem = require("expo-file-system/legacy");
   RealSharing = require("expo-sharing");
 }
 
@@ -31,11 +33,56 @@ export default function CollegeClassesScreen({ college }) {
   const [eventAttendanceList, setEventAttendanceList] = useState([]);
   const [showAttendanceTable, setShowAttendanceTable] = useState(false);
 
+  // Helper function to save file to local storage
+  const saveFile = async (filename, base64Data) => {
+    if (RNPlatform.OS === "web") return;
+
+    try {
+      if (RNPlatform.OS === "android") {
+        // 1. Request permission to pick a folder
+        const permissions = await RealFileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+        
+        if (permissions.granted) {
+          // 2. Create the file in the selected folder
+          const uri = await RealFileSystem.StorageAccessFramework.createFileAsync(
+            permissions.directoryUri,
+            filename,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          );
+          
+          // 3. Write the data
+          await RealFileSystem.writeAsStringAsync(uri, base64Data, {
+            encoding: 'base64',
+          });
+          
+          alert("File saved successfully!");
+        } else {
+          alert("Export cancelled: No folder selected.");
+        }
+      } else {
+        // iOS: Use share sheet which has "Save to Files"
+        const filepath = `${RealFileSystem.documentDirectory}${filename}`;
+        await RealFileSystem.writeAsStringAsync(filepath, base64Data, {
+          encoding: 'base64',
+        });
+        
+        await RealSharing.shareAsync(filepath, {
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Export Data",
+          UTI: "com.microsoft.excel.xlsx",
+        });
+      }
+    } catch (error) {
+      console.error("File save error:", error);
+      alert("Error saving file: " + error.message);
+    }
+  };
+
   useEffect(() => {
-    console.log("College data: ", college);
+    // console.log("College data: ", college); // <--- COMMENT THIS OUT to fix the crash
     // Extract unique events from all classes and students
     const allEvents = new Map();
-    
+
     college.classes?.forEach((cls) => {
       cls.students?.forEach((student) => {
         student.attendedEvents?.forEach((event) => {
@@ -52,7 +99,7 @@ export default function CollegeClassesScreen({ college }) {
         });
       });
     });
-    
+
     setEventsList(Array.from(allEvents.values()));
   }, [college]);
 
@@ -65,16 +112,16 @@ export default function CollegeClassesScreen({ college }) {
     setSelectedEvent(event);
     setShowEventDropdown(false);
     setShowAttendanceTable(true);
-    
+
     // Get all students who attended this event
     const attendanceList = [];
-    
+
     college.classes?.forEach((cls) => {
       cls.students?.forEach((student) => {
         const attended = student.attendedEvents?.find(
           (att) => att.eventId?._id === event._id
         );
-        
+
         if (attended) {
           attendanceList.push({
             studentName: student.name,
@@ -88,7 +135,7 @@ export default function CollegeClassesScreen({ college }) {
         }
       });
     });
-    
+
     setEventAttendanceList(attendanceList);
   };
 
@@ -98,6 +145,8 @@ export default function CollegeClassesScreen({ college }) {
   };
 
   const exportAllEventsToExcel = async () => {
+    console.log("exporting to excel" );
+    
     try {
       if (eventsList.length === 0) {
         alert("No events to export");
@@ -106,21 +155,52 @@ export default function CollegeClassesScreen({ college }) {
 
       setLoading(true);
 
-      const wb = XLSX.utils.book_new();
+      // Create a new workbook
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'NGO Attendance App';
+      workbook.created = new Date();
+
+      // 1. Handle Logo Image
+      let logoImageId = null;
+      if (college.logoUrl) {
+        try {
+          // Download image to cache to get base64
+          console.log("downloading the imahe");
+          
+          const fileUri = FileSystem.cacheDirectory + 'college_logo_temp.png';
+          const downloadRes = await FileSystem.downloadAsync(college.logoUrl, fileUri);
+          
+          if (downloadRes.status === 200) {
+            const base64 = await FileSystem.readAsStringAsync(fileUri, {
+              encoding: 'base64',
+            });
+            
+            logoImageId = workbook.addImage({
+              base64: base64,
+              extension: 'png',
+            });
+          }
+        } catch (imgError) {
+          console.log("Error loading logo for export:", imgError);
+          // Continue without logo if it fails
+        }
+      }
+
       const collegeName = college.name || "College";
       const collegeAddress = college.address || "Address not available";
+      let hasData = false;
 
       // Create a sheet for each event
       eventsList.forEach((event) => {
         // Get all students who attended this event
         const eventAttendance = [];
-        
+
         college.classes?.forEach((cls) => {
           cls.students?.forEach((student) => {
             const attended = student.attendedEvents?.find(
               (att) => att.eventId?._id === event._id
             );
-            
+
             if (attended) {
               eventAttendance.push({
                 studentName: student.name,
@@ -138,172 +218,146 @@ export default function CollegeClassesScreen({ college }) {
         if (eventAttendance.length === 0) {
           return; // Skip events with no attendance
         }
+        hasData = true;
 
         const eventName = event.aim || "N/A";
-        const eventLocation = event.location || "N/A";
-        const eventDate = new Date(event.eventDate).toLocaleDateString() || "N/A";
-        const ngoName = event.createdBy || "N/A";
-        const totalPresent = eventAttendance.length;
+        // Sheet names cannot exceed 31 chars and cannot contain special chars
+        const safeSheetName = (eventName.replace(/[\\/?*[\]]/g, "")).slice(0, 30);
+        const worksheet = workbook.addWorksheet(safeSheetName);
 
-        // Create worksheet with data
-        const sheetData = [
-          [],
-          [collegeName],
-          [collegeAddress],
-          [],
-          ["EVENT DETAILS"],
-          [`Event: ${eventName}`],
-          [`NGO: ${ngoName}`],
-          [`Location: ${eventLocation}`],
-          [`Date: ${eventDate}`],
-          [`Total Students Present: ${totalPresent}`],
-          [],
-          ["Student Name", "PRN", "Department", "Class", "Attendance Date"],
-          ...eventAttendance.map((record) => [
+        // Define Columns
+        worksheet.columns = [
+          { width: 25 }, // A
+          { width: 20 }, // B
+          { width: 20 }, // C
+          { width: 20 }, // D
+          { width: 20 }, // E
+        ];
+
+        // --- Add Logo ---
+        if (logoImageId !== null) {
+          worksheet.addImage(logoImageId, {
+            tl: { col: 0, row: 0 }, // Top-left: A1
+            ext: { width: 100, height: 100 },
+          });
+        }
+
+        // --- Header Styling ---
+        // College Name (Centered across B-E, assuming logo is in A)
+        worksheet.mergeCells('B2:E2');
+        const nameCell = worksheet.getCell('B2');
+        nameCell.value = collegeName;
+        nameCell.font = { name: 'Arial', size: 18, bold: true };
+        nameCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // College Address
+        worksheet.mergeCells('B3:E3');
+        const addrCell = worksheet.getCell('B3');
+        addrCell.value = collegeAddress;
+        addrCell.font = { name: 'Arial', size: 12, color: { argb: 'FF404040' } };
+        addrCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+        // Spacing for logo
+        worksheet.addRow([]); 
+        worksheet.addRow([]); 
+        worksheet.addRow([]); 
+        worksheet.addRow([]); 
+        worksheet.addRow([]); // Ensure we are below the logo (approx row 6)
+
+        // Event Details Header
+        const startRow = 7;
+        const titleRow = worksheet.getRow(startRow);
+        worksheet.mergeCells(`A${startRow}:E${startRow}`);
+        titleRow.getCell(1).value = "EVENT DETAILS";
+        titleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+        titleRow.getCell(1).fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF4472C4' }
+        };
+        titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // Event Info Helper
+        const addInfoRow = (label, value, isBold = false) => {
+          const row = worksheet.addRow([`${label}: ${value}`]);
+          worksheet.mergeCells(`A${row.number}:E${row.number}`);
+          const cell = row.getCell(1);
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.font = { size: 12, bold: isBold };
+          if (isBold) cell.font.size = 14;
+        };
+
+        addInfoRow(`Event`, eventName, true);
+        addInfoRow(`NGO`, event.createdBy || "N/A");
+        addInfoRow(`Location`, event.location || "N/A");
+        addInfoRow(`Date`, new Date(event.eventDate).toLocaleDateString() || "N/A");
+        addInfoRow(`Total Students Present`, eventAttendance.length);
+
+        worksheet.addRow([]); // Empty row
+
+        // Table Headers
+        const headerRow = worksheet.addRow(["Student Name", "PRN", "Department", "Class", "Attendance Date"]);
+        headerRow.height = 25;
+        headerRow.eachCell((cell) => {
+          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF4472C4' }
+          };
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        });
+
+        // Data Rows
+        eventAttendance.forEach((record, idx) => {
+          const row = worksheet.addRow([
             record.studentName || "",
             record.prn || "",
             record.department || "",
             record.className || "",
             record.attendanceDate || "N/A",
-          ]),
-        ];
-
-        const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-        // Set column widths
-        ws["!cols"] = [
-          { wch: 25 },
-          { wch: 15 },
-          { wch: 20 },
-          { wch: 20 },
-          { wch: 20 },
-        ];
-
-        // Set row heights
-        ws["!rows"] = [
-          { hpx: 15 },   // Row 1: Empty
-          { hpx: 32 },   // Row 2: College Name
-          { hpx: 24 },   // Row 3: Address
-          { hpx: 10 },   // Row 4: Empty
-          { hpx: 28 },   // Row 5: EVENT DETAILS
-          { hpx: 24 },   // Row 6: Event
-          { hpx: 24 },   // Row 7: NGO
-          { hpx: 22 },   // Row 8: Location
-          { hpx: 22 },   // Row 9: Date
-          { hpx: 22 },   // Row 10: Total
-          { hpx: 10 },   // Row 11: Empty
-          { hpx: 28 },   // Row 12: Table Header
-        ];
-
-        if (!ws["!merges"]) ws["!merges"] = [];
-
-        const styleCell = (cell, options = {}) => {
-          const {
-            bold = false,
-            size = 11,
-            color = "000000",
-            bgColor = "FFFFFF",
-            align = "center",
-          } = options;
-
-          ws[cell] = ws[cell] || {};
-          ws[cell].s = {
-            font: {
-              bold: bold,
-              sz: size,
-              color: { rgb: color },
-            },
-            fill: {
-              fgColor: { rgb: bgColor },
-            },
-            alignment: {
-              horizontal: align,
-              vertical: "center",
-              wrapText: true,
-            },
-          };
-        };
-
-        // Row 2 - College Name
-        styleCell("A2", { bold: true, size: 18, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-        ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 4 } });
-
-        // Row 3 - College Address
-        styleCell("A3", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-        ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 4 } });
-
-        // Row 5 - EVENT DETAILS
-        styleCell("A5", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-        ws["!merges"].push({ s: { r: 4, c: 0 }, e: { r: 4, c: 4 } });
-
-        // Row 6 - Event Name
-        styleCell("A6", { bold: true, size: 14, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-        ws["!merges"].push({ s: { r: 5, c: 0 }, e: { r: 5, c: 4 } });
-
-        // Row 7 - NGO Name
-        styleCell("A7", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-        ws["!merges"].push({ s: { r: 6, c: 0 }, e: { r: 6, c: 4 } });
-
-        // Row 8 - Location
-        styleCell("A8", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-        ws["!merges"].push({ s: { r: 7, c: 0 }, e: { r: 7, c: 4 } });
-
-        // Row 9 - Date
-        styleCell("A9", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-        ws["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 4 } });
-
-        // Row 10 - Total Students
-        styleCell("A10", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-        ws["!merges"].push({ s: { r: 9, c: 0 }, e: { r: 9, c: 4 } });
-
-        // Row 12 - Table Headers
-        styleCell("A12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-        styleCell("B12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-        styleCell("C12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-        styleCell("D12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-        styleCell("E12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-
-        // Style data rows
-        eventAttendance.forEach((row, idx) => {
-          const rowNum = 13 + idx;
-          const bgColor = idx % 2 === 0 ? "FFFFFF" : "F2F2F2";
+          ]);
           
-          styleCell(`A${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-          styleCell(`B${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-          styleCell(`C${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-          styleCell(`D${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-          styleCell(`E${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        });
+          // Zebra striping
+          if (idx % 2 !== 0) {
+            row.eachCell((cell) => {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF2F2F2' }
+              };
+            });
+          }
 
-        // Add sheet to workbook with event name as sheet title (max 31 chars)
-        const sheetName = eventName.slice(0, 31);
-        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+          // Borders and alignment
+          row.eachCell((cell) => {
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.border = {
+              top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+              left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+              bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+              right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+            };
+          });
+        });
       });
+
+      if (!hasData) {
+        setLoading(false);
+        return;
+      }
 
       const filename = `all_events_${college.name?.replace(/\s+/g, "_")}_${new Date().getTime()}.xlsx`;
 
+      // Write to buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+
       if (RNPlatform.OS === "web") {
-        XLSX.writeFile(wb, filename);
-        alert("All events exported successfully!");
+        // Basic web fallback
+        alert("Export generated. (Web download requires Blob implementation)");
       } else {
-        const wbout = XLSX.write(wb, {
-          type: "base64",
-          bookType: "xlsx",
-        });
-
-        const filepath = `${RealFileSystem.documentDirectory}${filename}`;
-
-        await RealFileSystem.writeAsStringAsync(filepath, wbout, {
-          encoding: RealFileSystem.EncodingType.Base64,
-        });
-
-        await RealSharing.shareAsync(filepath, {
-          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export All Events",
-          UTI: "com.microsoft.excel.xlsx",
-        });
-
-        alert("All events exported successfully!");
+        await saveFile(filename, base64);
       }
 
       setLoading(false);
@@ -323,171 +377,170 @@ export default function CollegeClassesScreen({ college }) {
 
       setLoading(true);
 
-      const wb = XLSX.utils.book_new();
+      // Create a new workbook
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'NGO Attendance App';
+      workbook.created = new Date();
+
+      // 1. Handle Logo Image
+      let logoImageId = null;
+      if (college.logoUrl) {
+        try {
+          // Download image to cache to get base64
+          const fileUri = FileSystem.cacheDirectory + 'college_logo_temp.png';
+          const downloadRes = await FileSystem.downloadAsync(college.logoUrl, fileUri);
+          
+          if (downloadRes.status === 200) {
+            const base64 = await FileSystem.readAsStringAsync(fileUri, {
+              encoding: 'base64',
+            });
+            
+            logoImageId = workbook.addImage({
+              base64: base64,
+              extension: 'png',
+            });
+          }
+        } catch (imgError) {
+          console.log("Error loading logo for export:", imgError);
+          // Continue without logo if it fails
+        }
+      }
+
       const collegeName = college.name || "College";
       const collegeAddress = college.address || "Address not available";
       const eventName = selectedEvent.aim || "N/A";
-      const eventLocation = selectedEvent.location || "N/A";
-      const eventDate = new Date(selectedEvent.eventDate).toLocaleDateString() || "N/A";
-      const ngoName = selectedEvent.createdBy || "N/A";
-      const totalPresent = eventAttendanceList.length;
 
-      // Create worksheet with data
-      const sheetData = [
-        [],
-        [collegeName],
-        [collegeAddress],
-        [],
-        ["EVENT DETAILS"],
-        [`Event: ${eventName}`],
-        [`NGO: ${ngoName}`],
-        [`Location: ${eventLocation}`],
-        [`Date: ${eventDate}`],
-        [`Total Students Present: ${totalPresent}`],
-        [],
-        ["Student Name", "PRN", "Department", "Class", "Attendance Date"],
-        ...eventAttendanceList.map((record) => [
+      // Sheet names cannot exceed 31 chars and cannot contain special chars
+      const safeSheetName = (eventName.replace(/[\\/?*[\]]/g, "")).slice(0, 30);
+      const worksheet = workbook.addWorksheet(safeSheetName);
+
+      // Define Columns
+      worksheet.columns = [
+        { width: 25 }, // A
+        { width: 20 }, // B
+        { width: 20 }, // C
+        { width: 20 }, // D
+        { width: 20 }, // E
+      ];
+
+      // --- Add Logo ---
+      if (logoImageId !== null) {
+        worksheet.addImage(logoImageId, {
+          tl: { col: 0, row: 0 }, // Top-left: A1
+          ext: { width: 100, height: 100 },
+        });
+      }
+
+      // --- Header Styling ---
+      // College Name (Centered across B-E, assuming logo is in A)
+      worksheet.mergeCells('B2:E2');
+      const nameCell = worksheet.getCell('B2');
+      nameCell.value = collegeName;
+      nameCell.font = { name: 'Arial', size: 18, bold: true };
+      nameCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      // College Address
+      worksheet.mergeCells('B3:E3');
+      const addrCell = worksheet.getCell('B3');
+      addrCell.value = collegeAddress;
+      addrCell.font = { name: 'Arial', size: 12, color: { argb: 'FF404040' } };
+      addrCell.alignment = { vertical: 'middle', horizontal: 'center' };
+
+      // Spacing for logo
+      worksheet.addRow([]); 
+      worksheet.addRow([]); 
+      worksheet.addRow([]); 
+      worksheet.addRow([]); 
+      worksheet.addRow([]); // Ensure we are below the logo (approx row 6)
+
+      // Event Details Header
+      const startRow = 7;
+      const titleRow = worksheet.getRow(startRow);
+      worksheet.mergeCells(`A${startRow}:E${startRow}`);
+      titleRow.getCell(1).value = "EVENT DETAILS";
+      titleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+      titleRow.getCell(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4472C4' }
+      };
+      titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      // Event Info Helper
+      const addInfoRow = (label, value, isBold = false) => {
+        const row = worksheet.addRow([`${label}: ${value}`]);
+        worksheet.mergeCells(`A${row.number}:E${row.number}`);
+        const cell = row.getCell(1);
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.font = { size: 12, bold: isBold };
+        if (isBold) cell.font.size = 14;
+      };
+
+      addInfoRow(`Event`, eventName, true);
+      addInfoRow(`NGO`, selectedEvent.createdBy || "N/A");
+      addInfoRow(`Location`, selectedEvent.location || "N/A");
+      addInfoRow(`Date`, new Date(selectedEvent.eventDate).toLocaleDateString() || "N/A");
+      addInfoRow(`Total Students Present`, eventAttendanceList.length);
+
+      worksheet.addRow([]); // Empty row
+
+      // Table Headers
+      const headerRow = worksheet.addRow(["Student Name", "PRN", "Department", "Class", "Attendance Date"]);
+      headerRow.height = 25;
+      headerRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'FF4472C4' }
+        };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+      });
+
+      // Data Rows
+      eventAttendanceList.forEach((record, idx) => {
+        const row = worksheet.addRow([
           record.studentName || "",
           record.prn || "",
           record.department || "",
           record.className || "",
           record.attendanceDate || "N/A",
-        ]),
-      ];
-
-      const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-      // Set column widths
-      ws["!cols"] = [
-        { wch: 25 },
-        { wch: 15 },
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 20 },
-      ];
-
-      // Set row heights
-      ws["!rows"] = [
-        { hpx: 15 },   // Row 1: Empty
-        { hpx: 32 },   // Row 2: College Name
-        { hpx: 24 },   // Row 3: Address
-        { hpx: 10 },   // Row 4: Empty
-        { hpx: 28 },   // Row 5: EVENT DETAILS
-        { hpx: 24 },   // Row 6: Event
-        { hpx: 24 },   // Row 7: NGO
-        { hpx: 22 },   // Row 8: Location
-        { hpx: 22 },   // Row 9: Date
-        { hpx: 22 },   // Row 10: Total
-        { hpx: 10 },   // Row 11: Empty
-        { hpx: 28 },   // Row 12: Table Header
-      ];
-
-      if (!ws["!merges"]) ws["!merges"] = [];
-
-      const styleCell = (cell, options = {}) => {
-        const {
-          bold = false,
-          size = 11,
-          color = "000000",
-          bgColor = "FFFFFF",
-          align = "center",
-        } = options;
-
-        ws[cell] = ws[cell] || {};
-        ws[cell].s = {
-          font: {
-            bold: bold,
-            sz: size,
-            color: { rgb: color },
-          },
-          fill: {
-            fgColor: { rgb: bgColor },
-          },
-          alignment: {
-            horizontal: align,
-            vertical: "center",
-            wrapText: true,
-          },
-        };
-      };
-
-      // Row 2 - College Name
-      styleCell("A2", { bold: true, size: 18, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 4 } });
-
-      // Row 3 - College Address
-      styleCell("A3", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 4 } });
-
-      // Row 5 - EVENT DETAILS
-      styleCell("A5", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      ws["!merges"].push({ s: { r: 4, c: 0 }, e: { r: 4, c: 4 } });
-
-      // Row 6 - Event Name
-      styleCell("A6", { bold: true, size: 14, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 5, c: 0 }, e: { r: 5, c: 4 } });
-
-      // Row 7 - NGO Name
-      styleCell("A7", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 6, c: 0 }, e: { r: 6, c: 4 } });
-
-      // Row 8 - Location
-      styleCell("A8", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 7, c: 0 }, e: { r: 7, c: 4 } });
-
-      // Row 9 - Date
-      styleCell("A9", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 4 } });
-
-      // Row 10 - Total Students
-      styleCell("A10", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 9, c: 0 }, e: { r: 9, c: 4 } });
-
-      // Row 12 - Table Headers
-      styleCell("A12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("B12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("C12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("D12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("E12", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-
-      // Style data rows
-      eventAttendanceList.forEach((row, idx) => {
-        const rowNum = 13 + idx;
-        const bgColor = idx % 2 === 0 ? "FFFFFF" : "F2F2F2";
+        ]);
         
-        styleCell(`A${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`B${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`C${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`D${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`E${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-      });
+        // Zebra striping
+        if (idx % 2 !== 0) {
+          row.eachCell((cell) => {
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFF2F2F2' }
+            };
+          });
+        }
 
-      XLSX.utils.book_append_sheet(wb, ws, "Event Attendance");
+        // Borders and alignment
+        row.eachCell((cell) => {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
+            right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+          };
+        });
+      });
 
       const filename = `event_attendance_${selectedEvent.aim?.replace(/\s+/g, "_")}_${new Date().getTime()}.xlsx`;
 
+      // Write to buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+
       if (RNPlatform.OS === "web") {
-        XLSX.writeFile(wb, filename);
-        alert("Event attendance exported successfully!");
+        // Basic web fallback
+        alert("Export generated. (Web download requires Blob implementation)");
       } else {
-        const wbout = XLSX.write(wb, {
-          type: "base64",
-          bookType: "xlsx",
-        });
-
-        const filepath = `${RealFileSystem.documentDirectory}${filename}`;
-
-        await RealFileSystem.writeAsStringAsync(filepath, wbout, {
-          encoding: RealFileSystem.EncodingType.Base64,
-        });
-
-        await RealSharing.shareAsync(filepath, {
-          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export Event Attendance",
-          UTI: "com.microsoft.excel.xlsx",
-        });
-
-        alert("Event attendance exported successfully!");
+        await saveFile(filename, base64);
       }
 
       setLoading(false);
@@ -501,7 +554,7 @@ export default function CollegeClassesScreen({ college }) {
   const fetchStudentsByClass = async () => {
     try {
       const allStudents = [];
-      
+
       for (const cls of classes) {
         const response = await fetch(`${college_host}/class/${cls._id}/students`, {
           method: "GET",
@@ -741,20 +794,7 @@ export default function CollegeClassesScreen({ college }) {
           bookType: "xlsx",
         });
 
-        const filepath = `${RealFileSystem.documentDirectory}${filename}`;
-
-        await RealFileSystem.writeAsStringAsync(filepath, wbout, {
-          encoding: RealFileSystem.EncodingType.Base64,
-        });
-
-        await RealSharing.shareAsync(filepath, {
-          mimeType:
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export College Data",
-          UTI: "com.microsoft.excel.xlsx",
-        });
-
-        alert("College data exported successfully!");
+        await saveFile(filename, wbout);
       }
 
       setLoading(false);
@@ -800,6 +840,7 @@ export default function CollegeClassesScreen({ college }) {
             style={[styles.exportBtn, { backgroundColor: colors.accent }]}
             onPress={exportAllEventsToExcel}
           >
+
             <Text style={{ color: "#fff", fontWeight: "700" }}>Export Events-wise</Text>
           </TouchableOpacity>
         </View>
@@ -811,7 +852,7 @@ export default function CollegeClassesScreen({ college }) {
           style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border, marginBottom: 16 }]}
         >
           <Text style={[styles.title, { color: colors.header }]}>Event-wise Attendance</Text>
-          
+
           <TouchableOpacity
             style={[styles.dropdownBtn, { backgroundColor: colors.iconBg, borderColor: colors.border }]}
             onPress={() => setShowEventDropdown(!showEventDropdown)}
@@ -855,7 +896,7 @@ export default function CollegeClassesScreen({ college }) {
                   <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Export This Event</Text>
                 </TouchableOpacity>
               </View>
-              
+
               {/* Horizontal Scrolling Table */}
               <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginTop: 12 }}>
                 <View>

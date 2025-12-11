@@ -1,4 +1,5 @@
 //export const host = "http://localhost:3000"; //Development
+//export const host = "http://10.0.2.2:3000"; //Production
 // export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
 export const host = "https://ngo-attendance-backend.el.r.appspot.com"; //Production
 
