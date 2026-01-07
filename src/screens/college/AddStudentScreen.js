@@ -7,12 +7,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as XLSX from 'xlsx';
 import * as api from '../../../apis/api';
-
+import { AuthContext } from '../../context/AuthContext';
 export default function AddStudentScreen({ college, className }) {
   const { goBack } = useContext(NavigationContext);
   const { addStudent } = useContext(AttendanceContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
+  const { accessToken } = useContext(AuthContext);
 
   // Manage a dynamic list of students to add
   const [students, setStudents] = useState([
@@ -91,16 +92,18 @@ export default function AddStudentScreen({ college, className }) {
           name: s.name.trim(),
           department: s.department.trim(),
           email: s.email.trim(),
-          prn: s.prn.trim()
+          prn: s.prn.trim(),
+          collegeId: college._id
         }))
       };
       console.log(requestBody)
       // Call the API
       const response = await fetch(api.addStudentAPI, {
         method: 'POST',
-        credentials:'include',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': accessToken
         },
         body: JSON.stringify(requestBody)
       });
@@ -146,7 +149,7 @@ export default function AddStudentScreen({ college, className }) {
 
         <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 12 }]}>Upload Excel sheet</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity onPress={pickAndParseFile} style={[styles.actionBtn, { backgroundColor: colors.accent, paddingHorizontal: 12 }] }>
+          <TouchableOpacity onPress={pickAndParseFile} style={[styles.actionBtn, { backgroundColor: colors.accent, paddingHorizontal: 12 }]}>
             <Text style={{ color: '#fff' }}>Pick Excel file</Text>
           </TouchableOpacity>
           <Text style={{ color: colors.textSecondary, flex: 1 }}>Pick an .xlsx/.xls/.csv with student rows (Name, PRN, Department, Email)</Text>

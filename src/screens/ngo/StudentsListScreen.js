@@ -10,6 +10,7 @@ import {
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
+import { AuthContext } from '../../context/AuthContext';
 
 export default function StudentsListScreen({ college, eventId: propEventId }) {
   // eventId is passed as prop (not using react-navigation)
@@ -23,6 +24,7 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
   const [selectedClass, setSelectedClass] = useState("All Classes");
   const [classObjects, setClassObjects] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const { accessToken } = useContext(AuthContext);
 
   // store present student IDs in a Set
   const [presentIds, setPresentIds] = useState(new Set());
@@ -83,8 +85,8 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
         method: "POST",
         credentials: "include",
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
+          'Authorization': accessToken
         },
         body: JSON.stringify(reqBody),
       });
@@ -94,7 +96,7 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
         try {
           const errData = await response.json();
           if (errData && errData.message) errMsg = errData.message;
-        } catch {}
+        } catch { }
         throw new Error(errMsg);
       }
 

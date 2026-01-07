@@ -13,15 +13,15 @@ export default function EventInfoScreen({ route }) {
   const params = (route && route.params) || {};
   const event = params.event ||
     params.item || {
-      aim: "",
-      name: "",
-      location: "",
-      description: "",
-      eventDate: "",
-      date: "",
-      students: [],
-      _id: "",
-    };
+    aim: "",
+    name: "",
+    location: "",
+    description: "",
+    eventDate: "",
+    date: "",
+    students: [],
+    _id: "",
+  };
 
   const title = event.aim || event.name || event.title || "";
   const rawDate = event.eventDate || event.date || "";
@@ -83,12 +83,11 @@ export default function EventInfoScreen({ route }) {
           //     navigate("AttendanceRecords", {  event  })
           //   }
           // }
-          onPress={() =>
-  { 
-    console.log("Event BEFORE Navigation:", event), // <--- CHECK THIS OUTPUT!
-    navigate("AttendanceRecords", { event: event })
-  }
-}
+          onPress={() => {
+            console.log("Event BEFORE Navigation:", event), // <--- CHECK THIS OUTPUT!
+              navigate("AttendanceRecords", { event: event })
+          }
+          }
         >
           <Text style={[styles.actionTextSecondary, { color: colors.textPrimary }]}>
             View Attendance Records

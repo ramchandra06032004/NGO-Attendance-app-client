@@ -21,9 +21,10 @@ import AddEventScreen from "./screens/ngo/AddEventScreen";
 import AttendanceRecords from "./screens/ngo/AttendanceRecords";
 import { NavigationContext } from "./context/NavigationContext";
 import { AuthContext } from "./context/AuthContext";
-
+import StudentLoginScreen from "./screens/students/StudentLoginScreen";
+import ScanQrCode from "./screens/students/ScanQrCode";
 export default function AppContainer() {
-  
+
   const { route, navigate } = useContext(NavigationContext);
   console.log("AppContainer render, current route:", route.name);
   const { loading, isAuthenticated, userType, user } = useContext(AuthContext);
@@ -75,6 +76,15 @@ export default function AppContainer() {
       break;
     case "AdminLogin":
       Screen = <AdminLoginScreen />;
+      break;
+    case "StudentLogin":
+      Screen = <StudentLoginScreen />;
+      break;
+    case "ScanQRCCode":
+      Screen=<ScanQrCode studentId={route.params?.studentId} college={route.params?.college}/>;
+      break;
+    case "ScanQRCCode":
+      Screen = <StudentEventsScreen college={route.params?.college} studentId={route.params?.studentId} />;
       break;
     case "NgoEvents":
       Screen = <NgoEventsScreen ngo={route.params?.ngo || user} />;

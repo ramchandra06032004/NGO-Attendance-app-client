@@ -32,6 +32,7 @@ export default function AttendanceRecords({ route = {} }) {
   const [attendanceData, setAttendanceData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const { accessToken } = useContext(AuthContext);
 
   useEffect(() => {
     if (event && event._id) {
@@ -50,8 +51,8 @@ export default function AttendanceRecords({ route = {} }) {
           method: "GET",
           credentials: "include",
           headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
+            'Authorization': accessToken
           },
         }
       );
@@ -190,7 +191,7 @@ export default function AttendanceRecords({ route = {} }) {
       attendanceData.attendance.forEach((row, idx) => {
         const rowNum = 12 + idx;
         const bgColor = idx % 2 === 0 ? "FFFFFF" : "F2F2F2";
-        
+
         styleCell(`A${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
         styleCell(`B${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
         styleCell(`C${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });

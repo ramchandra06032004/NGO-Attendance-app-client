@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
-import {View, Text, Pressable, StyleSheet, SafeAreaView, ScrollView, useColorScheme,
+import {
+  View, Text, Pressable, StyleSheet, SafeAreaView, ScrollView, useColorScheme,
 } from 'react-native';
 import {
   Sun,
@@ -9,6 +10,7 @@ import {
   ShieldUser,
   UsersRound,
   ChevronRight,
+  GraduationCap,
 } from 'lucide-react-native';
 import { NavigationContext } from '../context/NavigationContext'; // ✅ imported navigation context
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,6 +56,7 @@ export default function HomeScreen() {
     ngo: darkMode ? '#f97316' : '#ea580c',
     college: darkMode ? '#3b82f6' : '#2563eb',
     admin: darkMode ? '#22c55e' : '#16a34a',
+    student: darkMode ? '#8b5cf6' : '#7c3aed',
   };
 
   return (
@@ -64,80 +67,88 @@ export default function HomeScreen() {
       end={colors.backgroundEnd}
       style={styles.container} // Apply the flex: 1 style here
     >
-      <SafeAreaView style={styles.container}> 
+      <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <UsersRound size={44} color={colors.accent} strokeWidth={2.2} />
-            <View>
-              <Text style={[styles.title, { color: colors.header }]}>NGO Attendance</Text>
-              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                Seamlessly Manage • Track • Verify
-              </Text>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <UsersRound size={44} color={colors.accent} strokeWidth={2.2} />
+              <View>
+                <Text style={[styles.title, { color: colors.header }]}>NGO Attendance</Text>
+                <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                  Seamlessly Manage • Track • Verify
+                </Text>
+              </View>
             </View>
+
+            <Pressable
+              onPress={() => setTheme(!darkMode)}
+              style={[
+                styles.toggleButton,
+                { backgroundColor: colors.toggleBg, borderColor: colors.border },
+              ]}
+            >
+              {darkMode ? <Sun size={22} color="#facc15" /> : <Moon size={22} color="#1e293b" />}
+            </Pressable>
           </View>
 
-          <Pressable
-            onPress={() => setTheme(!darkMode)}
-            style={[
-              styles.toggleButton,
-              { backgroundColor: colors.toggleBg, borderColor: colors.border },
-            ]}
-          >
-            {darkMode ? <Sun size={22} color="#facc15" /> : <Moon size={22} color="#1e293b" />}
-          </Pressable>
-        </View>
+          {/* Role Section */}
+          <Text style={[styles.sectionTitle, { color: colors.header }]}>Select Your Role</Text>
 
-        {/* Role Section */}
-        <Text style={[styles.sectionTitle, { color: colors.header }]}>Select Your Role</Text>
+          <View style={styles.cardsContainer}>
+            <LoginCard
+              icon={HeartHandshake}
+              title="NGO Login"
+              subtitle="Manage events and mark attendance"
+              iconColor={iconColors.ngo}
+              darkMode={darkMode}
+              onPress={() => navigate('NgoLogin')} // ✅ navigation added
+            />
 
-        <View style={styles.cardsContainer}>
-          <LoginCard
-            icon={HeartHandshake}
-            title="NGO Login"
-            subtitle="Manage events and mark attendance"
-            iconColor={iconColors.ngo}
-            darkMode={darkMode}
-            onPress={() => navigate('NgoLogin')} // ✅ navigation added
-          />
+            <LoginCard
+              icon={School}
+              title="College Login"
+              subtitle="View student attendance records"
+              iconColor={iconColors.college}
+              darkMode={darkMode}
+              onPress={() => navigate('CollegeLogin')} // ✅ navigation added
+            />
 
-          <LoginCard
-            icon={School}
-            title="College Login"
-            subtitle="View student attendance records"
-            iconColor={iconColors.college}
-            darkMode={darkMode}
-            onPress={() => navigate('CollegeLogin')} // ✅ navigation added
-          />
+            <LoginCard
+              icon={ShieldUser}
+              title="Admin Login"
+              subtitle="Manage colleges and NGOs"
+              iconColor={iconColors.admin}
+              darkMode={darkMode}
+              onPress={() => navigate('AdminLogin')} // ✅ navigation added
+            />
+            <LoginCard
+              icon={GraduationCap}
+              title="Student Login"
+              subtitle="Access your attendance records"
+              iconColor={iconColors.student}
+              darkMode={darkMode}
+              onPress={() => navigate('StudentLogin')} // ✅ navigation added
+            />
+          </View>
 
-          <LoginCard
-            icon={ShieldUser}
-            title="Admin Login"
-            subtitle="Manage colleges and NGOs"
-            iconColor={iconColors.admin}
-            darkMode={darkMode}
-            onPress={() => navigate('AdminLogin')} // ✅ navigation added
-          />
-        </View>
-
-        {/* Footer */}
-        <View style={[styles.footer, { borderColor: colors.border }]}>
-          <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-            Simple • Modern • Friendly UI
-          </Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          {/* Footer */}
+          <View style={[styles.footer, { borderColor: colors.border }]}>
+            <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+              Simple • Modern • Friendly UI
+            </Text>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
 
 // --- Themes ---
 const lightTheme = {
-  backgroundColors: ['#ffffff', '#cde4fbff'], 
-  backgroundStart: [0, 0], 
-  backgroundEnd: [1, 1],  
+  backgroundColors: ['#ffffff', '#cde4fbff'],
+  backgroundStart: [0, 0],
+  backgroundEnd: [1, 1],
   cardBg: '#ffffff',
   border: '#e0e7ee',
   textPrimary: '#2c3e50',
@@ -149,10 +160,10 @@ const lightTheme = {
 };
 
 const darkTheme = {
-  backgroundColors: ['#122d42ff', '#041728ff'], 
+  backgroundColors: ['#122d42ff', '#041728ff'],
   backgroundStart: [0, 0],
   backgroundEnd: [1, 1],
-  background: '#091828ff',  
+  background: '#091828ff',
   cardBg: '#34495e',
   border: '#546a7b',
   textPrimary: '#ecf0f1',

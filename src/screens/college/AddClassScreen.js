@@ -1,11 +1,13 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
+import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import * as api from '../../../apis/api';
 
 export default function AddClassScreen({ college }) {
   const { goBack } = useContext(NavigationContext);
+  const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
@@ -18,11 +20,15 @@ export default function AddClassScreen({ college }) {
     }
 
     try {
+      console.log("DEBUG: Access Token:", accessToken);
+      //Alert.alert("Debug Token", String(accessToken)); // Uncomment to see on screen
+
       const response = await fetch(api.addClassAPI, {
         method: 'POST',
-        credentials:'include',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': accessToken
         },
         body: JSON.stringify({ className: className.trim() })
       });

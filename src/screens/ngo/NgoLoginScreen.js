@@ -476,9 +476,10 @@ export default function NgoLoginScreen() {
       console.log("Login response:", data);
 
       // Extract tokens and user data from response
-      const accessToken = data.accessToken || data.token;
-      const refreshToken = data.refreshToken;
-      const userData = data.user || selectedNgo;
+      const responseData = data.data || data;
+      const accessToken = responseData.accessToken || responseData.token;
+      const refreshToken = responseData.refreshToken;
+      const userData = responseData.user || selectedNgo;
 
       // Store in AuthContext
       await loginUser(userData, accessToken, refreshToken, "ngo");

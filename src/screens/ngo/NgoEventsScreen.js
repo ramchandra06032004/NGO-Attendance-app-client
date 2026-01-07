@@ -20,7 +20,8 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const colors = darkMode ? darkTheme : lightTheme;
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
- const { logout } = useContext(AuthContext);
+  const { logout } = useContext(AuthContext);
+  const { accessToken } = useContext(AuthContext);
 
   useEffect(() => {
     fetchEvents();
@@ -44,18 +45,19 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
     // } catch (error) {
     //   console.error("Error logging out:", error);
     // }
-     await logout();
+    await logout();
     navigate("Home");
 
   };
   const fetchEvents = async () => {
+    console.log(accessToken + "   this is acess token");
     try {
       const response = await fetch(api.eventAllAPI, {
         method: "GET",
         credentials: "include",
         headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
+          'Authorization': accessToken
         },
       });
 
@@ -72,8 +74,8 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
       setLoading(false);
     }
   };
-  
-// ...existing code...
+
+  // ...existing code...
   return (
     <View
       style={[
@@ -112,7 +114,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
             </Text>
             <TouchableOpacity
               style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
-              onPress={() => { handleLogout()}}
+              onPress={() => { handleLogout() }}
             >
               <Text style={{ color: "#fff" }}>Logout</Text>
             </TouchableOpacity>
