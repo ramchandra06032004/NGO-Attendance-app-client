@@ -2,7 +2,6 @@ import React, { useContext, useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   ScrollView,
   Alert,
@@ -12,6 +11,7 @@ import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
 
 export default function StudentsListScreen({ college, eventId: propEventId }) {
+  //added line for testing git commit
   // eventId is passed as prop (not using react-navigation)
   const eventId = propEventId;
 
@@ -117,7 +117,7 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
     const students = Array.isArray(cls.students) ? cls.students : [];
     if (students.length === 0) {
       return (
-        <Text style={[styles.noStudents, { color: colors.textSecondary }]}>
+        <Text className="py-2 text-sm" style={{ color: colors.textSecondary }}>
           No students in this class
         </Text>
       );
@@ -135,40 +135,40 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
       return (
         <View
           key={id}
-          style={[
-            styles.row,
-            { borderColor: colors.border, alignItems: "center" },
-          ]}
+          className="flex-row items-center py-3 border-b"
+          style={{
+            borderColor: colors.border,
+          }}
         >
-          <View style={{ flex: 1 }}>
+          <View className="flex-1">
             <Text style={{ color: colors.textPrimary }}>{name}</Text>
-            <Text style={{ color: colors.textSecondary }}>PRN: {prn}</Text>
-            <Text style={{ color: colors.textSecondary }}>Dept: {dept}</Text>
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>PRN: {prn}</Text>
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>Dept: {dept}</Text>
           </View>
 
-          <View style={{ flexDirection: "row" }}>
+          <View className="flex-row">
             <TouchableOpacity
               onPress={() => togglePresent(id)}
-              style={[
-                styles.presentBtn,
-                { borderColor: colors.border },
-                isPresent && { backgroundColor: "#bbf7d0" }, // light green when active
-              ]}
+              className="px-3 py-2 rounded-lg border mr-2"
+              style={{
+                borderColor: colors.border,
+                backgroundColor: isPresent ? "#bbf7d0" : "transparent",
+              }}
             >
-              <Text style={{ color: colors.textPrimary, fontWeight: "700" }}>
+              <Text className="font-bold text-sm" style={{ color: colors.textPrimary }}>
                 Present
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => markAbsent(id)}
-              style={[
-                styles.absentBtn,
-                { borderColor: colors.border },
-                !isPresent && { backgroundColor: "#fecaca" }, // light red when explicitly absent
-              ]}
+              className="px-3 py-2 rounded-lg border"
+              style={{
+                borderColor: colors.border,
+                backgroundColor: !isPresent ? "#fecaca" : "transparent",
+              }}
             >
-              <Text style={{ color: colors.textPrimary, fontWeight: "700" }}>
+              <Text className="font-bold text-sm" style={{ color: colors.textPrimary }}>
                 Absent
               </Text>
             </TouchableOpacity>
@@ -180,56 +180,50 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.backgroundColors
-            ? colors.backgroundColors[0]
-            : "#fff",
-        },
-      ]}
+      className="flex-1 p-5 justify-center items-center"
+      style={{
+        backgroundColor: colors.backgroundColors
+          ? colors.backgroundColors[0]
+          : "#fff",
+      }}
     >
       <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-            flex: 1,
-          },
-        ]}
+        className="w-full max-w-2xl p-4.5 rounded-xl border flex-1"
+        style={{
+          backgroundColor: colors.cardBg,
+          borderColor: colors.border,
+        }}
       >
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true}>
-          <Text style={[styles.title, { color: colors.header }]}>
+        <ScrollView className="flex-1" showsVerticalScrollIndicator={true}>
+          <Text className="text-lg font-bold mb-2" style={{ color: colors.header }}>
             Students — {college?.name || college?.collegeName || "College"}
           </Text>
 
           {/* Vertical dropdown filter for classes */}
-          <View style={{ marginBottom: 12 }}>
+          <View className="mb-3">
             <TouchableOpacity
               onPress={() => setShowDropdown((s) => !s)}
-              style={[
-                styles.dropdownToggle,
-                { borderColor: colors.border, backgroundColor: colors.iconBg },
-              ]}
+              className="px-4 py-2.5 rounded-lg border"
+              style={{
+                borderColor: colors.border,
+                backgroundColor: colors.iconBg,
+              }}
             >
-              <Text style={[styles.filterText, { color: colors.textPrimary }]}>
+              <Text className="font-semibold" style={{ color: colors.textPrimary }}>
                 {selectedClass}
               </Text>
             </TouchableOpacity>
 
             {showDropdown && (
               <View
-                style={[
-                  styles.dropdownList,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.cardBg,
-                  },
-                ]}
+                className="mt-2 rounded-lg border overflow-hidden"
+                style={{
+                  borderColor: colors.border,
+                  backgroundColor: colors.cardBg,
+                }}
               >
                 <ScrollView
-                  style={{ maxHeight: 220 }}
+                  className="max-h-55"
                   showsVerticalScrollIndicator={true}
                 >
                   {classes.map((className) => (
@@ -239,21 +233,20 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
                         setSelectedClass(className);
                         setShowDropdown(false);
                       }}
-                      style={[
-                        styles.dropdownItem,
-                        { borderColor: colors.border },
-                        selectedClass === className && {
-                          backgroundColor: colors.accent,
-                          borderColor: colors.accent,
-                        },
-                      ]}
+                      className="px-4 py-3 border-b"
+                      style={{
+                        backgroundColor:
+                          selectedClass === className ? colors.accent : "transparent",
+                        borderColor:
+                          selectedClass === className ? colors.accent : colors.border,
+                      }}
                     >
                       <Text
-                        style={[
-                          styles.filterText,
-                          { color: colors.textPrimary },
-                          selectedClass === className && { color: "#fff" },
-                        ]}
+                        className="font-semibold"
+                        style={{
+                          color:
+                            selectedClass === className ? "#fff" : colors.textPrimary,
+                        }}
                       >
                         {className}
                       </Text>
@@ -264,15 +257,15 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
             )}
           </View>
 
-          <View style={styles.list}>
+          <View className="w-full">
             {classObjects.length === 0 ? (
-              <Text style={[styles.error, { color: colors.textSecondary }]}>
+              <Text className="text-center mt-5 text-sm" style={{ color: colors.textSecondary }}>
                 No classes / students found
               </Text>
             ) : selectedClass === "All Classes" ? (
               classObjects.map((cls) => (
-                <View key={cls._id} style={{ marginBottom: 12 }}>
-                  <Text style={[styles.classHeader, { color: colors.header }]}>
+                <View key={cls._id} className="mb-3">
+                  <Text className="text-base font-bold mb-1.5" style={{ color: colors.header }}>
                     {cls.name}
                   </Text>
                   {renderStudentsForClass(cls)}
@@ -284,14 +277,15 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
                 return cls ? (
                   <View>
                     <Text
-                      style={[styles.classHeader, { color: colors.header }]}
+                      className="text-base font-bold mb-1.5"
+                      style={{ color: colors.header }}
                     >
                       {selectedClass}
                     </Text>
                     {renderStudentsForClass(cls)}
                   </View>
                 ) : (
-                  <Text style={[styles.error, { color: colors.textSecondary }]}>
+                  <Text className="text-center mt-5 text-sm" style={{ color: colors.textSecondary }}>
                     No students found for {selectedClass}
                   </Text>
                 );
@@ -299,19 +293,19 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
             )}
           </View>
 
-          <View style={{ marginTop: 12 }}>
+          <View className="mt-3">
             <TouchableOpacity
               onPress={handleSubmit}
-              style={[
-                styles.action,
-                { backgroundColor: colors.accent, alignItems: "center" },
-              ]}
+              className="p-3 rounded-lg items-center"
+              style={{
+                backgroundColor: colors.accent,
+              }}
             >
-              <Text style={styles.actionText}>Submit Attendance</Text>
+              <Text className="text-white font-bold">Submit Attendance</Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.link} onPress={() => goBack()}>
+          <TouchableOpacity className="mt-3" onPress={() => goBack()}>
             <Text style={{ color: colors.textPrimary }}>Back</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -319,106 +313,3 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  card: {
-    width: "100%",
-    maxWidth: 640,
-    padding: 18,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 8,
-  },
-  filterContainer: {
-    flexGrow: 0,
-    marginBottom: 16,
-  },
-  filterBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  filterText: {
-    fontWeight: "600",
-  },
-  list: {
-    width: "100%",
-  },
-  classHeader: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  noStudents: {
-    paddingVertical: 8,
-  },
-  loader: {
-    marginTop: 20,
-  },
-  error: {
-    textAlign: "center",
-    marginTop: 20,
-  },
-  link: {
-    marginTop: 12,
-  },
-
-  /* Dropdown styles */
-  dropdownToggle: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  dropdownList: {
-    marginTop: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  dropdownItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-
-  /* attendance buttons */
-  presentBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginRight: 8,
-  },
-  absentBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-
-  action: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 10,
-  },
-  actionText: { color: "#fff", fontWeight: "700" },
-});

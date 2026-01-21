@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -120,60 +120,46 @@ export default function AddStudentScreen({ college, className }) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }]}>
-      <ScrollView contentContainerStyle={styles.card}>
-        <Text style={[styles.title, { color: colors.header }]}>Add Students to {className}</Text>
+    <View className="flex-1" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}>
+      <ScrollView contentContainerStyle={{ padding: 16 }}>
+        <Text className="text-xl font-bold mb-3" style={{ color: colors.header }}>Add Students to {className}</Text>
 
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 12 }]}>Add students</Text>
+        <Text className="text-base font-semibold mt-3 mb-2" style={{ color: colors.textPrimary }}>Add students</Text>
         {students.map((s, idx) => (
-          <View key={s.id} style={[styles.studentRow, { borderColor: colors.border, backgroundColor: colors.cardBg }]}>
-            <TextInput placeholder="Name" placeholderTextColor={colors.textSecondary} value={s.name} onChangeText={(v) => updateStudent(idx, 'name', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <TextInput placeholder="PRN" placeholderTextColor={colors.textSecondary} value={s.prn} onChangeText={(v) => updateStudent(idx, 'prn', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <TextInput placeholder="Department" placeholderTextColor={colors.textSecondary} value={s.department} onChangeText={(v) => updateStudent(idx, 'department', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <TextInput placeholder="Email" placeholderTextColor={colors.textSecondary} value={s.email} onChangeText={(v) => updateStudent(idx, 'email', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <View style={styles.studentActions}>
-              <TouchableOpacity onPress={() => addEmptyStudent()} style={[styles.actionBtn, { backgroundColor: colors.accent }]}>
-                <Text style={{ color: '#fff' }}>Add student</Text>
+          <View key={s.id} className="p-3 rounded-lg border mb-3" style={{ borderColor: colors.border, backgroundColor: colors.cardBg }}>
+            <TextInput placeholder="Name" placeholderTextColor={colors.textSecondary} value={s.name} onChangeText={(v) => updateStudent(idx, 'name', v)} className="p-2 rounded-lg border mb-2" style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }} />
+            <TextInput placeholder="PRN" placeholderTextColor={colors.textSecondary} value={s.prn} onChangeText={(v) => updateStudent(idx, 'prn', v)} className="p-2 rounded-lg border mb-2" style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }} />
+            <TextInput placeholder="Department" placeholderTextColor={colors.textSecondary} value={s.department} onChangeText={(v) => updateStudent(idx, 'department', v)} className="p-2 rounded-lg border mb-2" style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }} />
+            <TextInput placeholder="Email" placeholderTextColor={colors.textSecondary} value={s.email} onChangeText={(v) => updateStudent(idx, 'email', v)} className="p-2 rounded-lg border mb-2" style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }} />
+            <View className="flex-row justify-between">
+              <TouchableOpacity onPress={() => addEmptyStudent()} className="p-2 rounded-lg flex-1 mr-2 items-center" style={{ backgroundColor: colors.accent }}>
+                <Text className="text-white text-sm">Add student</Text>
               </TouchableOpacity>
               {students.length > 1 && (
-                <TouchableOpacity onPress={() => removeStudent(idx)} style={[styles.actionBtn, { backgroundColor: '#888' }]}>
-                  <Text style={{ color: '#fff' }}>Remove</Text>
+                <TouchableOpacity onPress={() => removeStudent(idx)} className="p-2 rounded-lg flex-1 items-center" style={{ backgroundColor: '#888' }}>
+                  <Text className="text-white text-sm">Remove</Text>
                 </TouchableOpacity>
               )}
             </View>
           </View>
         ))}
 
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 12 }]}>Upload Excel sheet</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity onPress={pickAndParseFile} style={[styles.actionBtn, { backgroundColor: colors.accent, paddingHorizontal: 12 }] }>
-            <Text style={{ color: '#fff' }}>Pick Excel file</Text>
+        <Text className="text-base font-semibold mt-3 mb-2" style={{ color: colors.textPrimary }}>Upload Excel sheet</Text>
+        <View className="flex-row items-center gap-2 mb-3">
+          <TouchableOpacity onPress={pickAndParseFile} className="p-2 rounded-lg px-3" style={{ backgroundColor: colors.accent }}>
+            <Text className="text-white text-sm">Pick Excel file</Text>
           </TouchableOpacity>
-          <Text style={{ color: colors.textSecondary, flex: 1 }}>Pick an .xlsx/.xls/.csv with student rows (Name, PRN, Department, Email)</Text>
+          <Text className="flex-1 text-sm" style={{ color: colors.textSecondary }}>Pick an .xlsx/.xls/.csv with student rows (Name, PRN, Department, Email)</Text>
         </View>
 
-        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.accent }]} onPress={onSave}>
-          <Text style={{ color: '#fff' }}>Save Students</Text>
+        <TouchableOpacity className="p-3 rounded-lg items-center mt-3" style={{ backgroundColor: colors.accent }} onPress={onSave}>
+          <Text className="text-white font-bold">Save Students</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>
+        <TouchableOpacity className="mt-3" onPress={() => goBack()}>
           <Text style={{ color: colors.textPrimary }}>Back</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  card: { padding: 16 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  input: { padding: 12, borderRadius: 8, borderWidth: 1 },
-  studentRow: { padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 12 },
-  smallInput: { padding: 8, borderRadius: 6, borderWidth: 1, marginBottom: 8 },
-  studentActions: { flexDirection: 'row', justifyContent: 'space-between' },
-  actionBtn: { padding: 8, borderRadius: 8, alignItems: 'center', flex: 1, marginRight: 8 },
-  uploadBox: { padding: 20, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  saveBtn: { padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-});

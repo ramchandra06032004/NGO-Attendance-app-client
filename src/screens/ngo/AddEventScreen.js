@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
   ScrollView,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
@@ -65,45 +64,39 @@ export default function AddEventScreen() {
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.backgroundColors
-            ? colors.backgroundColors[0]
-            : "#fff",
-        },
-      ]}
+      className="flex-1"
+      style={{
+        backgroundColor: colors.backgroundColors
+          ? colors.backgroundColors[0]
+          : "#fff",
+      }}
     >
-      <ScrollView contentContainerStyle={styles.formContainer}>
-        <Text style={[styles.title, { color: colors.header }]}>
+      <ScrollView contentContainerStyle={{ padding: 20 }}>
+        <Text className="text-3xl font-bold mb-5 text-center" style={{ color: colors.header }}>
           Add New Event
         </Text>
         <TextInput
           placeholder="Location"
           value={location}
           onChangeText={setLocation}
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.iconBg,
-              borderColor: colors.border,
-              color: colors.textPrimary,
-            },
-          ]}
+          className="border rounded-lg p-3 mb-4 text-base"
+          style={{
+            backgroundColor: colors.iconBg,
+            borderColor: colors.border,
+            color: colors.textPrimary,
+          }}
           placeholderTextColor={colors.textSecondary}
         />
         <TextInput
           placeholder="Aim"
           value={aim}
           onChangeText={setAim}
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.iconBg,
-              borderColor: colors.border,
-              color: colors.textPrimary,
-            },
-          ]}
+          className="border rounded-lg p-3 mb-4 text-base"
+          style={{
+            backgroundColor: colors.iconBg,
+            borderColor: colors.border,
+            color: colors.textPrimary,
+          }}
           placeholderTextColor={colors.textSecondary}
         />
         <TextInput
@@ -112,33 +105,30 @@ export default function AddEventScreen() {
           onChangeText={setDescription}
           multiline
           numberOfLines={4}
-          style={[
-            styles.input,
-            styles.multilineInput,
-            {
-              backgroundColor: colors.iconBg,
-              borderColor: colors.border,
-              color: colors.textPrimary,
-            },
-          ]}
+          className="border rounded-lg p-3 mb-4 text-base"
+          style={{
+            backgroundColor: colors.iconBg,
+            borderColor: colors.border,
+            color: colors.textPrimary,
+            height: 100,
+            textAlignVertical: "top",
+          }}
           placeholderTextColor={colors.textSecondary}
         />
         <TextInput
           placeholder="Images (URLs separated by commas)"
           value={images}
           onChangeText={setImages}
-          style={[
-            styles.input,
-            {
-              backgroundColor: colors.iconBg,
-              borderColor: colors.border,
-              color: colors.textPrimary,
-            },
-          ]}
+          className="border rounded-lg p-3 mb-4 text-base"
+          style={{
+            backgroundColor: colors.iconBg,
+            borderColor: colors.border,
+            color: colors.textPrimary,
+          }}
           placeholderTextColor={colors.textSecondary}
         />
-        <View style={styles.dateInputContainer}>
-          <Text style={[styles.dateLabel, { color: colors.textPrimary }]}>
+        <View className="mb-4">
+          <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
             Select Date:
           </Text>
           <input
@@ -159,68 +149,13 @@ export default function AddEventScreen() {
           />
         </View>
         <TouchableOpacity
-          style={[styles.submitButton, { backgroundColor: colors.primary }]}
+          className="p-4 rounded-lg items-center mt-2.5"
+          style={{ backgroundColor: colors.accent || "#f59e0b" }}
           onPress={handleSubmit}
         >
-          <Text style={styles.submitButtonText}>Add Event</Text>
+          <Text className="text-white text-lg font-bold">Add Event</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  dateInputContainer: {
-    marginBottom: 16,
-  },
-  dateLabel: {
-    marginBottom: 8,
-    fontSize: 16,
-  },
-  formContainer: {
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-  input: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    fontSize: 16,
-  },
-  multilineInput: {
-    height: 100,
-    textAlignVertical: "top",
-  },
-  dateButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-    alignItems: "center",
-  },
-  dateButtonText: {
-    fontSize: 16,
-  },
-  submitButton: {
-    backgroundColor: "#f59e0b",
-    padding: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-});

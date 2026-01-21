@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -15,36 +15,28 @@ export default function ClassStudentsScreen({ college, className }) {
   const students = selectedClass ? selectedClass.students : [];
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }]}>
-      <Text style={[styles.header, { color: colors.header }]}>{className}</Text>
+    <View className="flex-1 p-5" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}>
+      <Text className="text-lg font-black mb-3" style={{ color: colors.header }}>{className}</Text>
       <FlatList data={students} keyExtractor={s => s._id.toString()} renderItem={({ item }) => (
-        <View style={[styles.row, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{item.name}</Text>
-            <Text style={{ color: colors.textSecondary }}>PRN: {item.prn}</Text>
-            <Text style={{ color: colors.textSecondary }}>Department: {item.department}</Text>
+        <View className="p-3 rounded-2xl mb-2 flex-row items-center border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+          <View className="flex-1">
+            <Text className="font-bold" style={{ color: colors.textPrimary }}>{item.name}</Text>
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>PRN: {item.prn}</Text>
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>Department: {item.department}</Text>
           </View>
-          <TouchableOpacity style={[styles.detailsBtn, { backgroundColor: colors.accent }]} onPress={() => navigate('StudentEvents', { college, studentId: item._id.toString() })}>
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Events</Text>
+          <TouchableOpacity className="px-3 py-2 rounded-lg" style={{ backgroundColor: colors.accent }} onPress={() => navigate('StudentEvents', { college, studentId: item._id.toString() })}>
+            <Text className="text-white font-bold">Events</Text>
           </TouchableOpacity>
         </View>
       )} />
 
-      <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.accent }]} onPress={() => navigate('AddStudent', { college, className })}>
-        <Text style={{ color: '#fff', fontWeight: '700' }} className="text-white">Add Student </Text>
+      <TouchableOpacity className="p-3 rounded-lg items-center mt-3" style={{ backgroundColor: colors.accent }} onPress={() => navigate('AddStudent', { college, className })}>
+        <Text className="text-white font-bold">Add Student</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>
+      <TouchableOpacity className="mt-3" onPress={() => goBack()}>
         <Text style={{ color: colors.textPrimary }}>Back</Text>
       </TouchableOpacity>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  header: { fontSize: 18, fontWeight: '800', marginBottom: 12 },
-  row: { padding: 12, borderRadius: 10, marginBottom: 8, flexDirection: 'row', alignItems: 'center', borderWidth: 1 },
-  detailsBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  addBtn: { padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-});

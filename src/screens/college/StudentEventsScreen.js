@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { useTheme } from '../../context/ThemeContext';
 
@@ -33,70 +33,57 @@ export default function StudentEventsScreen({ college, studentId }) {
   }, [studentId]);
 
   const renderTableHeader = () => (
-    <View style={[styles.headerRow, { backgroundColor: colors.accent }]}>
-      <Text style={[styles.headerCell, { flex: 1.2 }]}>Event</Text>
-      <Text style={[styles.headerCell, { flex: 1 }]}>Event Venue</Text>
-      <Text style={[styles.headerCell, { flex: 1 }]}>NGO</Text>
-      <Text style={[styles.headerCell, { flex: 1 }]}>Event Date</Text>
-      <Text style={[styles.headerCell, { flex: 1 }]}>Attended Date</Text>
+    <View className="flex-row p-2.5 rounded-lg mb-0.5" style={{ backgroundColor: colors.accent }}>
+      <Text className="font-bold text-white text-center text-sm px-1" style={{ flex: 1.2 }}>Event</Text>
+      <Text className="font-bold text-white text-center text-sm px-1" style={{ flex: 1 }}>Event Venue</Text>
+      <Text className="font-bold text-white text-center text-sm px-1" style={{ flex: 1 }}>NGO</Text>
+      <Text className="font-bold text-white text-center text-sm px-1" style={{ flex: 1 }}>Event Date</Text>
+      <Text className="font-bold text-white text-center text-sm px-1" style={{ flex: 1 }}>Attended Date</Text>
     </View>
   );
 
   const renderEvent = ({ item, index }) => (
-    <View style={[styles.eventRow, { 
+    <View className="flex-row p-2.5 rounded-lg mb-0.5 border" style={{
       backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
-      borderColor: colors.border 
-    }]}>
-      <Text style={[styles.cell, { color: colors.textPrimary, flex: 1.2 }]} numberOfLines={1}>
+      borderColor: colors.border
+    }}>
+      <Text className="text-center text-sm px-1" style={{ color: colors.textPrimary, flex: 1.2 }} numberOfLines={1}>
         {item.eventName}
       </Text>
-      <Text style={[styles.cell, { color: colors.textSecondary, flex: 1 }]} numberOfLines={1}>
+      <Text className="text-center text-sm px-1" style={{ color: colors.textSecondary, flex: 1 }} numberOfLines={1}>
         {item.eventLocation}
       </Text>
-      <Text style={[styles.cell, { color: colors.textSecondary, flex: 1 }]} numberOfLines={1}>
+      <Text className="text-center text-sm px-1" style={{ color: colors.textSecondary, flex: 1 }} numberOfLines={1}>
         {item.ngoName}
       </Text>
-      
-      <Text style={[styles.cell, { color: colors.textSecondary, flex: 1 }]} numberOfLines={1}>
+      <Text className="text-center text-sm px-1" style={{ color: colors.textSecondary, flex: 1 }} numberOfLines={1}>
         {item.eventDate}
       </Text>
-      <Text style={[styles.cell, { color: colors.textSecondary, flex: 1 }]} numberOfLines={1}>
+      <Text className="text-center text-sm px-1" style={{ color: colors.textSecondary, flex: 1 }} numberOfLines={1}>
         {item.attendedDate}
       </Text>
     </View>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }]}>
-      <Text style={[styles.title, { color: colors.header }]}>{student.name}</Text>
-      <Text style={[styles.infoText, { color: colors.textSecondary }]}>PRN: {student.prn}</Text>
-      <Text style={[styles.infoText, { color: colors.textSecondary }]}>Department: {student.department}</Text>
-      <Text style={[styles.infoText, { color: colors.textSecondary }]}>Class: {className}</Text>
+    <View className="flex-1 p-5" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}>
+      <Text className="text-xl font-black mb-2" style={{ color: colors.header }}>{student.name}</Text>
+      <Text className="mb-1.5 text-base" style={{ color: colors.textSecondary }}>PRN: {student.prn}</Text>
+      <Text className="mb-1.5 text-base" style={{ color: colors.textSecondary }}>Department: {student.department}</Text>
+      <Text className="mb-1.5 text-base" style={{ color: colors.textSecondary }}>Class: {className}</Text>
       
       {events.length === 0 ? (
-        <Text style={[styles.noEvents, { color: colors.textSecondary }]}>No events attended.</Text>
+        <Text className="text-center mt-5 text-lg" style={{ color: colors.textSecondary }}>No events attended.</Text>
       ) : (
-        <View style={styles.tableWrapper}>
+        <View className="w-full">
           {renderTableHeader()}
           {events.map((event, index) => renderEvent({ item: event, index }))}
         </View>
       )}
 
-      <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>
-        <Text style={{ color: colors.textPrimary, fontSize: 16, fontWeight: '600' }}>Back</Text>
+      <TouchableOpacity className="mt-3" onPress={() => goBack()}>
+        <Text className="text-base font-semibold" style={{ color: colors.textPrimary }}>Back</Text>
       </TouchableOpacity>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  title: { fontSize: 20, fontWeight: '800', marginBottom: 8 },
-  infoText: { marginBottom: 6, fontSize: 15 },
-  tableWrapper: { width: '100%' },
-  headerRow: { flexDirection: 'row', padding: 10, borderRadius: 5, marginBottom: 2 },
-  headerCell: { fontWeight: '700', color: '#fff', textAlign: 'center', paddingHorizontal: 4, fontSize: 14 },
-  eventRow: { flexDirection: 'row', padding: 10, borderRadius: 5, marginBottom: 2, borderWidth: 1 },
-  cell: { textAlign: 'center', fontSize: 14, paddingHorizontal: 4 },
-  noEvents: { textAlign: 'center', marginTop: 20, fontSize: 18 },
-});

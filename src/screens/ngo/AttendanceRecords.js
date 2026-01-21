@@ -2,7 +2,6 @@ import React, { useState, useEffect, useContext, Platform } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
   Platform as RNPlatform,
@@ -241,14 +240,12 @@ export default function AttendanceRecords({ route = {} }) {
   if (loading) {
     return (
       <View
-        style={[
-          styles.center,
-          {
-            backgroundColor: colors.backgroundColors
-              ? colors.backgroundColors[0]
-              : styles.center.backgroundColor,
-          },
-        ]}
+        className="flex-1 justify-center items-center"
+        style={{
+          backgroundColor: colors.backgroundColors
+            ? colors.backgroundColors[0]
+            : "#fff",
+        }}
       >
         <ActivityIndicator size="large" color={colors.accent} />
         <Text style={{ color: colors.textPrimary }}>
@@ -261,16 +258,14 @@ export default function AttendanceRecords({ route = {} }) {
   if (error) {
     return (
       <View
-        style={[
-          styles.center,
-          {
-            backgroundColor: colors.backgroundColors
-              ? colors.backgroundColors[0]
-              : styles.center.backgroundColor,
-          },
-        ]}
+        className="flex-1 justify-center items-center"
+        style={{
+          backgroundColor: colors.backgroundColors
+            ? colors.backgroundColors[0]
+            : "#fff",
+        }}
       >
-        <Text style={[styles.error, { color: colors.textPrimary }]}>
+        <Text className="text-red-500" style={{ color: colors.textPrimary }}>
           Error: {error}
         </Text>
       </View>
@@ -279,23 +274,22 @@ export default function AttendanceRecords({ route = {} }) {
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.backgroundColors
-            ? colors.backgroundColors[0]
-            : styles.container.backgroundColor,
-        },
-      ]}
+      className="flex-1 p-5"
+      style={{
+        backgroundColor: colors.backgroundColors
+          ? colors.backgroundColors[0]
+          : "#fff",
+      }}
     >
       {/* Header with Back and Export buttons */}
-      <View style={styles.headerRow}>
+      <View className="flex-row justify-between items-center mb-4 gap-2">
         <TouchableOpacity
           onPress={() => goBack()}
-          style={[
-            styles.smallBack,
-            { borderColor: colors.border, backgroundColor: colors.cardBg },
-          ]}
+          className="px-2.5 py-1.5 rounded-lg border"
+          style={{
+            borderColor: colors.border,
+            backgroundColor: colors.cardBg,
+          }}
         >
           <Text style={{ color: colors.textPrimary }}>Back</Text>
         </TouchableOpacity>
@@ -303,55 +297,56 @@ export default function AttendanceRecords({ route = {} }) {
         {attendanceData.attendance && attendanceData.attendance.length > 0 && (
           <TouchableOpacity
             onPress={exportToExcel}
-            style={[
-              styles.exportBtn,
-              { backgroundColor: colors.accent },
-            ]}
+            className="px-3.5 py-1.5 rounded-lg"
+            style={{
+              backgroundColor: colors.accent,
+            }}
           >
-            <Text style={{ color: "#fff", fontWeight: "600" }}>Export to Excel sheet</Text>
+            <Text className="text-white font-semibold text-sm">Export to Excel sheet</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <Text style={[styles.title, { color: colors.header }]}>
+      <Text className="text-2xl font-bold mb-3" style={{ color: colors.header }}>
         Attendance Records for {attendanceData.event?.aim || "Event"}
       </Text>
-      <Text style={[styles.eventDetails, { color: colors.textSecondary }]}>
+      <Text className="text-sm mb-2" style={{ color: colors.textSecondary }}>
         📍 Location: {attendanceData.event?.location}
       </Text>
-      <Text style={[styles.eventDetails, { color: colors.textSecondary }]}>
+      <Text className="text-sm mb-2" style={{ color: colors.textSecondary }}>
         📅 Date:{" "}
         {new Date(attendanceData.event?.eventDate).toLocaleDateString()}
       </Text>
-      <Text style={[styles.totalPresent, { color: colors.textPrimary }]}>
+      <Text className="text-base font-bold mb-5" style={{ color: colors.textPrimary }}>
         Total Students Present: {attendanceData.totalStudentsPresent}
       </Text>
       {!attendanceData.attendance || attendanceData.attendance.length === 0 ? (
-        <Text style={[styles.noRecords, { color: colors.textSecondary }]}>
+        <Text className="text-center mt-5 text-base" style={{ color: colors.textSecondary }}>
           No attendance records found.
         </Text>
       ) : (
         <>
           {/* Horizontal Scrolling Table */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={true} style={styles.tableScrollView}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} className="flex-1">
             <View>
               {/* Table Header */}
               <View
-                style={[styles.tableHeader, { backgroundColor: colors.accent }]}
+                className="flex-row p-2.5 rounded-lg mb-0.5"
+                style={{ backgroundColor: colors.accent }}
               >
-                <Text style={[styles.tableHeaderCell, styles.studentNameCell, { color: "#fff" }]}>
+                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 150 }}>
                   Student
                 </Text>
-                <Text style={[styles.tableHeaderCell, styles.collegeCell, { color: "#fff" }]}>
+                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 150 }}>
                   College
                 </Text>
-                <Text style={[styles.tableHeaderCell, styles.departmentCell, { color: "#fff" }]}>
+                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 120 }}>
                   Department
                 </Text>
-                <Text style={[styles.tableHeaderCell, styles.classNameCell, { color: "#fff" }]}>
+                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 120 }}>
                   Class
                 </Text>
-                <Text style={[styles.tableHeaderCell, styles.markedDateCell, { color: "#fff" }]}>
+                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 130 }}>
                   Marked Date
                 </Text>
               </View>
@@ -360,27 +355,25 @@ export default function AttendanceRecords({ route = {} }) {
               {attendanceData.attendance.map((item, index) => (
                 <View
                   key={item._id}
-                  style={[
-                    styles.tableRow,
-                    {
-                      backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
-                      borderColor: colors.border,
-                    },
-                  ]}
+                  className="flex-row p-2.5 rounded-lg mb-0.5 border items-center"
+                  style={{
+                    backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
+                    borderColor: colors.border,
+                  }}
                 >
-                  <Text style={[styles.tableCell, styles.studentNameCell, { color: colors.textPrimary }]}>
+                  <Text className="text-xs text-center px-1" style={{ color: colors.textPrimary, width: 150 }}>
                     {item.name}
                   </Text>
-                  <Text style={[styles.tableCell, styles.collegeCell, { color: colors.textPrimary }]}>
+                  <Text className="text-xs text-center px-1" style={{ color: colors.textPrimary, width: 150 }}>
                     {getCollegeName(item.classId._id)}
                   </Text>
-                  <Text style={[styles.tableCell, styles.departmentCell, { color: colors.textSecondary }]}>
+                  <Text className="text-xs text-center px-1" style={{ color: colors.textSecondary, width: 120 }}>
                     {item.department}
                   </Text>
-                  <Text style={[styles.tableCell, styles.classNameCell, { color: colors.textSecondary }]}>
+                  <Text className="text-xs text-center px-1" style={{ color: colors.textSecondary, width: 120 }}>
                     {item.classId.className}
                   </Text>
-                  <Text style={[styles.tableCell, styles.markedDateCell, { color: colors.textSecondary }]}>
+                  <Text className="text-xs text-center px-1" style={{ color: colors.textSecondary, width: 130 }}>
                     {item.attendanceMarkedAt
                       ? new Date(item.attendanceMarkedAt).toLocaleDateString()
                       : "N/A"}
@@ -394,98 +387,3 @@ export default function AttendanceRecords({ route = {} }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 8,
-  },
-  smallBack: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  exportBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
-  eventDetails: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  totalPresent: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-  tableScrollView: {
-    flex: 1,
-  },
-  tableHeader: {
-    flexDirection: "row",
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 2,
-  },
-  tableHeaderCell: {
-    fontWeight: "bold",
-    fontSize: 12,
-    textAlign: "center",
-    paddingHorizontal: 4,
-  },
-  tableRow: {
-    flexDirection: "row",
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 2,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  tableCell: {
-    fontSize: 12,
-    textAlign: "center",
-    paddingHorizontal: 4,
-  },
-  studentNameCell: {
-    width: 150,
-  },
-  collegeCell: {
-    width: 150,
-  },
-  departmentCell: {
-    width: 120,
-  },
-  classNameCell: {
-    width: 120,
-  },
-  markedDateCell: {
-    width: 130,
-  },
-  noRecords: {
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 16,
-  },
-  error: {
-    color: "red",
-  },
-});

@@ -2,7 +2,6 @@ import React, { useContext, useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
@@ -97,48 +96,39 @@ export default function AdminPanelScreen() {
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor:
-            (colors.backgroundColors && colors.backgroundColors[0]) ||
-            styles.container.backgroundColor,
-        },
-      ]}
+      className="flex-1 p-5"
+      style={{
+        backgroundColor:
+          (colors.backgroundColors && colors.backgroundColors[0]) || "#f0fdf4",
+      }}
     >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.header }]}>
+      <View className="flex-row justify-between items-center mb-3">
+        <Text className="text-2xl font-black" style={{ color: colors.header }}>
           Admin Panel
         </Text>
         <TouchableOpacity
-          style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
+          className="px-3.5 py-2.5 rounded-lg"
+          style={{ backgroundColor: colors.accent }}
           onPress={handleLogout}
         >
-          <Text style={{ color: "#fff", fontWeight: "700" }}>Logout</Text>
+          <Text className="text-white font-bold">Logout</Text>
         </TouchableOpacity>
       </View>
 
       <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-        ]}
+        className="bg-white p-3.5 rounded-xl mb-3 border"
+        style={{ borderColor: colors.border }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+        <View className="flex-row justify-between items-center">
+          <Text className="font-bold" style={{ color: colors.textPrimary }}>
             Colleges
           </Text>
           <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.accent }]}
+            className="p-2.5 rounded-lg ml-2"
+            style={{ backgroundColor: colors.accent }}
             onPress={() => navigate("AddCollege")}
           >
-            <Text style={{ color: "#fff" }}>+ Add</Text>
+            <Text className="text-white">+ Add</Text>
           </TouchableOpacity>
         </View>
 
@@ -151,12 +141,12 @@ export default function AdminPanelScreen() {
               item && (item._id || item.id) ? item._id || item.id : String(idx)
             }
             renderItem={({ item }) => (
-              <Text style={{ paddingVertical: 6, color: colors.textPrimary }}>
+              <Text className="py-1.5" style={{ color: colors.textPrimary }}>
                 {renderItemName(item)}
               </Text>
             )}
             ListEmptyComponent={
-              <Text style={{ paddingVertical: 8, color: colors.textSecondary }}>
+              <Text className="py-2" style={{ color: colors.textSecondary }}>
                 No colleges found
               </Text>
             }
@@ -165,26 +155,19 @@ export default function AdminPanelScreen() {
       </View>
 
       <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-        ]}
+        className="bg-white p-3.5 rounded-xl mb-3 border"
+        style={{ borderColor: colors.border }}
       >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
+        <View className="flex-row justify-between items-center">
+          <Text className="font-bold" style={{ color: colors.textPrimary }}>
             NGOs
           </Text>
           <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.accent }]}
+            className="p-2.5 rounded-lg ml-2"
+            style={{ backgroundColor: colors.accent }}
             onPress={() => navigate("AddNgo")}
           >
-            <Text style={{ color: "#fff" }}>+ Add</Text>
+            <Text className="text-white">+ Add</Text>
           </TouchableOpacity>
         </View>
 
@@ -197,12 +180,12 @@ export default function AdminPanelScreen() {
               item && (item._id || item.id) ? item._id || item.id : String(idx)
             }
             renderItem={({ item }) => (
-              <Text style={{ paddingVertical: 6, color: colors.textPrimary }}>
+              <Text className="py-1.5" style={{ color: colors.textPrimary }}>
                 {renderItemName(item)}
               </Text>
             )}
             ListEmptyComponent={
-              <Text style={{ paddingVertical: 8, color: colors.textSecondary }}>
+              <Text className="py-2" style={{ color: colors.textSecondary }}>
                 No NGOs found
               </Text>
             }
@@ -212,42 +195,3 @@ export default function AdminPanelScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#f0fdf4" },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  title: { fontSize: 22, fontWeight: "800", color: "#065f46" },
-  logoutBtn: {
-    backgroundColor: "#10b981",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  card: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  cardTitle: { fontWeight: "700", marginBottom: 8 },
-  input: {
-    flex: 1,
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#ecfccb",
-  },
-  addBtn: {
-    backgroundColor: "#10b981",
-    padding: 10,
-    borderRadius: 8,
-    marginLeft: 8,
-    justifyContent: "center",
-  },
-});

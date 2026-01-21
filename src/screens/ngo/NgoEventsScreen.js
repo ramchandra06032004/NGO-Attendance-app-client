@@ -2,7 +2,6 @@ import React, { useContext, useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
@@ -76,45 +75,35 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
 // ...existing code...
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor:
-            (colors.backgroundColors && colors.backgroundColors[0]) ||
-            styles.container.backgroundColor,
-        },
-      ]}
+      className="flex-1 p-5"
+      style={{
+        backgroundColor:
+          (colors.backgroundColors && colors.backgroundColors[0]) ||
+          "#eef2ff",
+      }}
     >
       {/* Header */}
-      <View style={styles.header}>
-        {/* <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity> */}
-
-        <Text style={[styles.title, { color: colors.header }]}>Events</Text>
+      <View className="flex-row items-center mb-3">
+        <Text className="text-2xl font-bold" style={{ color: colors.header }}>
+          Events
+        </Text>
 
         {loggedNgo ? (
-          <View
-            style={{
-              marginLeft: "auto",
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
+          <View className="ml-auto flex-row items-center">
             <Text
-              style={{
-                marginRight: 10,
-                fontWeight: "700",
-                color: colors.textPrimary,
-              }}
+              className="mr-2.5 font-bold"
+              style={{ color: colors.textPrimary }}
             >
               {loggedNgo.name}
             </Text>
             <TouchableOpacity
-              style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
-              onPress={() => { handleLogout()}}
+              className="py-2 px-2.5 rounded-lg"
+              style={{ backgroundColor: colors.accent }}
+              onPress={() => {
+                handleLogout();
+              }}
             >
-              <Text style={{ color: "#fff" }}>Logout</Text>
+              <Text className="text-white font-bold text-sm">Logout</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -122,49 +111,52 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
 
       {/* Event List */}
       {loading ? (
-        <ActivityIndicator
-          size="large"
-          color={colors.accent}
-          style={styles.loader}
-        />
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator
+            size="large"
+            color={colors.accent}
+          />
+        </View>
       ) : events.length === 0 ? (
-        <Text style={[styles.noEvents, { color: colors.textSecondary }]}>
+        <Text className="text-center mt-5 text-base" style={{ color: colors.textSecondary }}>
           No events found. Click the + button to add an event.
         </Text>
       ) : (
         <FlatList
           data={events}
           keyExtractor={(item, index) => item._id || index.toString()}
-          style={{ width: "100%" }}
+          className="w-full"
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[
-                styles.eventCard,
-                { backgroundColor: colors.cardBg, borderColor: colors.border },
-              ]}
+              className="p-4 rounded-xl mb-3 border"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+              }}
               onPress={() => {
                 navigate("EventInfo", { event: item });
               }}
             >
-              <Text style={[styles.eventTitle, { color: colors.textPrimary }]}>
+              <Text className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
                 {item.aim}
               </Text>
               <Text
-                style={[styles.eventLocation, { color: colors.textSecondary }]}
+                className="text-base mb-2"
+                style={{ color: colors.textSecondary }}
               >
                 📍 {item.location}
               </Text>
               <Text
-                style={[
-                  styles.eventDescription,
-                  { color: colors.textSecondary },
-                ]}
+                className="text-base mb-2 leading-5"
+                style={{
+                  color: colors.textSecondary,
+                }}
               >
                 {item.description && item.description.length > 100
                   ? `${item.description.substring(0, 100)}...`
                   : item.description}
               </Text>
-              <Text style={[styles.eventDate, { color: colors.textSecondary }]}>
+              <Text className="text-base" style={{ color: colors.textSecondary }}>
                 📅 {new Date(item.eventDate).toLocaleDateString()}
               </Text>
             </TouchableOpacity>
@@ -175,90 +167,13 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
       {/* Add Event Button */}
       {loggedNgo && (
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.accent }]}
+          className="absolute right-5 bottom-6 px-4 py-3 rounded-full shadow-lg"
+          style={{ backgroundColor: colors.accent }}
           onPress={() => navigate("AddEvent")}
         >
-          <Text style={styles.fabText}>Add Event</Text>
+          <Text className="text-white font-bold">Add Event</Text>
         </TouchableOpacity>
       )}
     </View>
   );
 }
-
-// Styles
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: "#eef2ff",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  backBtn: {
-    paddingRight: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  eventCard: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  eventLocation: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  eventDescription: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  eventDate: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  loader: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  noEvents: {
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 16,
-  },
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 24,
-    backgroundColor: "#0ea5a4",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 30,
-    elevation: 4,
-  },
-  fabText: {
-    color: "#fff",
-    fontWeight: "700",
-  },
-  logoutBtn: {
-    backgroundColor: "#ef4444",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-});

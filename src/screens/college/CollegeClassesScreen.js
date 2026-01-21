@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList } from 'react-native';
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -807,9 +807,9 @@ export default function CollegeClassesScreen({ college }) {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff', justifyContent: 'center', alignItems: 'center' }]}>
+      <View className="flex-1 justify-center items-center" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}>
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={{ color: colors.textPrimary, marginTop: 10 }}>Exporting data...</Text>
+        <Text className="text-base mt-2.5" style={{ color: colors.textPrimary }}>Exporting data...</Text>
       </View>
     );
   }
@@ -818,30 +818,33 @@ export default function CollegeClassesScreen({ college }) {
     <TouchableOpacity
       activeOpacity={1}
       onPress={handleOutsideClick}
-      style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }]}
+      className="flex-1 p-5"
+      style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}
     >
       <ScrollView showsVerticalScrollIndicator={true}>
-        <View style={styles.headerRow}>
+        <View className="flex-row justify-between items-center mb-4 gap-2 flex-wrap">
           <TouchableOpacity
-            style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
+            className="px-3.5 py-2.5 rounded-lg"
+            style={{ backgroundColor: colors.accent }}
             onPress={handleLogout}
           >
-            <Text style={{ color: "#fff", fontWeight: "700" }}>Logout</Text>
+            <Text className="text-white font-bold">Logout</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: colors.accent }]}
+            className="px-3 py-2.5 rounded-lg flex-1 min-w-30"
+            style={{ backgroundColor: colors.accent }}
             onPress={exportToExcel}
           >
-            <Text style={{ color: "#fff", fontWeight: "700" }}>Export Class-wise</Text>
+            <Text className="text-white font-bold">Export Class-wise</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.exportBtn, { backgroundColor: colors.accent }]}
+            className="px-3 py-2.5 rounded-lg flex-1 min-w-30"
+            style={{ backgroundColor: colors.accent }}
             onPress={exportAllEventsToExcel}
           >
-
-            <Text style={{ color: "#fff", fontWeight: "700" }}>Export Events-wise</Text>
+            <Text className="text-white font-bold">Export Events-wise</Text>
           </TouchableOpacity>
         </View>
 
@@ -849,18 +852,20 @@ export default function CollegeClassesScreen({ college }) {
         <TouchableOpacity
           activeOpacity={1}
           onPress={(e) => e.stopPropagation()}
-          style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border, marginBottom: 16 }]}
+          className="p-4 rounded-2xl border mb-4"
+          style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
         >
-          <Text style={[styles.title, { color: colors.header }]}>Event-wise Attendance</Text>
+          <Text className="text-lg font-bold mb-3" style={{ color: colors.header }}>Event-wise Attendance</Text>
 
           <TouchableOpacity
-            style={[styles.dropdownBtn, { backgroundColor: colors.iconBg, borderColor: colors.border }]}
+            className="flex-row p-3 rounded-lg border justify-between items-center"
+            style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
             onPress={() => setShowEventDropdown(!showEventDropdown)}
           >
-            <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
+            <Text className="font-semibold" style={{ color: colors.textPrimary }}>
               {selectedEvent ? selectedEvent.aim : "Select Event"}
             </Text>
-            <Text style={{ color: colors.textSecondary, marginLeft: 8 }}>▼</Text>
+            <Text className="ml-2" style={{ color: colors.textSecondary }}>▼</Text>
           </TouchableOpacity>
 
           {showEventDropdown && (
@@ -868,13 +873,14 @@ export default function CollegeClassesScreen({ college }) {
               {eventsList.map((event) => (
                 <TouchableOpacity
                   key={event._id}
-                  style={[styles.eventItem, { backgroundColor: colors.backgroundColors?.[1] || '#f5f5f5', borderColor: colors.border }]}
+                  className="p-3 rounded-lg mb-2 border"
+                  style={{ backgroundColor: colors.backgroundColors?.[1] || '#f5f5f5', borderColor: colors.border }}
                   onPress={() => handleEventSelect(event)}
                 >
                   <View>
-                    <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>{event.aim}</Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>{event.createdBy}</Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                    <Text className="font-semibold" style={{ color: colors.textPrimary }}>{event.aim}</Text>
+                    <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>{event.createdBy}</Text>
+                    <Text className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                       {event.eventDate ? new Date(event.eventDate).toDateString() : "N/A"}
                     </Text>
                   </View>
@@ -884,52 +890,51 @@ export default function CollegeClassesScreen({ college }) {
           )}
 
           {showAttendanceTable && selectedEvent && eventAttendanceList.length > 0 && (
-            <View style={{ marginTop: 16 }}>
-              <View style={styles.attendanceHeaderRow}>
-                <Text style={{ color: colors.header, fontWeight: '600' }}>
+            <View className="mt-4">
+              <View className="flex-row justify-between items-center px-1">
+                <Text className="font-semibold" style={{ color: colors.header }}>
                   Total Attendance: {eventAttendanceList.length}
                 </Text>
                 <TouchableOpacity
-                  style={[styles.eventExportBtn, { backgroundColor: colors.accent }]}
+                  className="px-3 py-2 rounded-lg"
+                  style={{ backgroundColor: colors.accent }}
                   onPress={exportEventAttendanceToExcel}
                 >
-                  <Text style={{ color: "#fff", fontWeight: "600", fontSize: 12 }}>Export This Event</Text>
+                  <Text className="text-white font-semibold text-xs">Export This Event</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Horizontal Scrolling Table */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginTop: 12 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginTop: 3 }}>
                 <View>
                   {/* Table Header */}
-                  <View style={[styles.tableHeader, { backgroundColor: colors.accent }]}>
-                    <Text style={[styles.tableHeaderCell, { width: 150 }]}>Student</Text>
-                    <Text style={[styles.tableHeaderCell, { width: 120 }]}>PRN</Text>
-                    <Text style={[styles.tableHeaderCell, { width: 120 }]}>Class</Text>
-                    <Text style={[styles.tableHeaderCell, { width: 150 }]}>Attended Date</Text>
+                  <View className="flex-row p-2.5 rounded-lg mb-0.5" style={{ backgroundColor: colors.accent }}>
+                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 150 }}>Student</Text>
+                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 120 }}>PRN</Text>
+                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 120 }}>Class</Text>
+                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 150 }}>Attended Date</Text>
                   </View>
 
                   {/* Attendance List */}
                   {eventAttendanceList.map((record, index) => (
                     <View
                       key={index}
-                      style={[
-                        styles.tableRow,
-                        {
-                          backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
-                          borderColor: colors.border,
-                        },
-                      ]}
+                      className="flex-row p-2.5 rounded-lg mb-0.5 border"
+                      style={{
+                        backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
+                        borderColor: colors.border,
+                      }}
                     >
-                      <Text style={[styles.tableCell, { width: 150, color: colors.textPrimary }]}>
+                      <Text className="text-center text-xs px-2" style={{ width: 150, color: colors.textPrimary }}>
                         {record.studentName}
                       </Text>
-                      <Text style={[styles.tableCell, { width: 120, color: colors.textSecondary }]}>
+                      <Text className="text-center text-xs px-2" style={{ width: 120, color: colors.textSecondary }}>
                         {record.prn}
                       </Text>
-                      <Text style={[styles.tableCell, { width: 120, color: colors.textSecondary }]}>
+                      <Text className="text-center text-xs px-2" style={{ width: 120, color: colors.textSecondary }}>
                         {record.className}
                       </Text>
-                      <Text style={[styles.tableCell, { width: 150, color: colors.textSecondary }]}>
+                      <Text className="text-center text-xs px-2" style={{ width: 150, color: colors.textSecondary }}>
                         {record.attendanceDate}
                       </Text>
                     </View>
@@ -940,21 +945,22 @@ export default function CollegeClassesScreen({ college }) {
           )}
 
           {showAttendanceTable && selectedEvent && eventAttendanceList.length === 0 && (
-            <Text style={{ color: colors.textSecondary, marginTop: 16, textAlign: 'center' }}>
+            <Text className="text-center text-sm mt-4" style={{ color: colors.textSecondary }}>
               No attendance records for this event
             </Text>
           )}
         </TouchableOpacity>
 
         {/* Classes Section */}
-        <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-          <Text style={[styles.title, { color: colors.header }]}>Classes</Text>
+        <View className="p-4 rounded-2xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+          <Text className="text-lg font-bold mb-3" style={{ color: colors.header }}>Classes</Text>
 
           <ScrollView style={{ maxHeight: 380 }}>
             {classes.map((c) => (
               <TouchableOpacity
                 key={c._id || c.className}
-                style={[styles.classItem, { backgroundColor: colors.iconBg, borderColor: colors.border }]}
+                className="p-3 rounded-lg mb-2 border"
+                style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
                 onPress={() => navigate('ClassStudents', { college, className: c.className })}
               >
                 <Text style={{ color: colors.textPrimary }}>{c.className}</Text>
@@ -962,9 +968,10 @@ export default function CollegeClassesScreen({ college }) {
             ))}
           </ScrollView>
 
-          <View style={{ marginTop: 12 }}>
+          <View className="mt-3">
             <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: colors.iconBg, marginTop: 8, borderWidth: 1, borderColor: colors.border }]}
+              className="p-3 rounded-lg items-center mt-2 border"
+              style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
               onPress={() => navigate('AddClass', { college })}
             >
               <Text style={{ color: colors.textPrimary }}>Add new class</Text>
@@ -975,82 +982,3 @@ export default function CollegeClassesScreen({ college }) {
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  logoutBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  exportBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    flex: 1,
-    minWidth: 120,
-  },
-  card: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
-  title: { fontSize: 18, fontWeight: '700', marginBottom: 12 },
-  classItem: { padding: 12, borderRadius: 8, marginBottom: 8, borderWidth: 1 },
-  input: { padding: 12, borderRadius: 8 },
-  addBtn: { padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
-  dropdownBtn: {
-    flexDirection: 'row',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  eventItem: {
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  attendanceHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  eventExportBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 2,
-  },
-  tableHeaderCell: {
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'center',
-    fontSize: 13,
-    paddingHorizontal: 8,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    padding: 10,
-    borderRadius: 6,
-    marginBottom: 2,
-    borderWidth: 1,
-  },
-  tableCell: {
-    textAlign: 'center',
-    fontSize: 12,
-    paddingHorizontal: 8,
-  },
-});
