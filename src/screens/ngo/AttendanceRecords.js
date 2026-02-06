@@ -7,12 +7,13 @@ import {
   Platform as RNPlatform,
   ScrollView,
 } from "react-native";
-import * as XLSX from "xlsx";
+
 import { ngo_host } from "../../../apis/api";
 import { useTheme } from "../../context/ThemeContext";
 import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
-
+import ExcelJS from 'exceljs';
+import { Buffer } from 'buffer';
 // Platform-specific imports
 let FileSystem, Sharing;
 if (RNPlatform.OS !== "web") {
@@ -66,170 +67,252 @@ export default function AttendanceRecords({ route = {} }) {
     }
   };
 
+ // ✅ UPDATED FUNCTION: Uses exceljs to embed images
   const exportToExcel = async () => {
     try {
-      if (!attendanceData.attendance || attendanceData.attendance.length === 0) {
+      if (
+        !attendanceData.attendance ||
+        attendanceData.attendance.length === 0
+      ) {
         alert("No attendance records to export");
         return;
       }
 
-      const wb = XLSX.utils.book_new();
+      // 1. Initialize Workbook
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Attendance");
 
+      // Prepare Data
       const ngoName = user?.name || attendanceData.event?.ngo?.name || "NGO";
-      const ngoAddress = user?.address || attendanceData.event?.ngo?.address || "Address not available";
-      const eventName = attendanceData.event?.aim || "N/A";
-      const eventLocation = attendanceData.event?.location || "N/A";
-      const eventDate = new Date(attendanceData.event?.eventDate).toLocaleDateString() || "N/A";
-      const totalPresent = attendanceData.totalStudentsPresent || 0;
+      const ngoAddress =
+        user?.address ||
+        attendanceData.event?.ngo?.address ||
+        "Address not available";
+      const profileImageUrl =
+        user?.profileImage || attendanceData.event?.ngo?.profileImage || null;
 
-      // Create worksheet with data
-      const ws = XLSX.utils.aoa_to_sheet([
-        [],
-        [ngoName],
-        [ngoAddress],
-        [],
-        ["EVENT DETAILS"],
-        [`Event: ${eventName}`],
-        [`Location: ${eventLocation}`],
-        [`Date: ${eventDate}`],
-        [`Total Students Present: ${totalPresent}`],
-        [],
-        ["Student Name", "College", "Department", "Class", "Attendance Marked Date"],
-        ...attendanceData.attendance.map((student) => [
+      // 2. Handle Image Embedding (Fixed for Mobile & Web)
+      if (profileImageUrl) {
+        try {
+          let base64Data = "";
+          let extension = "png";
+          
+          // Simple extension detection
+          if (profileImageUrl.toLowerCase().includes("jpg") || profileImageUrl.toLowerCase().includes("jpeg")) {
+            extension = "jpeg";
+          }
+
+          if (RNPlatform.OS === "web") {
+            // 🌍 WEB: Use Fetch + FileReader (Requires CORS allowed on Bucket)
+            const response = await fetch(profileImageUrl);
+            const blob = await response.blob();
+            
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            
+            await new Promise((resolve) => {
+              reader.onloadend = () => {
+                // Remove the "data:image/png;base64," prefix
+                base64Data = reader.result.toString().split(",")[1];
+                resolve();
+              };
+            });
+
+          } else {
+            // 📱 MOBILE: Use FileSystem (More stable than fetch blob)
+            const fileUri = `${FileSystem.cacheDirectory}temp_excel_image.${extension}`;
+            
+            // Download to local cache first
+            await FileSystem.downloadAsync(profileImageUrl, fileUri);
+            
+            // Read as Base64
+            base64Data = await FileSystem.readAsStringAsync(fileUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          }
+
+          // Add to workbook
+          if (base64Data) {
+            const imageId = workbook.addImage({
+              base64: base64Data,
+              extension: extension,
+            });
+
+            worksheet.addImage(imageId, {
+              tl: { col: 0, row: 1 }, // A2
+              br: { col: 1, row: 4 }, // B5
+              editAs: "oneCell",
+            });
+          }
+
+        } catch (err) {
+          console.log("Could not load image for Excel:", err);
+          worksheet.getCell("A2").value = "Image Error (See Logs)";
+        }
+      } else {
+        worksheet.getCell("A2").value = "No Image";
+      }
+      // 3. Layout: Text Data (Matches previous design)
+      
+      // Name (Merged B2:E2)
+      worksheet.mergeCells("B2:E2");
+      const nameCell = worksheet.getCell("B2");
+      nameCell.value = ngoName;
+      nameCell.font = { bold: true, size: 16 };
+      nameCell.alignment = { vertical: "middle" };
+
+      // Address (Merged B3:E3)
+      worksheet.mergeCells("B3:E3");
+      const addrCell = worksheet.getCell("B3");
+      addrCell.value = ngoAddress;
+      addrCell.font = { color: { argb: "FF666666" }, size: 11 };
+      addrCell.alignment = { vertical: "top", wrapText: true };
+
+      // EVENT DETAILS Header (Merged A5:E5)
+      worksheet.mergeCells("A5:E5");
+      const eventHeader = worksheet.getCell("A5");
+      eventHeader.value = "EVENT DETAILS";
+      eventHeader.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF4472C4" },
+      };
+      eventHeader.font = { color: { argb: "FFFFFFFF" }, bold: true };
+      eventHeader.alignment = { horizontal: "center" };
+
+      // Event Info Rows
+      const centerStyle = { horizontal: "center" };
+      
+      const r6 = worksheet.getCell("A6");
+      r6.value = `Event: ${attendanceData.event?.aim || "N/A"}`;
+      r6.font = { bold: true, size: 14 };
+      r6.alignment = centerStyle;
+      worksheet.mergeCells("A6:E6");
+
+      const r7 = worksheet.getCell("A7");
+      r7.value = `Location: ${attendanceData.event?.location || "N/A"}`;
+      r7.alignment = centerStyle;
+      worksheet.mergeCells("A7:E7");
+
+      const r8 = worksheet.getCell("A8");
+      r8.value = `Date: ${new Date(attendanceData.event?.eventDate).toLocaleDateString()}`;
+      r8.alignment = centerStyle;
+      worksheet.mergeCells("A8:E8");
+
+      const r9 = worksheet.getCell("A9");
+      r9.value = `Total Students Present: ${attendanceData.totalStudentsPresent || 0}`;
+      r9.alignment = centerStyle;
+      worksheet.mergeCells("A9:E9");
+
+      // 4. Table Header (Row 11)
+      const headerRow = worksheet.getRow(11);
+      headerRow.values = [
+        "Student Name",
+        "College",
+        "Department",
+        "Class",
+        "Marked Date",
+      ];
+
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF4472C4" },
+        };
+        cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+        cell.alignment = { horizontal: "center" };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+
+      // 5. Add Data Rows
+      attendanceData.attendance.forEach((student, index) => {
+        const collegeName =
+          attendanceData.colleges?.find((col) =>
+            col.classes.includes(student.classId._id)
+          )?.name || "";
+
+        const row = worksheet.addRow([
           student.name || "",
-          getCollegeName(student.classId._id) || "",
+          collegeName,
           student.department || "",
           student.classId?.className || "",
           student.attendanceMarkedAt
             ? new Date(student.attendanceMarkedAt).toLocaleDateString()
             : "N/A",
-        ]),
-      ]);
+        ]);
 
-      // Set column widths
-      ws["!cols"] = [
-        { wch: 25 },
-        { wch: 25 },
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 22 },
-      ];
-
-      // Set row heights
-      ws["!rows"] = [
-        { hpx: 15 },
-        { hpx: 32 },
-        { hpx: 24 },
-        { hpx: 10 },
-        { hpx: 28 },
-        { hpx: 24 },
-        { hpx: 22 },
-        { hpx: 22 },
-        { hpx: 22 },
-        { hpx: 10 },
-        { hpx: 28 },
-      ];
-
-      if (!ws["!merges"]) ws["!merges"] = [];
-
-      const styleCell = (cell, options = {}) => {
-        const {
-          bold = false,
-          size = 11,
-          color = "000000",
-          bgColor = "FFFFFF",
-          align = "center",
-        } = options;
-
-        ws[cell] = ws[cell] || {};
-        ws[cell].s = {
-          font: {
-            bold: bold,
-            sz: size,
-            color: { rgb: color },
-          },
-          fill: {
-            fgColor: { rgb: bgColor },
-          },
-          alignment: {
-            horizontal: align,
-            vertical: "center",
-            wrapText: true,
-          },
-        };
-      };
-
-      styleCell("A2", { bold: true, size: 18, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 4 } });
-
-      styleCell("A3", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 4 } });
-
-      styleCell("A5", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      ws["!merges"].push({ s: { r: 4, c: 0 }, e: { r: 4, c: 4 } });
-
-      styleCell("A6", { bold: true, size: 14, color: "1F1F1F", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 5, c: 0 }, e: { r: 5, c: 4 } });
-
-      styleCell("A7", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 6, c: 0 }, e: { r: 6, c: 4 } });
-
-      styleCell("A8", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 7, c: 0 }, e: { r: 7, c: 4 } });
-
-      styleCell("A9", { bold: false, size: 12, color: "404040", bgColor: "FFFFFF", align: "center" });
-      ws["!merges"].push({ s: { r: 8, c: 0 }, e: { r: 8, c: 4 } });
-
-      styleCell("A11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("B11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("C11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("D11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-      styleCell("E11", { bold: true, size: 12, color: "FFFFFF", bgColor: "4472C4", align: "center" });
-
-      attendanceData.attendance.forEach((row, idx) => {
-        const rowNum = 12 + idx;
-        const bgColor = idx % 2 === 0 ? "FFFFFF" : "F2F2F2";
-        
-        styleCell(`A${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`B${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`C${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`D${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
-        styleCell(`E${rowNum}`, { bold: false, size: 11, color: "333333", bgColor, align: "center" });
+        // Alternating Row Colors
+        const bgColor = index % 2 === 0 ? "FFFFFFFF" : "FFF2F2F2";
+        row.eachCell((cell) => {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: bgColor },
+          };
+          cell.alignment = { horizontal: "center" };
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
       });
 
-      XLSX.utils.book_append_sheet(wb, ws, "Attendance");
+      // Adjust Column Widths
+      worksheet.columns = [
+        { width: 25 }, // Name
+        { width: 30 }, // College
+        { width: 20 }, // Dept
+        { width: 15 }, // Class
+        { width: 20 }, // Date
+      ];
 
-      const filename = `attendance_${event?.aim?.replace(/\s+/g, "_")}_${new Date().getTime()}.xlsx`;
+      // 6. Write & Save File
+      const buffer = await workbook.xlsx.writeBuffer();
+      const filename = `attendance_${attendanceData.event?.aim?.replace(
+        /\s+/g,
+        "_"
+      )}.xlsx`;
 
       if (RNPlatform.OS === "web") {
-        XLSX.writeFile(wb, filename);
-        alert("Attendance records exported successfully!");
-      } else {
-        const wbout = XLSX.write(wb, {
-          type: "base64",
-          bookType: "xlsx",
+        const blob = new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        alert("Export Successful!");
+      } else {
+        // Mobile (Android/iOS)
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        const base64 = Buffer.from(buffer).toString("base64");
 
-        const filepath = `${FileSystem.documentDirectory}${filename}`;
-
-        await FileSystem.writeAsStringAsync(filepath, wbout, {
+        await FileSystem.writeAsStringAsync(fileUri, base64, {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        await Sharing.shareAsync(filepath, {
-          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export Attendance Records",
+        await Sharing.shareAsync(fileUri, {
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Export Attendance",
           UTI: "com.microsoft.excel.xlsx",
         });
-
-        alert("Attendance records exported successfully!");
       }
     } catch (error) {
-      console.error("Error exporting to Excel:", error);
-      alert("Failed to export attendance: " + error.message);
+      console.error("Export Error:", error);
+      alert("Failed to export: " + error.message);
     }
   };
-
   const getCollegeName = (classId) => {
     const college = attendanceData.colleges?.find((col) =>
       col.classes.includes(classId)
