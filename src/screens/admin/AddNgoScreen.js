@@ -127,14 +127,25 @@ export default function AddNgoScreen() {
         throw new Error(responseData.message || `HTTP Status: ${response.status}`);
       }
 
-      console.log("Success:", responseData);
-      Alert.alert("Success", "NGO Added Successfully", [
-        { text: "OK", onPress: () => goBack() },
-      ]);
+      
+      // ✅ FIX: Different Alert logic for Web vs Mobile
+      if (Platform.OS === 'web') {
+        window.alert("NGO Added Successfully");
+        goBack(); // Navigate back immediately after alert triggers
+      } else {
+        Alert.alert("Success", "NGO Added Successfully", [
+          { text: "OK", onPress: () => goBack() },
+        ]);
+      }
       
     } catch (err) {
-      console.error("Error adding NGO:", err.message);
-      Alert.alert("Upload Failed", err.message);
+      
+      // ✅ FIX: Error handling for Web
+      if (Platform.OS === 'web') {
+        window.alert("Upload Failed: " + err.message);
+      } else {
+        Alert.alert("Upload Failed", err.message);
+      }
     }
   }
 
