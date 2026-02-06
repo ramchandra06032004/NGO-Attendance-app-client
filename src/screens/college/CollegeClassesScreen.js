@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList, Image } from 'react-native';
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -11,6 +11,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { AuthContext } from "../../context/AuthContext";
 import { college_host } from "../../../apis/api";
 
+// And ensure FileSystem/Sharing are required for mobile (as in your previous code)
 // Platform-specific imports
 let RealFileSystem, RealSharing;
 if (RNPlatform.OS !== "web") {
@@ -145,56 +146,70 @@ export default function CollegeClassesScreen({ college }) {
   };
   //Exports all events attendance data to excel file
   const exportAllEventsToExcel = async () => {
-    console.log("exporting to excel" );
-    
+    console.log("Exporting all events to Excel...");
+
     try {
-      if (eventsList.length === 0) {
+      if (!eventsList || eventsList.length === 0) {
         alert("No events to export");
         return;
       }
 
       setLoading(true);
 
-      // Create a new workbook
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'NGO Attendance App';
-      workbook.created = new Date();
+      const collegeName = college.name?.toUpperCase() || "College";
+      const collegeAddress = college.address || "Address not available";
+      const logoUrl = college.logoUrl || college.profileImage; // Check both keys
 
-      // 1. Handle Logo Image
+      // --- 1. PRE-LOAD LOGO IMAGE (ONCE) ---
       let logoImageId = null;
-      if (college.logoUrl) {
+      if (logoUrl) {
         try {
-          // Download image to cache to get base64
-          console.log("downloading the imahe");
-          
-          const fileUri = FileSystem.cacheDirectory + 'college_logo_temp.png';
-          const downloadRes = await FileSystem.downloadAsync(college.logoUrl, fileUri);
-          
-          if (downloadRes.status === 200) {
-            const base64 = await FileSystem.readAsStringAsync(fileUri, {
-              encoding: 'base64',
+          let base64Data = "";
+          let extension = "png";
+
+          if (logoUrl.toLowerCase().includes("jpg") || logoUrl.toLowerCase().includes("jpeg")) {
+            extension = "jpeg";
+          }
+
+          if (RNPlatform.OS === "web") {
+            // 🌍 WEB
+            const response = await fetch(logoUrl);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            await new Promise((resolve) => {
+              reader.onloadend = () => {
+                base64Data = reader.result.toString().split(",")[1];
+                resolve();
+              };
             });
-            
-            logoImageId = workbook.addImage({
-              base64: base64,
-              extension: 'png',
+          } else {
+            // 📱 MOBILE
+            const fileUri = `${FileSystem.cacheDirectory}college_logo_temp.${extension}`;
+            await FileSystem.downloadAsync(logoUrl, fileUri);
+            base64Data = await FileSystem.readAsStringAsync(fileUri, {
+              encoding: FileSystem.EncodingType.Base64,
             });
           }
-        } catch (imgError) {
-          console.log("Error loading logo for export:", imgError);
-          // Continue without logo if it fails
+
+          if (base64Data) {
+            logoImageId = workbook.addImage({
+              base64: base64Data,
+              extension: extension,
+            });
+          }
+        } catch (err) {
+          console.warn("Could not load logo for export:", err);
         }
       }
 
-      const collegeName = college.name || "College";
-      const collegeAddress = college.address || "Address not available";
       let hasData = false;
 
-      // Create a sheet for each event
+      // --- 2. ITERATE AND CREATE SHEET FOR EACH EVENT ---
       eventsList.forEach((event) => {
-        // Get all students who attended this event
+        // A. Gather Attendance Data
         const eventAttendance = [];
-
         college.classes?.forEach((cls) => {
           cls.students?.forEach((student) => {
             const attended = student.attendedEvents?.find(
@@ -208,163 +223,171 @@ export default function CollegeClassesScreen({ college }) {
                 department: student.department,
                 className: cls.className,
                 attendanceDate: attended.attendanceMarkedAt
-                  ? new Date(attended.attendanceMarkedAt).toDateString()
+                  ? new Date(attended.attendanceMarkedAt).toLocaleDateString()
                   : "N/A",
               });
             }
           });
         });
 
-        if (eventAttendance.length === 0) {
-          return; // Skip events with no attendance
-        }
+        // Skip events with no attendance
+        if (eventAttendance.length === 0) return;
         hasData = true;
 
-        const eventName = event.aim || "N/A";
-        // Sheet names cannot exceed 31 chars and cannot contain special chars
+        // B. Setup Worksheet
+        const eventName = event.aim || "Event";
         const safeSheetName = (eventName.replace(/[\\/?*[\]]/g, "")).slice(0, 30);
         const worksheet = workbook.addWorksheet(safeSheetName);
 
-        // Define Columns
-        worksheet.columns = [
-          { width: 25 }, // A
-          { width: 20 }, // B
-          { width: 20 }, // C
-          { width: 20 }, // D
-          { width: 20 }, // E
-        ];
-
-        // --- Add Logo ---
+        // C. Insert Logo
         if (logoImageId !== null) {
           worksheet.addImage(logoImageId, {
-            tl: { col: 0, row: 0 }, // Top-left: A1
-            ext: { width: 100, height: 100 },
+            tl: { col: 0, row: 0 }, // A1
+            br: { col: 1, row: 4 }, // B5
+            editAs: "oneCell",
           });
+        } else {
+          worksheet.getCell("A2").value = "No Logo";
         }
 
-        // --- Header Styling ---
-        // College Name (Centered across B-E, assuming logo is in A)
-        worksheet.mergeCells('B2:E2');
-        const nameCell = worksheet.getCell('B2');
+        // D. Header Information
+        // College Name
+        worksheet.mergeCells("B2:E2");
+        const nameCell = worksheet.getCell("B2");
         nameCell.value = collegeName;
-        nameCell.font = { name: 'Arial', size: 18, bold: true };
-        nameCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        nameCell.font = { bold: true, size: 18 };
+        nameCell.alignment = { vertical: "middle", horizontal: "center" };
 
         // College Address
-        worksheet.mergeCells('B3:E3');
-        const addrCell = worksheet.getCell('B3');
+        worksheet.mergeCells("B3:E3");
+        const addrCell = worksheet.getCell("B3");
         addrCell.value = collegeAddress;
-        addrCell.font = { name: 'Arial', size: 12, color: { argb: 'FF404040' } };
-        addrCell.alignment = { vertical: 'middle', horizontal: 'center' };
+        addrCell.font = { color: { argb: "FF666666" }, size: 12 };
+        addrCell.alignment = { vertical: "top", horizontal: "center" };
 
-        // Spacing for logo
-        worksheet.addRow([]); 
-        worksheet.addRow([]); 
-        worksheet.addRow([]); 
-        worksheet.addRow([]); 
-        worksheet.addRow([]); // Ensure we are below the logo (approx row 6)
-
-        // Event Details Header
-        const startRow = 7;
-        const titleRow = worksheet.getRow(startRow);
-        worksheet.mergeCells(`A${startRow}:E${startRow}`);
-        titleRow.getCell(1).value = "EVENT DETAILS";
-        titleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-        titleRow.getCell(1).fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF4472C4' }
+        // E. Event Details Section
+        worksheet.mergeCells("A6:E6");
+        const titleRow = worksheet.getCell("A6");
+        titleRow.value = "EVENT DETAILS";
+        titleRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
+        titleRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF4472C4" }, // Blue
         };
-        titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+        titleRow.alignment = { horizontal: "center", vertical: "middle" };
 
-        // Event Info Helper
-        const addInfoRow = (label, value, isBold = false) => {
-          const row = worksheet.addRow([`${label}: ${value}`]);
-          worksheet.mergeCells(`A${row.number}:E${row.number}`);
+        // Helper to add centered info rows
+        const addInfoRow = (label, value, rowIndex, isBold = false) => {
+          const row = worksheet.getRow(rowIndex);
+          row.values = [`${label}: ${value}`];
+          worksheet.mergeCells(`A${rowIndex}:E${rowIndex}`);
           const cell = row.getCell(1);
-          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
           cell.font = { size: 12, bold: isBold };
           if (isBold) cell.font.size = 14;
         };
 
-        addInfoRow(`Event`, eventName, true);
-        addInfoRow(`NGO`, event.createdBy || "N/A");
-        addInfoRow(`Location`, event.location || "N/A");
-        addInfoRow(`Date`, new Date(event.eventDate).toLocaleDateString() || "N/A");
-        addInfoRow(`Total Students Present`, eventAttendance.length);
+        addInfoRow("Event", eventName, 7, true);
+        addInfoRow("NGO", event.createdBy?.name || event.createdBy || "N/A", 8);
+        addInfoRow("Location", event.location || "N/A", 9);
+        addInfoRow("Date", new Date(event.eventDate).toLocaleDateString(), 10);
+        addInfoRow("Total Students Present", eventAttendance.length, 11);
 
-        worksheet.addRow([]); // Empty row
-
-        // Table Headers
-        const headerRow = worksheet.addRow(["Student Name", "PRN", "Department", "Class", "Attendance Date"]);
+        // F. Table Headers
+        const headerRow = worksheet.getRow(13);
+        headerRow.values = ["Student Name", "PRN", "Department", "Class", "Attendance Date"];
         headerRow.height = 25;
+        
         headerRow.eachCell((cell) => {
-          cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+          cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
           cell.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF4472C4' }
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF4472C4" },
           };
-          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
         });
 
-        // Data Rows
+        // G. Data Rows
         eventAttendance.forEach((record, idx) => {
           const row = worksheet.addRow([
-            record.studentName || "",
-            record.prn || "",
-            record.department || "",
-            record.className || "",
-            record.attendanceDate || "N/A",
+            record.studentName,
+            record.prn,
+            record.department,
+            record.className,
+            record.attendanceDate,
           ]);
-          
-          // Zebra striping
-          if (idx % 2 !== 0) {
-            row.eachCell((cell) => {
-              cell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFF2F2F2' }
-              };
-            });
-          }
 
-          // Borders and alignment
+          // Zebra Striping
+          const isEven = idx % 2 === 0;
           row.eachCell((cell) => {
-            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
+            };
+            cell.alignment = { horizontal: "center", vertical: "middle" };
             cell.border = {
-              top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-              left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-              bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-              right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
             };
           });
         });
+
+        // Set Column Widths
+        worksheet.columns = [
+          { width: 25 }, // Name
+          { width: 15 }, // PRN
+          { width: 20 }, // Dept
+          { width: 20 }, // Class
+          { width: 20 }, // Date
+        ];
       });
 
       if (!hasData) {
         setLoading(false);
+        alert("No attendance data found in any event.");
         return;
       }
 
-      const filename = `all_events_${college.name?.replace(/\s+/g, "_")}_${new Date().getTime()}.xlsx`;
-
-      // Write to buffer
+      // --- 3. WRITE & SAVE ---
+      const filename = `all_events_${college.name?.replace(/\s+/g, "_")}.xlsx`;
       const buffer = await workbook.xlsx.writeBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
 
       if (RNPlatform.OS === "web") {
-        // Basic web fallback
-        alert("Export generated. (Web download requires Blob implementation)");
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        alert("Export successful!");
       } else {
-        await saveFile(filename, base64);
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        const base64 = Buffer.from(buffer).toString("base64");
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Export All Events",
+          UTI: "com.microsoft.excel.xlsx",
+        });
       }
 
       setLoading(false);
     } catch (error) {
       setLoading(false);
       console.error("Error exporting to Excel:", error);
-      alert("Failed to export all events: " + error.message);
+      alert("Failed to export: " + error.message);
     }
   };
   //Exports specific event attendance data to excel file
@@ -377,170 +400,194 @@ export default function CollegeClassesScreen({ college }) {
 
       setLoading(true);
 
-      // Create a new workbook
       const workbook = new ExcelJS.Workbook();
-      workbook.creator = 'NGO Attendance App';
-      workbook.created = new Date();
+      const collegeName = college.name?.toUpperCase() || "College";
+      const collegeAddress = college.address || "Address not available";
+      const logoUrl = college.logoUrl || college.profileImage; // Check both keys
 
-      // 1. Handle Logo Image
+      // --- 1. PRE-LOAD LOGO IMAGE ---
       let logoImageId = null;
-      if (college.logoUrl) {
+      if (logoUrl) {
         try {
-          // Download image to cache to get base64
-          const fileUri = FileSystem.cacheDirectory + 'college_logo_temp.png';
-          const downloadRes = await FileSystem.downloadAsync(college.logoUrl, fileUri);
+          let base64Data = "";
+          let extension = "png";
           
-          if (downloadRes.status === 200) {
-            const base64 = await FileSystem.readAsStringAsync(fileUri, {
-              encoding: 'base64',
+          if (logoUrl.toLowerCase().includes("jpg") || logoUrl.toLowerCase().includes("jpeg")) {
+            extension = "jpeg";
+          }
+
+          if (RNPlatform.OS === "web") {
+            // 🌍 WEB
+            const response = await fetch(logoUrl);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            await new Promise((resolve) => {
+              reader.onloadend = () => {
+                base64Data = reader.result.toString().split(",")[1];
+                resolve();
+              };
             });
-            
-            logoImageId = workbook.addImage({
-              base64: base64,
-              extension: 'png',
+          } else {
+            // 📱 MOBILE
+            const fileUri = `${FileSystem.cacheDirectory}college_logo_temp.${extension}`;
+            await FileSystem.downloadAsync(logoUrl, fileUri);
+            base64Data = await FileSystem.readAsStringAsync(fileUri, {
+              encoding: FileSystem.EncodingType.Base64,
             });
           }
-        } catch (imgError) {
-          console.log("Error loading logo for export:", imgError);
-          // Continue without logo if it fails
+
+          if (base64Data) {
+            logoImageId = workbook.addImage({
+              base64: base64Data,
+              extension: extension,
+            });
+          }
+        } catch (err) {
+          console.warn("Could not load logo:", err);
         }
       }
 
-      const collegeName = college.name || "College";
-      const collegeAddress = college.address || "Address not available";
-      const eventName = selectedEvent.aim || "N/A";
-
-      // Sheet names cannot exceed 31 chars and cannot contain special chars
+      // --- 2. CREATE SHEET ---
+      const eventName = selectedEvent.aim || "Event";
       const safeSheetName = (eventName.replace(/[\\/?*[\]]/g, "")).slice(0, 30);
       const worksheet = workbook.addWorksheet(safeSheetName);
 
-      // Define Columns
-      worksheet.columns = [
-        { width: 25 }, // A
-        { width: 20 }, // B
-        { width: 20 }, // C
-        { width: 20 }, // D
-        { width: 20 }, // E
-      ];
-
-      // --- Add Logo ---
+      // --- A. INSERT IMAGE ---
       if (logoImageId !== null) {
         worksheet.addImage(logoImageId, {
-          tl: { col: 0, row: 0 }, // Top-left: A1
-          ext: { width: 100, height: 100 },
+          tl: { col: 0, row: 0 }, // A1
+          br: { col: 1, row: 4 }, // B5 (Covers A1:A4 approx)
+          editAs: "oneCell",
         });
+      } else {
+        worksheet.getCell("A2").value = "No Logo";
       }
 
-      // --- Header Styling ---
-      // College Name (Centered across B-E, assuming logo is in A)
-      worksheet.mergeCells('B2:E2');
-      const nameCell = worksheet.getCell('B2');
+      // --- B. HEADER INFORMATION ---
+      // College Name (Merged B2:E2)
+      worksheet.mergeCells("B2:E2");
+      const nameCell = worksheet.getCell("B2");
       nameCell.value = collegeName;
-      nameCell.font = { name: 'Arial', size: 18, bold: true };
-      nameCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      nameCell.font = { bold: true, size: 18 };
+      nameCell.alignment = { vertical: "middle", horizontal: "center" };
 
-      // College Address
-      worksheet.mergeCells('B3:E3');
-      const addrCell = worksheet.getCell('B3');
+      // College Address (Merged B3:E3)
+      worksheet.mergeCells("B3:E3");
+      const addrCell = worksheet.getCell("B3");
       addrCell.value = collegeAddress;
-      addrCell.font = { name: 'Arial', size: 12, color: { argb: 'FF404040' } };
-      addrCell.alignment = { vertical: 'middle', horizontal: 'center' };
+      addrCell.font = { color: { argb: "FF666666" }, size: 12 };
+      addrCell.alignment = { vertical: "top", horizontal: "center" };
 
-      // Spacing for logo
-      worksheet.addRow([]); 
-      worksheet.addRow([]); 
-      worksheet.addRow([]); 
-      worksheet.addRow([]); 
-      worksheet.addRow([]); // Ensure we are below the logo (approx row 6)
-
-      // Event Details Header
-      const startRow = 7;
-      const titleRow = worksheet.getRow(startRow);
-      worksheet.mergeCells(`A${startRow}:E${startRow}`);
-      titleRow.getCell(1).value = "EVENT DETAILS";
-      titleRow.getCell(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
-      titleRow.getCell(1).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FF4472C4' }
+      // EVENT DETAILS Header (Merged A6:E6)
+      worksheet.mergeCells("A6:E6");
+      const titleRow = worksheet.getCell("A6");
+      titleRow.value = "EVENT DETAILS";
+      titleRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
+      titleRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF4472C4" }, // Blue
       };
-      titleRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' };
+      titleRow.alignment = { horizontal: "center", vertical: "middle" };
 
-      // Event Info Helper
-      const addInfoRow = (label, value, isBold = false) => {
-        const row = worksheet.addRow([`${label}: ${value}`]);
-        worksheet.mergeCells(`A${row.number}:E${row.number}`);
+      // Event Metadata Rows (Centered)
+      const addInfoRow = (label, value, rowIndex, isBold = false) => {
+        const row = worksheet.getRow(rowIndex);
+        row.values = [`${label}: ${value}`];
+        worksheet.mergeCells(`A${rowIndex}:E${rowIndex}`);
         const cell = row.getCell(1);
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
         cell.font = { size: 12, bold: isBold };
         if (isBold) cell.font.size = 14;
       };
 
-      addInfoRow(`Event`, eventName, true);
-      addInfoRow(`NGO`, selectedEvent.createdBy || "N/A");
-      addInfoRow(`Location`, selectedEvent.location || "N/A");
-      addInfoRow(`Date`, new Date(selectedEvent.eventDate).toLocaleDateString() || "N/A");
-      addInfoRow(`Total Students Present`, eventAttendanceList.length);
+      addInfoRow("Event", eventName, 7, true);
+      addInfoRow("NGO", selectedEvent.createdBy?.name || selectedEvent.createdBy || "N/A", 8);
+      addInfoRow("Location", selectedEvent.location || "N/A", 9);
+      addInfoRow("Date", new Date(selectedEvent.eventDate).toLocaleDateString(), 10);
+      addInfoRow("Total Students Present", eventAttendanceList.length, 11);
 
-      worksheet.addRow([]); // Empty row
-
-      // Table Headers
-      const headerRow = worksheet.addRow(["Student Name", "PRN", "Department", "Class", "Attendance Date"]);
-      headerRow.height = 25;
+      // --- C. TABLE HEADERS (Row 13) ---
+      const headerRow = worksheet.getRow(13);
+      headerRow.values = ["Student Name", "PRN", "Department", "Class", "Attendance Date"];
+      
       headerRow.eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 12 };
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
         cell.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'FF4472C4' }
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF4472C4" }, // Blue
         };
-        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = {
+          top: { style: "thin" },
+          left: { style: "thin" },
+          bottom: { style: "thin" },
+          right: { style: "thin" },
+        };
       });
+      headerRow.height = 25;
 
-      // Data Rows
+      // --- D. DATA ROWS ---
       eventAttendanceList.forEach((record, idx) => {
         const row = worksheet.addRow([
-          record.studentName || "",
+          record.studentName || record.name || "",
           record.prn || "",
           record.department || "",
-          record.className || "",
-          record.attendanceDate || "N/A",
+          record.className || record.classId?.className || "",
+          record.attendanceDate || new Date().toLocaleDateString(),
         ]);
-        
-        // Zebra striping
-        if (idx % 2 !== 0) {
-          row.eachCell((cell) => {
-            cell.fill = {
-              type: 'pattern',
-              pattern: 'solid',
-              fgColor: { argb: 'FFF2F2F2' }
-            };
-          });
-        }
 
-        // Borders and alignment
+        // Alternating Row Colors
+        const isEven = idx % 2 === 0;
         row.eachCell((cell) => {
-          cell.alignment = { horizontal: 'center', vertical: 'middle' };
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
+          };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
           cell.border = {
-            top: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-            left: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-            bottom: { style: 'thin', color: { argb: 'FFCCCCCC' } },
-            right: { style: 'thin', color: { argb: 'FFCCCCCC' } }
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
           };
         });
       });
 
-      const filename = `event_attendance_${selectedEvent.aim?.replace(/\s+/g, "_")}_${new Date().getTime()}.xlsx`;
+      // Set Column Widths
+      worksheet.columns = [
+        { width: 25 }, // Name
+        { width: 15 }, // PRN
+        { width: 20 }, // Dept
+        { width: 20 }, // Class
+        { width: 20 }, // Date
+      ];
 
-      // Write to buffer
+      // --- 3. WRITE & SAVE FILE ---
+      const filename = `event_attendance_${selectedEvent.aim?.replace(/\s+/g, "_")}.xlsx`;
       const buffer = await workbook.xlsx.writeBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
 
       if (RNPlatform.OS === "web") {
-        // Basic web fallback
-        alert("Export generated. (Web download requires Blob implementation)");
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        alert("Event attendance exported successfully!");
       } else {
-        await saveFile(filename, base64);
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        const base64 = Buffer.from(buffer).toString("base64");
+        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Export Event Attendance",
+          UTI: "com.microsoft.excel.xlsx",
+        });
       }
 
       setLoading(false);
@@ -585,31 +632,142 @@ export default function CollegeClassesScreen({ college }) {
     try {
       setLoading(true);
 
-      const wb = XLSX.utils.book_new();
-      const collegeName = college.name || "College";
+      const workbook = new ExcelJS.Workbook();
+      const collegeName = college.name.toUpperCase() || "College";
       const collegeAddress = college.address || "Address not available";
+      const logoUrl = college.logoUrl;
 
-      // Create a sheet for each class
+      // --- 1. PRE-LOAD LOGO IMAGE ---
+      let logoImageId = null;
+      if (logoUrl) {
+        try {
+          let base64Data = "";
+          let extension = "png";
+          if (
+            logoUrl.toLowerCase().includes("jpg") ||
+            logoUrl.toLowerCase().includes("jpeg")
+          ) {
+            extension = "jpeg";
+          }
+
+          if (RNPlatform.OS === "web") {
+            const response = await fetch(logoUrl);
+            const blob = await response.blob();
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            await new Promise((resolve) => {
+              reader.onloadend = () => {
+                base64Data = reader.result.toString().split(",")[1];
+                resolve();
+              };
+            });
+          } else {
+            const fileUri = `${FileSystem.cacheDirectory}college_logo_temp.${extension}`;
+            await FileSystem.downloadAsync(logoUrl, fileUri);
+            base64Data = await FileSystem.readAsStringAsync(fileUri, {
+              encoding: FileSystem.EncodingType.Base64,
+            });
+          }
+
+          if (base64Data) {
+            logoImageId = workbook.addImage({
+              base64: base64Data,
+              extension: extension,
+            });
+          }
+        } catch (err) {
+          console.warn("Could not load college logo:", err);
+        }
+      }
+
+      // --- 2. CREATE SHEETS PER CLASS ---
       college.classes.forEach((classData) => {
-        if (!classData.students || classData.students.length === 0) {
-          return; // Skip empty classes
+        if (!classData.students || classData.students.length === 0) return;
+
+        const safeSheetName = (classData.className || "Class")
+          .replace(/[\\/?*[\]]/g, " ")
+          .substring(0, 30);
+        const worksheet = workbook.addWorksheet(safeSheetName);
+
+        // --- A. INSERT IMAGE ---
+        if (logoImageId !== null) {
+          worksheet.addImage(logoImageId, {
+            tl: { col: 0, row: 0 },
+            br: { col: 1, row: 4 },
+            editAs: "oneCell",
+          });
+        } else {
+          worksheet.getCell("A2").value = "No Logo";
         }
 
-        // Prepare sheet data with all events for each student
-        const sheetData = [
-          [],
-          [collegeName],
-          [collegeAddress],
-          [],
-          [`CLASS: ${classData.className}`],
-          [],
-          ["Student Name", "PRN", "Department", "Event Name", "NGO Name", "Event Date", "Attendance Date"],
+        // --- B. HEADER INFORMATION ---
+        worksheet.mergeCells("B2:G2");
+        const nameCell = worksheet.getCell("B2");
+        nameCell.value = collegeName;
+        nameCell.font = { bold: true, size: 18 };
+        nameCell.alignment = { vertical: "middle" };
+
+        worksheet.mergeCells("B3:G3");
+        const addrCell = worksheet.getCell("B3");
+        addrCell.value = collegeAddress;
+        addrCell.font = { color: { argb: "FF666666" }, size: 12 };
+        addrCell.alignment = { vertical: "top" };
+
+        worksheet.mergeCells("A5:G5");
+        const classHeader = worksheet.getCell("A5");
+        classHeader.value = `CLASS: ${classData.className}`;
+        classHeader.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF4472C4" },
+        };
+        classHeader.font = {
+          color: { argb: "FFFFFFFF" },
+          bold: true,
+          size: 14,
+        };
+        classHeader.alignment = { horizontal: "center", vertical: "middle" };
+
+        // --- C. TABLE HEADERS ---
+        const headerRow = worksheet.getRow(7);
+        headerRow.values = [
+          "Student Name",
+          "PRN",
+          "Department",
+          "Event Name",
+          "NGO Name",
+          "Event Date",
+          "Attendance Date",
         ];
 
-        // For each student, add a row for each event they attended
+        headerRow.eachCell((cell) => {
+          cell.fill = {
+            type: "pattern",
+            pattern: "solid",
+            fgColor: { argb: "FF4472C4" },
+          };
+          cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+          cell.alignment = { horizontal: "center", vertical: "middle" };
+          cell.border = {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+        headerRow.height = 25;
+
+        // --- D. DATA ROWS WITH MERGING ---
+        let currentRowIndex = 8; // Start after header
+
         classData.students.forEach((student) => {
-          if (student.attendedEvents && student.attendedEvents.length > 0) {
-            student.attendedEvents.forEach((event, idx) => {
+          const events = student.attendedEvents || [];
+          const rowCount = events.length > 0 ? events.length : 1;
+          const startRow = currentRowIndex;
+          const endRow = currentRowIndex + rowCount - 1;
+
+          if (events.length > 0) {
+            events.forEach((event, idx) => {
               const eventName = event?.eventId?.aim || "N/A";
               const ngoName = event?.eventId?.createdBy?.name || "N/A";
               const eventDate = event?.eventId?.eventDate
@@ -619,189 +777,122 @@ export default function CollegeClassesScreen({ college }) {
                 ? new Date(event.attendanceMarkedAt).toLocaleDateString()
                 : "N/A";
 
-              sheetData.push([
-                idx === 0 ? student.name : "", // Show student name only for first event
-                idx === 0 ? student.prn : "",
-                idx === 0 ? student.department : "",
+              const row = worksheet.getRow(currentRowIndex + idx);
+              row.values = [
+                student.name, // Value is set, but will be merged later
+                student.prn,
+                student.department,
                 eventName,
                 ngoName,
                 eventDate,
                 attendanceDate,
-              ]);
+              ];
             });
           } else {
-            // If student hasn't attended any events
-            sheetData.push([
+            // No events
+            const row = worksheet.getRow(currentRowIndex);
+            row.values = [
               student.name || "",
               student.prn || "N/A",
               student.department || "",
               "No events attended",
-              "N/A",
-              "N/A",
-              "N/A",
-            ]);
+              "-",
+              "-",
+              "-",
+            ];
           }
-        });
 
-        const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-        ws["!cols"] = [
-          { wch: 22 },
-          { wch: 15 },
-          { wch: 18 },
-          { wch: 20 },
-          { wch: 18 },
-          { wch: 15 },
-          { wch: 18 },
-        ];
-
-        ws["!rows"] = [
-          { hpx: 15 }, // Row 1: Empty
-          { hpx: 32 }, // Row 2: College Name
-          { hpx: 24 }, // Row 3: Address
-          { hpx: 10 }, // Row 4: Empty
-          { hpx: 28 }, // Row 5: Class Name
-          { hpx: 10 }, // Row 6: Empty
-          { hpx: 28 }, // Row 7: Table Header
-        ];
-
-        if (!ws["!merges"]) ws["!merges"] = [];
-
-        const styleCell = (cell, options = {}) => {
-          const {
-            bold = false,
-            size = 11,
-            color = "000000",
-            bgColor = "FFFFFF",
-            align = "center",
-          } = options;
-
-          ws[cell] = ws[cell] || {};
-          ws[cell].s = {
-            font: {
-              bold: bold,
-              sz: size,
-              color: { rgb: color },
-            },
-            fill: {
-              fgColor: { rgb: bgColor },
-            },
-            alignment: {
-              horizontal: align,
-              vertical: "center",
-              wrapText: true,
-            },
-          };
-        };
-
-        // Row 2 - College Name
-        styleCell("A2", {
-          bold: true,
-          size: 18,
-          color: "1F1F1F",
-          bgColor: "FFFFFF",
-          align: "center",
-        });
-        ws["!merges"].push({ s: { r: 1, c: 0 }, e: { r: 1, c: 6 } });
-
-        // Row 3 - College Address
-        styleCell("A3", {
-          bold: false,
-          size: 12,
-          color: "404040",
-          bgColor: "FFFFFF",
-          align: "center",
-        });
-        ws["!merges"].push({ s: { r: 2, c: 0 }, e: { r: 2, c: 6 } });
-
-        // Row 5 - Class Name
-        styleCell("A5", {
-          bold: true,
-          size: 14,
-          color: "FFFFFF",
-          bgColor: "4472C4",
-          align: "center",
-        });
-        ws["!merges"].push({ s: { r: 4, c: 0 }, e: { r: 4, c: 6 } });
-
-        // Row 7 - Table Headers
-        const headerCells = ["A7", "B7", "C7", "D7", "E7", "F7", "G7"];
-        headerCells.forEach((cell) => {
-          styleCell(cell, {
-            bold: true,
-            size: 11,
-            color: "FFFFFF",
-            bgColor: "4472C4",
-            align: "center",
-          });
-        });
-
-        // Style data rows
-        let currentRow = 8;
-        classData.students.forEach((student) => {
-          if (student.attendedEvents && student.attendedEvents.length > 0) {
-            student.attendedEvents.forEach((event, idx) => {
-              const bgColor = (currentRow - 8) % 2 === 0 ? "FFFFFF" : "F2F2F2";
-              const dataCells = ["A", "B", "C", "D", "E", "F", "G"];
-
-              dataCells.forEach((col) => {
-                styleCell(`${col}${currentRow}`, {
-                  bold: false,
-                  size: 11,
-                  color: "333333",
-                  bgColor,
-                  align: "center",
-                });
-              });
-              currentRow++;
-            });
-          } else {
-            // Style row for students with no events
-            const bgColor = (currentRow - 8) % 2 === 0 ? "FFFFFF" : "F2F2F2";
-            const dataCells = ["A", "B", "C", "D", "E", "F", "G"];
-
-            dataCells.forEach((col) => {
-              styleCell(`${col}${currentRow}`, {
-                bold: false,
-                size: 11,
-                color: "333333",
-                bgColor,
-                align: "center",
-              });
-            });
-            currentRow++;
+          // --- APPLY MERGING ---
+          // Merge Name, PRN, Dept columns (A, B, C) vertically for this student
+          if (rowCount > 1) {
+            worksheet.mergeCells(`A${startRow}:A${endRow}`);
+            worksheet.mergeCells(`B${startRow}:B${endRow}`);
+            worksheet.mergeCells(`C${startRow}:C${endRow}`);
           }
+
+          // --- APPLY STYLING TO ALL ROWS FOR THIS STUDENT ---
+          for (let r = startRow; r <= endRow; r++) {
+            const row = worksheet.getRow(r);
+            // Alternate colors based on STUDENT groups (not just individual rows)
+            // Using startRow ensures the whole block is the same color
+            const isEvenBlock = startRow % 2 === 0; 
+            const bgColor = isEvenBlock ? "FFFFFFFF" : "FFF2F2F2";
+
+            row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: bgColor },
+              };
+              cell.alignment = {
+                horizontal: "center",
+                vertical: "middle", // Important for merged cells
+                wrapText: true,
+              };
+              cell.border = {
+                top: { style: "thin" },
+                left: { style: "thin" },
+                bottom: { style: "thin" },
+                right: { style: "thin" },
+              };
+            });
+          }
+
+          // Advance the row index
+          currentRowIndex += rowCount;
         });
 
-        XLSX.utils.book_append_sheet(
-          wb,
-          ws,
-          classData.className.slice(0, 31)
-        );
+        // Set Column Widths
+        worksheet.columns = [
+          { width: 25 }, // Name
+          { width: 15 }, // PRN
+          { width: 20 }, // Dept
+          { width: 30 }, // Event
+          { width: 20 }, // NGO
+          { width: 15 }, // Date
+          { width: 15 }, // Date
+        ];
       });
 
-      const filename = `college_students_${college.name?.replace(
+      // --- 3. WRITE & SAVE FILE ---
+      const filename = `college_data_${college.name?.replace(
         /\s+/g,
         "_"
-      )}_${new Date().getTime()}.xlsx`;
+      )}.xlsx`;
+      const buffer = await workbook.xlsx.writeBuffer();
 
       if (RNPlatform.OS === "web") {
-        XLSX.writeFile(wb, filename);
+        const blob = new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
         alert("College data exported successfully!");
       } else {
-        const wbout = XLSX.write(wb, {
-          type: "base64",
-          bookType: "xlsx",
+        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        const base64 = Buffer.from(buffer).toString("base64");
+
+        await FileSystem.writeAsStringAsync(fileUri, base64, {
+          encoding: FileSystem.EncodingType.Base64,
         });
 
-        await saveFile(filename, wbout);
+        await Sharing.shareAsync(fileUri, {
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Export College Data",
+          UTI: "com.microsoft.excel.xlsx",
+        });
       }
 
       setLoading(false);
     } catch (error) {
+      console.error("Export Error:", error);
       setLoading(false);
-      console.error("Error exporting to Excel:", error);
-      alert("Failed to export college data: " + error.message);
+      alert("Failed to export: " + error.message);
     }
   };
 
@@ -814,171 +905,322 @@ export default function CollegeClassesScreen({ college }) {
     );
   }
 
-  return (
+ return (
     <TouchableOpacity
       activeOpacity={1}
       onPress={handleOutsideClick}
-      className="flex-1 p-5"
-      style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}
+      className="flex-1"
+      style={{
+        backgroundColor: colors.backgroundColors
+          ? colors.backgroundColors[0]
+          : "#F8F9FA", // Very light grey professional background
+      }}
     >
-      <ScrollView showsVerticalScrollIndicator={true}>
-        <View className="flex-row justify-between items-center mb-4 gap-2 flex-wrap">
-          <TouchableOpacity
-            className="px-3.5 py-2.5 rounded-lg"
-            style={{ backgroundColor: colors.accent }}
-            onPress={handleLogout}
-          >
-            <Text className="text-white font-bold">Logout</Text>
-          </TouchableOpacity>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 20, paddingBottom: 50 }}
+      >
+        {/* --- 1. PROFESSIONAL HEADER --- */}
+        <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+          <View className="flex-row items-center justify-between gap-1">
+            {/* Left: Logo + College Info */}
+            <View className="flex-row items-center flex-1 gap-3">
+              {/* Logo Box */}
+              <View 
+                className="rounded-lg border overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.iconBg,
+                  borderColor: colors.border,
+                  width: 70,
+                  height: 70,
+                  flexShrink: 0,
+                }}
+              >
+                {college.logoUrl ? (
+                  <Image
+                    source={{ uri: college.logoUrl }}
+                    style={{ width: '100%', height: '100%' }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View className="flex-1 justify-center items-center" style={{ backgroundColor: colors.accent }}>
+                    <Text className="text-white font-bold text-2xl">
+                      {college.name?.[0]?.toUpperCase() || "C"}
+                    </Text>
+                  </View>
+                )}
+              </View>
 
+              {/* College Name & Address - Full width, wrapping text */}
+              <View className="flex-1">
+                <Text 
+                  className="font-bold text-base leading-5" 
+                  style={{ color: colors.header }}
+                >
+                  {college.name.toUpperCase()}
+                </Text>
+                <Text 
+                  className="text-xs mt-1"
+                  style={{ color: colors.textSecondary }}
+                >
+                  {college.address}
+                </Text>
+              </View>
+            </View>
+
+            {/* Right: Small Logout Button */}
+            <TouchableOpacity
+                        className="px-3 py-1.5 rounded-full border ml-1"
+                        style={{ borderColor: colors.error || "#ef4444", borderWidth: 1 }}
+                        onPress={handleLogout}
+                      >
+                        <Text
+                          className="text-xs font-bold"
+                          style={{ color: colors.error || "#ef4444" }}
+                        >
+                          Logout
+                        </Text>
+                      </TouchableOpacity>
+          </View>
+        </View>
+
+
+        {/* --- 2. DATA EXPORT ACTIONS --- */}
+        <View className="flex-row gap-3 mb-6">
           <TouchableOpacity
-            className="px-3 py-2.5 rounded-lg flex-1 min-w-30"
-            style={{ backgroundColor: colors.accent }}
+            className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
+            style={{ 
+              backgroundColor: colors.accent, 
+              borderColor: colors.accent 
+            }}
             onPress={exportToExcel}
           >
-            <Text className="text-white font-bold">Export Class-wise</Text>
+            <Text className="text-white font-semibold text-xs text-center uppercase tracking-wide">
+              Export Class Data
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            className="px-3 py-2.5 rounded-lg flex-1 min-w-30"
-            style={{ backgroundColor: colors.accent }}
+            className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
+            style={{ 
+              backgroundColor: "transparent", 
+              borderColor: colors.accent,
+              borderWidth: 1
+            }}
             onPress={exportAllEventsToExcel}
           >
-            <Text className="text-white font-bold">Export Events-wise</Text>
+            <Text 
+              className="font-semibold text-xs text-center uppercase tracking-wide"
+              style={{ color: colors.accent }}
+            >
+              Export All Events
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Event-wise Attendance Section */}
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={(e) => e.stopPropagation()}
-          className="p-4 rounded-2xl border mb-4"
+        {/* --- 3. EVENT ANALYTICS --- */}
+        <View
+          className="rounded-xl border mb-6 overflow-hidden"
           style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
         >
-          <Text className="text-lg font-bold mb-3" style={{ color: colors.header }}>Event-wise Attendance</Text>
-
-          <TouchableOpacity
-            className="flex-row p-3 rounded-lg border justify-between items-center"
-            style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
-            onPress={() => setShowEventDropdown(!showEventDropdown)}
-          >
-            <Text className="font-semibold" style={{ color: colors.textPrimary }}>
-              {selectedEvent ? selectedEvent.aim : "Select Event"}
+          <View className="p-4 border-b" style={{ borderColor: colors.border }}>
+            <Text
+              className="text-base font-bold"
+              style={{ color: colors.header }}
+            >
+              Event Attendance
             </Text>
-            <Text className="ml-2" style={{ color: colors.textSecondary }}>▼</Text>
-          </TouchableOpacity>
+          </View>
+          
+          <View className="p-4">
+            {/* Dropdown Selector */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setShowEventDropdown(!showEventDropdown)}
+              className="flex-row justify-between items-center p-3 rounded-lg border mb-4"
+              style={{
+                backgroundColor: "#fff",
+                borderColor: showEventDropdown ? colors.accent : colors.border,
+              }}
+            >
+              <Text
+                style={{
+                  color: selectedEvent ? colors.textPrimary : colors.textSecondary,
+                  fontWeight: selectedEvent ? "600" : "400",
+                }}
+              >
+                {selectedEvent ? selectedEvent.aim : "Select an Event"}
+              </Text>
+              {/* Simple geometric text chevron */}
+              <Text style={{ color: colors.textSecondary, fontSize: 10 }}>▼</Text>
+            </TouchableOpacity>
 
-          {showEventDropdown && (
-            <ScrollView style={{ maxHeight: 200, marginTop: 8 }}>
-              {eventsList.map((event) => (
-                <TouchableOpacity
-                  key={event._id}
-                  className="p-3 rounded-lg mb-2 border"
-                  style={{ backgroundColor: colors.backgroundColors?.[1] || '#f5f5f5', borderColor: colors.border }}
-                  onPress={() => handleEventSelect(event)}
-                >
+            {/* Dropdown Options */}
+            {showEventDropdown && (
+              <View
+                className="border rounded-lg mb-4 overflow-hidden"
+                style={{ borderColor: colors.border, maxHeight: 200 }}
+              >
+                <ScrollView nestedScrollEnabled>
+                  {eventsList.map((event, idx) => (
+                    <TouchableOpacity
+                      key={event._id}
+                      className={`p-3 ${idx !== eventsList.length - 1 ? "border-b" : ""}`}
+                      style={{
+                        borderColor: colors.border,
+                        backgroundColor:
+                          selectedEvent?._id === event._id
+                            ? colors.iconBg
+                            : "#fff",
+                      }}
+                      onPress={() => handleEventSelect(event)}
+                    >
+                      <Text
+                        className="font-medium text-sm"
+                        style={{ color: colors.textPrimary }}
+                      >
+                        {event.aim}
+                      </Text>
+                      <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                        {new Date(event.eventDate).toDateString()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+
+            {/* Selected Event Data */}
+            {showAttendanceTable && selectedEvent && (
+              <View>
+                <View className="flex-row justify-between items-end mb-3">
                   <View>
-                    <Text className="font-semibold" style={{ color: colors.textPrimary }}>{event.aim}</Text>
-                    <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>{event.createdBy}</Text>
-                    <Text className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                      {event.eventDate ? new Date(event.eventDate).toDateString() : "N/A"}
+                    <Text className="text-xs uppercase font-bold text-gray-400">
+                      Total Present
+                    </Text>
+                    <Text
+                      className="text-3xl font-light"
+                      style={{ color: colors.textPrimary }}
+                    >
+                      {eventAttendanceList.length}
                     </Text>
                   </View>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          )}
-
-          {showAttendanceTable && selectedEvent && eventAttendanceList.length > 0 && (
-            <View className="mt-4">
-              <View className="flex-row justify-between items-center px-1">
-                <Text className="font-semibold" style={{ color: colors.header }}>
-                  Total Attendance: {eventAttendanceList.length}
-                </Text>
-                <TouchableOpacity
-                  className="px-3 py-2 rounded-lg"
-                  style={{ backgroundColor: colors.accent }}
-                  onPress={exportEventAttendanceToExcel}
-                >
-                  <Text className="text-white font-semibold text-xs">Export This Event</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Horizontal Scrolling Table */}
-              <ScrollView horizontal showsHorizontalScrollIndicator={true} style={{ marginTop: 3 }}>
-                <View>
-                  {/* Table Header */}
-                  <View className="flex-row p-2.5 rounded-lg mb-0.5" style={{ backgroundColor: colors.accent }}>
-                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 150 }}>Student</Text>
-                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 120 }}>PRN</Text>
-                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 120 }}>Class</Text>
-                    <Text className="font-bold text-white text-center text-xs px-2" style={{ width: 150 }}>Attended Date</Text>
-                  </View>
-
-                  {/* Attendance List */}
-                  {eventAttendanceList.map((record, index) => (
-                    <View
-                      key={index}
-                      className="flex-row p-2.5 rounded-lg mb-0.5 border"
-                      style={{
-                        backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
-                        borderColor: colors.border,
-                      }}
+                  {eventAttendanceList.length > 0 && (
+                    <TouchableOpacity
+                      onPress={exportEventAttendanceToExcel}
                     >
-                      <Text className="text-center text-xs px-2" style={{ width: 150, color: colors.textPrimary }}>
-                        {record.studentName}
+                      <Text className="text-xs font-bold underline" style={{ color: colors.accent }}>
+                        Download Report
                       </Text>
-                      <Text className="text-center text-xs px-2" style={{ width: 120, color: colors.textSecondary }}>
-                        {record.prn}
-                      </Text>
-                      <Text className="text-center text-xs px-2" style={{ width: 120, color: colors.textSecondary }}>
-                        {record.className}
-                      </Text>
-                      <Text className="text-center text-xs px-2" style={{ width: 150, color: colors.textSecondary }}>
-                        {record.attendanceDate}
-                      </Text>
-                    </View>
-                  ))}
+                    </TouchableOpacity>
+                  )}
                 </View>
-              </ScrollView>
-            </View>
-          )}
 
-          {showAttendanceTable && selectedEvent && eventAttendanceList.length === 0 && (
-            <Text className="text-center text-sm mt-4" style={{ color: colors.textSecondary }}>
-              No attendance records for this event
+                {eventAttendanceList.length > 0 ? (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    className="border rounded-lg"
+                    style={{ borderColor: colors.border }}
+                  >
+                    <View>
+                      {/* Grid Header */}
+                      <View
+                        className="flex-row py-2 px-2 border-b"
+                        style={{ backgroundColor: "#F3F4F6", borderColor: colors.border }}
+                      >
+                        <Text className="w-32 text-xs font-bold text-gray-500 uppercase">Student Name</Text>
+                        <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">PRN</Text>
+                        <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">Class</Text>
+                        <Text className="w-28 text-xs font-bold text-gray-500 uppercase text-right">Date</Text>
+                      </View>
+                      {/* Grid Rows */}
+                      {eventAttendanceList.map((record, index) => (
+                        <View
+                          key={index}
+                          className="flex-row py-3 px-2 border-b last:border-0"
+                          style={{ 
+                            borderColor: colors.border,
+                            backgroundColor: "#fff" 
+                          }}
+                        >
+                          <Text className="w-32 text-xs font-medium" style={{ color: colors.textPrimary }} numberOfLines={1}>
+                            {record.studentName}
+                          </Text>
+                          <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
+                            {record.prn}
+                          </Text>
+                          <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
+                            {record.className}
+                          </Text>
+                          <Text className="w-28 text-xs text-right" style={{ color: colors.textSecondary }}>
+                            {record.attendanceDate}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                ) : (
+                  <Text className="text-center py-4 text-xs italic" style={{ color: colors.textSecondary }}>
+                    No attendance records found.
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* --- 4. CLASS MANAGEMENT --- */}
+        <View>
+          <View className="flex-row justify-between items-center mb-4">
+            <Text
+              className="text-base font-bold"
+              style={{ color: colors.header }}
+            >
+              Classes
             </Text>
-          )}
-        </TouchableOpacity>
+          </View>
 
-        {/* Classes Section */}
-        <View className="p-4 rounded-2xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-          <Text className="text-lg font-bold mb-3" style={{ color: colors.header }}>Classes</Text>
-
-          <ScrollView style={{ maxHeight: 380 }}>
+          <View className="flex-row flex-wrap justify-between">
             {classes.map((c) => (
               <TouchableOpacity
                 key={c._id || c.className}
-                className="p-3 rounded-lg mb-2 border"
-                style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
-                onPress={() => navigate('ClassStudents', { college, className: c.className })}
+                className="py-4 px-3 rounded-lg border mb-3 w-[48%]"
+                style={{
+                  borderColor: colors.border,
+                  backgroundColor: "#fff",
+                }}
+                onPress={() =>
+                  navigate("ClassStudents", { college, className: c.className })
+                }
               >
-                <Text style={{ color: colors.textPrimary }}>{c.className}</Text>
+                <Text
+                  className="font-medium text-sm text-center"
+                  style={{ color: colors.textPrimary }}
+                >
+                  {c.className}
+                </Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
 
-          <View className="mt-3">
+            {/* "Add New" Button - Dashed Style */}
             <TouchableOpacity
-              className="p-3 rounded-lg items-center mt-2 border"
-              style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
-              onPress={() => navigate('AddClass', { college })}
+              className="py-4 px-3 rounded-lg border border-dashed mb-3 w-[48%] justify-center items-center"
+              style={{
+                borderColor: colors.accent,
+                backgroundColor: "transparent",
+              }}
+              onPress={() => navigate("AddClass", { college })}
             >
-              <Text style={{ color: colors.textPrimary }}>Add new class</Text>
+              <Text
+                className="font-bold text-sm"
+                style={{ color: colors.accent }}
+              >
+                + Add New Class
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
     </TouchableOpacity>
-  );
-}
+  );}
