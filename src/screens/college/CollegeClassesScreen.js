@@ -143,7 +143,7 @@ export default function CollegeClassesScreen({ college }) {
     setShowAttendanceTable(false);
     setShowEventDropdown(false);
   };
-
+  //Exports all events attendance data to excel file
   const exportAllEventsToExcel = async () => {
     console.log("exporting to excel" );
     
@@ -367,7 +367,7 @@ export default function CollegeClassesScreen({ college }) {
       alert("Failed to export all events: " + error.message);
     }
   };
-
+  //Exports specific event attendance data to excel file
   const exportEventAttendanceToExcel = async () => {
     try {
       if (!selectedEvent || eventAttendanceList.length === 0) {
@@ -580,7 +580,7 @@ export default function CollegeClassesScreen({ college }) {
       throw error;
     }
   };
-
+  //Exports class-wise attendance data to excel file
   const exportToExcel = async () => {
     try {
       setLoading(true);
