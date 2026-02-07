@@ -1,11 +1,13 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, createElement } from "react";
 import {
   View,
   Text,
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
 const api = require("../../../apis/api");
@@ -21,9 +23,92 @@ export default function AddEventScreen() {
   const [images, setImages] = useState("");
   // date & time fields
   const [eventDate, setEventDate] = useState(new Date());
+  const [showEventDatePicker, setShowEventDatePicker] = useState(false);
 
-  const onDateChange = (date) => {
-    setEventDate(new Date(date));
+  const onDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowEventDatePicker(false);
+    }
+    if (selectedDate) {
+      setEventDate(selectedDate);
+    }
+  };
+
+  // --- DATE INPUT BOX COMPONENT ---
+  const DateInputBox = ({ label, dateValue, showPicker, setShowPicker }) => {
+    // 1. WEB VERSION: Uses standard HTML <input type="date">
+    if (Platform.OS === 'web') {
+      const dateString = dateValue ? dateValue.toISOString().split('T')[0] : '';
+
+      return (
+        <View className="mb-4">
+          <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
+            {label}
+          </Text>
+          <View style={{
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            paddingVertical: 4,
+            height: 40,
+            justifyContent: 'center'
+          }}>
+            {createElement('input', {
+              type: 'date',
+              value: dateString,
+              onChange: (e) => {
+                const newDate = e.target.value ? new Date(e.target.value) : null;
+                if (newDate) setEventDate(newDate);
+              },
+              style: {
+                border: 'none',
+                outline: 'none',
+                backgroundColor: colors.iconBg,
+                color: colors.textPrimary,
+                fontSize: '16px',
+                padding: '8px',
+                fontFamily: 'System',
+                width: '100%'
+              }
+            })}
+          </View>
+        </View>
+      );
+    }
+
+    // 2. MOBILE VERSION: Uses TouchableOpacity + Native Modal
+    const formattedDate = dateValue ? dateValue.toLocaleDateString() : 'Select Date';
+    return (
+      <View className="mb-4">
+        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
+          {label}
+        </Text>
+        <TouchableOpacity
+          onPress={() => setShowPicker(true)}
+          style={{
+            borderBottomWidth: 1,
+            borderColor: colors.border,
+            paddingVertical: 12,
+            backgroundColor: colors.iconBg,
+            paddingLeft: 12
+          }}
+        >
+          <Text style={{ color: dateValue ? colors.textPrimary : colors.textSecondary, fontSize: 16 }}>
+            {formattedDate}
+          </Text>
+        </TouchableOpacity>
+
+        {showPicker && (
+          <DateTimePicker
+            value={dateValue || new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(e, d) => {
+              onDateChange(e, d);
+            }}
+          />
+        )}
+      </View>
+    );
   };
 
   const handleSubmit = async () => {
@@ -72,6 +157,17 @@ export default function AddEventScreen() {
       }}
     >
       <ScrollView contentContainerStyle={{ padding: 20 }}>
+        {/* Back Button */}
+        <TouchableOpacity
+          onPress={goBack}
+          style={{
+            marginBottom: 15,
+            alignSelf: 'flex-start',
+          }}
+        >
+          <Text style={{ fontSize: 28, color: colors.textPrimary }}>←</Text>
+        </TouchableOpacity>
+
         <Text className="text-3xl font-bold mb-5 text-center" style={{ color: colors.header }}>
           Add New Event
         </Text>
@@ -128,24 +224,11 @@ export default function AddEventScreen() {
           placeholderTextColor={colors.textSecondary}
         />
         <View className="mb-4">
-          <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
-            Select Date:
-          </Text>
-          <input
-            type="date"
-            value={eventDate.toISOString().split("T")[0]}
-            onChange={(e) => onDateChange(e.target.value)}
-            style={{
-              backgroundColor: colors.iconBg,
-              borderColor: colors.border,
-              color: colors.textPrimary,
-              padding: 12,
-              borderWidth: 1,
-              borderRadius: 8,
-              fontSize: 16,
-              marginBottom: 16,
-              width: "100%",
-            }}
+          <DateInputBox
+            label="Event Date"
+            dateValue={eventDate}
+            showPicker={showEventDatePicker}
+            setShowPicker={setShowEventDatePicker}
           />
         </View>
         <TouchableOpacity
