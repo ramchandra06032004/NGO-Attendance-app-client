@@ -157,8 +157,8 @@ export default function SelectCollegeScreen({ eventId }) {
           <Text className="text-white font-bold">Get Students list</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity className="mt-3" onPress={() => goBack()}>
-          <Text style={{ color: colors.textPrimary }}>Back</Text>
+        <TouchableOpacity className="mt-3 items-center" onPress={() => goBack()}>
+          <Text className='font-semibold' style={{ color: colors.textPrimary }}>Back</Text>
         </TouchableOpacity>
       </View>
     </View>

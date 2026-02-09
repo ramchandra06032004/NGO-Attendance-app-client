@@ -16,13 +16,58 @@ import { AuthContext } from "../../context/AuthContext";
 import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
 // Platform-specific imports
-let FileSystem, Sharing;
+let RealFileSystem, RealSharing;
 if (RNPlatform.OS !== "web") {
-  FileSystem = require("expo-file-system");
-  Sharing = require("expo-sharing");
+  RealFileSystem = require("expo-file-system/legacy");
+  RealSharing = require("expo-sharing");
 }
 
 export default function AttendanceRecords({ route = {} }) {
+  // Helper function to save file to local storage
+  const saveFile = async (filename, base64Data) => {
+    if (RNPlatform.OS === "web") return;
+
+    try {
+      if (RNPlatform.OS === "android") {
+        // 1. Request permission to pick a folder
+        const permissions = await RealFileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+
+        if (permissions.granted) {
+          // 2. Create the file in the selected folder
+          const uri = await RealFileSystem.StorageAccessFramework.createFileAsync(
+            permissions.directoryUri,
+            filename,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          );
+
+          // 3. Write the data
+          await RealFileSystem.writeAsStringAsync(uri, base64Data, {
+            encoding: 'base64',
+          });
+
+          alert("File saved successfully!");
+        } else {
+          alert("Export cancelled: No folder selected.");
+        }
+      } else {
+        // iOS: Use share sheet which has "Save to Files"
+        const filepath = `${RealFileSystem.documentDirectory}${filename}`;
+        await RealFileSystem.writeAsStringAsync(filepath, base64Data, {
+          encoding: 'base64',
+        });
+
+        await RealSharing.shareAsync(filepath, {
+          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Export Data",
+          UTI: "com.microsoft.excel.xlsx",
+        });
+      }
+    } catch (error) {
+      console.error("File save error:", error);
+      alert("Error saving file: " + error.message);
+    }
+  };
+
   const { params = {} } = route;
   const event = params.event;
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -297,20 +342,25 @@ export default function AttendanceRecords({ route = {} }) {
         window.URL.revokeObjectURL(url);
         alert("Export Successful!");
       } else {
-        // Mobile (Android/iOS)
-        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
 
-        await FileSystem.writeAsStringAsync(fileUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
+        if (RNPlatform.OS === "android") {
+          // Android: Let user choose where to save
+          await saveFile(filename, base64);
+        } else {
+          // iOS: Use share sheet
+          const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
+          await RealFileSystem.writeAsStringAsync(fileUri, base64, {
+            encoding: RealFileSystem.EncodingType.Base64,
+          });
 
-        await Sharing.shareAsync(fileUri, {
-          mimeType:
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export Attendance",
-          UTI: "com.microsoft.excel.xlsx",
-        });
+          await RealSharing.shareAsync(fileUri, {
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            dialogTitle: "Export Attendance",
+            UTI: "com.microsoft.excel.xlsx",
+          });
+        }
       }
     } catch (error) {
       console.error("Export Error:", error);

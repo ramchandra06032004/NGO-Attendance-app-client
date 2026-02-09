@@ -252,34 +252,86 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
         </Text>
         <View className="flex-row gap-2">
           {/* Start Date */}
-          <TouchableOpacity
-            className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
-            style={{
-              backgroundColor: colors.cardBg,
-              borderColor: colors.border,
-            }}
-            onPress={() => setShowStartPicker(true)}
-          >
-            <Text className="text-sm" style={{ color: startDate ? colors.textPrimary : colors.textSecondary }}>
-              {formatDate(startDate)}
-            </Text>
-            <Text style={{ color: colors.textSecondary }}>📅</Text>
-          </TouchableOpacity>
+          {Platform.OS === 'web' ? (
+            <View className="flex-1">
+              <input
+                type="date"
+                value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setStartDate(new Date(e.target.value));
+                  } else {
+                    setStartDate(null);
+                  }
+                }}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.cardBg,
+                  color: colors.textPrimary,
+                  fontSize: '14px',
+                  width: '100%',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+              }}
+              onPress={() => setShowStartPicker(true)}
+            >
+              <Text className="text-sm" style={{ color: startDate ? colors.textPrimary : colors.textSecondary }}>
+                {formatDate(startDate)}
+              </Text>
+              <Text style={{ color: colors.textSecondary }}>📅</Text>
+            </TouchableOpacity>
+          )}
 
           {/* End Date */}
-          <TouchableOpacity
-            className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
-            style={{
-              backgroundColor: colors.cardBg,
-              borderColor: colors.border,
-            }}
-            onPress={() => setShowEndPicker(true)}
-          >
-            <Text className="text-sm" style={{ color: endDate ? colors.textPrimary : colors.textSecondary }}>
-              {formatDate(endDate)}
-            </Text>
-            <Text style={{ color: colors.textSecondary }}>📅</Text>
-          </TouchableOpacity>
+          {Platform.OS === 'web' ? (
+            <View className="flex-1">
+              <input
+                type="date"
+                value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setEndDate(new Date(e.target.value));
+                  } else {
+                    setEndDate(null);
+                  }
+                }}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.cardBg,
+                  color: colors.textPrimary,
+                  fontSize: '14px',
+                  width: '100%',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+              }}
+              onPress={() => setShowEndPicker(true)}
+            >
+              <Text className="text-sm" style={{ color: endDate ? colors.textPrimary : colors.textSecondary }}>
+                {formatDate(endDate)}
+              </Text>
+              <Text style={{ color: colors.textSecondary }}>📅</Text>
+            </TouchableOpacity>
+          )}
 
           {/* Clear Button */}
           {(startDate || endDate) && (
@@ -297,8 +349,8 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
         </View>
       </View>
 
-      {/* Date Pickers */}
-      {showStartPicker && (
+      {/* Date Pickers - Only for Mobile */}
+      {Platform.OS !== 'web' && showStartPicker && (
         <DateTimePicker
           value={startDate || new Date()}
           mode="date"
@@ -312,7 +364,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
         />
       )}
 
-      {showEndPicker && (
+      {Platform.OS !== 'web' && showEndPicker && (
         <DateTimePicker
           value={endDate || new Date()}
           mode="date"

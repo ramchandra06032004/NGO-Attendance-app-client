@@ -1,6 +1,6 @@
-import React, { useContext, useEffect, useState, createElement } from 'react';
+import React, { useContext, useEffect, useState, useMemo, createElement } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Platform, TextInput } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker'; 
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { NavigationContext } from '../../context/NavigationContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +20,8 @@ export default function StudentEventsScreen({ college, studentId }) {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [isFilterVisible, setIsFilterVisible] = useState(false);
-  
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Mobile Picker Visibility
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
@@ -45,17 +46,68 @@ export default function StudentEventsScreen({ college, studentId }) {
     setFilteredEvents(attendedEvents);
   }, [studentId]);
 
-  // --- FILTER LOGIC ---
-  const applyFilter = () => {
+  // Use useMemo to compute filtered events - prevents infinite loop
+  const computedFilteredEvents = useMemo(() => {
+    // Only filter if there are active filters, otherwise show all events
+    if (!searchQuery.trim() && !startDate && !endDate) {
+      return allEvents;
+    }
+
     let filtered = allEvents;
+
+    // Text search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(ev =>
+        ev.eventName?.toLowerCase().includes(query) ||
+        ev.eventLocation?.toLowerCase().includes(query) ||
+        ev.ngoName?.toLowerCase().includes(query)
+      );
+    }
+
+    // Date range filter
     if (startDate) {
       const start = new Date(startDate);
-      start.setHours(0,0,0,0);
+      start.setHours(0, 0, 0, 0);
       filtered = filtered.filter(ev => ev.rawDate && ev.rawDate >= start);
     }
     if (endDate) {
       const end = new Date(endDate);
-      end.setHours(23,59,59,999);
+      end.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(ev => ev.rawDate && ev.rawDate <= end);
+    }
+
+    return filtered;
+  }, [searchQuery, startDate, endDate, allEvents]);
+
+  // Update filteredEvents when computed value changes
+  useEffect(() => {
+    setFilteredEvents(computedFilteredEvents);
+  }, [computedFilteredEvents]);
+
+  // --- FILTER LOGIC ---
+  const applyFilter = () => {
+    let filtered = allEvents;
+
+    // Text search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(ev =>
+        ev.eventName?.toLowerCase().includes(query) ||
+        ev.eventLocation?.toLowerCase().includes(query) ||
+        ev.ngoName?.toLowerCase().includes(query)
+      );
+    }
+
+    // Date range filter
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(ev => ev.rawDate && ev.rawDate >= start);
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
       filtered = filtered.filter(ev => ev.rawDate && ev.rawDate <= end);
     }
     setFilteredEvents(filtered);
@@ -64,6 +116,7 @@ export default function StudentEventsScreen({ college, studentId }) {
   const clearFilter = () => {
     setStartDate(null);
     setEndDate(null);
+    setSearchQuery('');
     setFilteredEvents(allEvents);
   };
 
@@ -79,17 +132,17 @@ export default function StudentEventsScreen({ college, studentId }) {
 
   // --- HYBRID DATE INPUT COMPONENT ---
   const DateInputBox = ({ label, dateValue, setShowPicker, showPicker, onChangeType }) => {
-    
+
     // 1. WEB VERSION: Uses standard HTML <input type="date">
     if (Platform.OS === 'web') {
       const dateString = dateValue ? dateValue.toISOString().split('T')[0] : '';
-      
+
       return (
         <View className="flex-1 mr-2">
           <Text className="text-[10px] uppercase font-bold mb-1" style={{ color: colors.textSecondary }}>{label}</Text>
-          <View style={{ 
-            borderBottomWidth: 1, 
-            borderColor: colors.border, 
+          <View style={{
+            borderBottomWidth: 1,
+            borderColor: colors.border,
             paddingVertical: 4,
             height: 35,
             justifyContent: 'center'
@@ -103,9 +156,9 @@ export default function StudentEventsScreen({ college, studentId }) {
                 if (onChangeType === 'start') setStartDate(newDate);
                 else setEndDate(newDate);
               },
-              style: { 
-                border: 'none', 
-                outline: 'none', 
+              style: {
+                border: 'none',
+                outline: 'none',
                 backgroundColor: 'transparent',
                 color: colors.textPrimary,
                 fontSize: '14px',
@@ -121,27 +174,27 @@ export default function StudentEventsScreen({ college, studentId }) {
     // 2. MOBILE VERSION: Uses TouchableOpacity + Native Modal
     const formattedDate = dateValue ? dateValue.toLocaleDateString() : 'Select Date';
     return (
-        <View className="flex-1 mr-2">
-            <Text className="text-[10px] uppercase font-bold mb-1" style={{ color: colors.textSecondary }}>{label}</Text>
-            <TouchableOpacity 
-                onPress={() => setShowPicker(true)}
-                style={{ borderBottomWidth: 1, borderColor: colors.border, paddingVertical: 8 }}
-            >
-                <Text style={{ color: dateValue ? colors.textPrimary : '#999' }}>{formattedDate}</Text>
-            </TouchableOpacity>
+      <View className="flex-1 mr-2">
+        <Text className="text-[10px] uppercase font-bold mb-1" style={{ color: colors.textSecondary }}>{label}</Text>
+        <TouchableOpacity
+          onPress={() => setShowPicker(true)}
+          style={{ borderBottomWidth: 1, borderColor: colors.border, paddingVertical: 8 }}
+        >
+          <Text style={{ color: dateValue ? colors.textPrimary : '#999' }}>{formattedDate}</Text>
+        </TouchableOpacity>
 
-            {showPicker && (
-                <DateTimePicker
-                    value={dateValue || new Date()}
-                    mode="date"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                    onChange={(e, d) => {
-                        if (Platform.OS === 'android') setShowPicker(false);
-                        onDateChange(e, d, onChangeType);
-                    }}
-                />
-            )}
-        </View>
+        {showPicker && (
+          <DateTimePicker
+            value={dateValue || new Date()}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(e, d) => {
+              if (Platform.OS === 'android') setShowPicker(false);
+              onDateChange(e, d, onChangeType);
+            }}
+          />
+        )}
+      </View>
     );
   };
 
@@ -174,44 +227,61 @@ export default function StudentEventsScreen({ college, studentId }) {
   const renderFilterSection = () => (
     <View className="mb-6 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
       <View className="flex-row justify-between items-center mb-3">
-        <Text className="font-bold" style={{ color: colors.textPrimary }}>Date Range Filter</Text>
+        <Text className="font-bold" style={{ color: colors.textPrimary }}>Search & Filter</Text>
         <TouchableOpacity onPress={() => setIsFilterVisible(!isFilterVisible)}>
           <Ionicons name={isFilterVisible ? "chevron-up" : "funnel-outline"} size={20} color={colors.accent} />
         </TouchableOpacity>
       </View>
 
+      {/* Search Bar - Always Visible */}
+      <View className="mb-3">
+        <TextInput
+          className="px-4 py-3 rounded-xl border"
+          style={{
+            backgroundColor: colors.backgroundColors?.[0] || '#fff',
+            borderColor: colors.border,
+            color: colors.textPrimary,
+          }}
+          placeholder="Search by event, location, or NGO..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
       {isFilterVisible && (
         <View>
+          <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>DATE RANGE</Text>
           <View className="flex-row justify-between mb-4">
-            <DateInputBox 
-                label="From Date" 
-                dateValue={startDate} 
-                showPicker={showStartPicker} 
-                setShowPicker={setShowStartPicker} 
-                onChangeType="start" 
+            <DateInputBox
+              label="From Date"
+              dateValue={startDate}
+              showPicker={showStartPicker}
+              setShowPicker={setShowStartPicker}
+              onChangeType="start"
             />
-            <DateInputBox 
-                label="To Date" 
-                dateValue={endDate} 
-                showPicker={showEndPicker} 
-                setShowPicker={setShowEndPicker} 
-                onChangeType="end" 
+            <DateInputBox
+              label="To Date"
+              dateValue={endDate}
+              showPicker={showEndPicker}
+              setShowPicker={setShowEndPicker}
+              onChangeType="end"
             />
           </View>
           <View className="flex-row">
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={applyFilter}
-              className="flex-1 py-2 rounded-lg mr-2 items-center" 
+              className="flex-1 py-2 rounded-lg mr-2 items-center"
               style={{ backgroundColor: colors.accent }}
             >
               <Text className="text-white font-bold text-xs">Apply Filter</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={clearFilter}
-              className="flex-1 py-2 rounded-lg items-center border" 
+              className="flex-1 py-2 rounded-lg items-center border"
               style={{ borderColor: colors.border }}
             >
-              <Text className="font-bold text-xs" style={{ color: colors.textSecondary }}>Clear</Text>
+              <Text className="font-bold text-xs" style={{ color: colors.textSecondary }}>Clear All</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -283,6 +353,18 @@ export default function StudentEventsScreen({ college, studentId }) {
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#F8FAFC' }}>
+      {/* Fixed Header with Back Button */}
+      <View className="px-5 pt-8 pb-3" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <TouchableOpacity
+          className="flex-row items-center py-2 px-4 rounded-xl border self-start"
+          onPress={() => goBack()}
+          style={{ borderColor: colors.border, backgroundColor: colors.backgroundColors?.[0] || '#fff' }}
+        >
+          <Ionicons name="arrow-back" size={18} color={colors.textPrimary} />
+          <Text className="ml-2 font-semibold" style={{ color: colors.textPrimary }}>Back</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 40, paddingTop: 20 }} showsVerticalScrollIndicator={false}>
         {renderHeader()}
         {renderFilterSection()}
@@ -307,9 +389,6 @@ export default function StudentEventsScreen({ college, studentId }) {
             )}
           </View>
         )}
-        <TouchableOpacity className="mt-10 py-4 rounded-2xl items-center justify-center shadow-md" onPress={() => goBack()} style={{ backgroundColor: colors.accent }}>
-          <Text className="text-base font-bold text-white">Go Back</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );

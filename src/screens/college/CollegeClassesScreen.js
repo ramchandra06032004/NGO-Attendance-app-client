@@ -42,7 +42,7 @@ export default function CollegeClassesScreen({ college }) {
       if (RNPlatform.OS === "android") {
         // 1. Request permission to pick a folder
         const permissions = await RealFileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        
+
         if (permissions.granted) {
           // 2. Create the file in the selected folder
           const uri = await RealFileSystem.StorageAccessFramework.createFileAsync(
@@ -50,12 +50,12 @@ export default function CollegeClassesScreen({ college }) {
             filename,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           );
-          
+
           // 3. Write the data
           await RealFileSystem.writeAsStringAsync(uri, base64Data, {
             encoding: 'base64',
           });
-          
+
           alert("File saved successfully!");
         } else {
           alert("Export cancelled: No folder selected.");
@@ -66,7 +66,7 @@ export default function CollegeClassesScreen({ college }) {
         await RealFileSystem.writeAsStringAsync(filepath, base64Data, {
           encoding: 'base64',
         });
-        
+
         await RealSharing.shareAsync(filepath, {
           mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           dialogTitle: "Export Data",
@@ -298,7 +298,7 @@ export default function CollegeClassesScreen({ college }) {
         const headerRow = worksheet.getRow(13);
         headerRow.values = ["Student Name", "PRN", "Department", "Class", "Attendance Date"];
         headerRow.height = 25;
-        
+
         headerRow.eachCell((cell) => {
           cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
           cell.fill = {
@@ -373,14 +373,24 @@ export default function CollegeClassesScreen({ college }) {
         window.URL.revokeObjectURL(url);
         alert("Export successful!");
       } else {
-        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
-        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export All Events",
-          UTI: "com.microsoft.excel.xlsx",
-        });
+
+        if (RNPlatform.OS === "android") {
+          // Android: Let user choose where to save
+          await saveFile(filename, base64);
+        } else {
+          // iOS: Use share sheet
+          const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
+          await RealFileSystem.writeAsStringAsync(fileUri, base64, {
+            encoding: RealFileSystem.EncodingType.Base64
+          });
+          await RealSharing.shareAsync(fileUri, {
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            dialogTitle: "Export All Events",
+            UTI: "com.microsoft.excel.xlsx",
+          });
+        }
       }
 
       setLoading(false);
@@ -411,7 +421,7 @@ export default function CollegeClassesScreen({ college }) {
         try {
           let base64Data = "";
           let extension = "png";
-          
+
           if (logoUrl.toLowerCase().includes("jpg") || logoUrl.toLowerCase().includes("jpeg")) {
             extension = "jpeg";
           }
@@ -511,7 +521,7 @@ export default function CollegeClassesScreen({ college }) {
       // --- C. TABLE HEADERS (Row 13) ---
       const headerRow = worksheet.getRow(13);
       headerRow.values = ["Student Name", "PRN", "Department", "Class", "Attendance Date"];
-      
+
       headerRow.eachCell((cell) => {
         cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
         cell.fill = {
@@ -580,14 +590,24 @@ export default function CollegeClassesScreen({ college }) {
         window.URL.revokeObjectURL(url);
         alert("Event attendance exported successfully!");
       } else {
-        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
-        await FileSystem.writeAsStringAsync(fileUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export Event Attendance",
-          UTI: "com.microsoft.excel.xlsx",
-        });
+
+        if (RNPlatform.OS === "android") {
+          // Android: Let user choose where to save
+          await saveFile(filename, base64);
+        } else {
+          // iOS: Use share sheet
+          const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
+          await RealFileSystem.writeAsStringAsync(fileUri, base64, {
+            encoding: RealFileSystem.EncodingType.Base64
+          });
+          await RealSharing.shareAsync(fileUri, {
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            dialogTitle: "Export Event Attendance",
+            UTI: "com.microsoft.excel.xlsx",
+          });
+        }
       }
 
       setLoading(false);
@@ -815,7 +835,7 @@ export default function CollegeClassesScreen({ college }) {
             const row = worksheet.getRow(r);
             // Alternate colors based on STUDENT groups (not just individual rows)
             // Using startRow ensures the whole block is the same color
-            const isEvenBlock = startRow % 2 === 0; 
+            const isEvenBlock = startRow % 2 === 0;
             const bgColor = isEvenBlock ? "FFFFFFFF" : "FFF2F2F2";
 
             row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
@@ -873,19 +893,24 @@ export default function CollegeClassesScreen({ college }) {
         window.URL.revokeObjectURL(url);
         alert("College data exported successfully!");
       } else {
-        const fileUri = `${FileSystem.documentDirectory}${filename}`;
+        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
 
-        await FileSystem.writeAsStringAsync(fileUri, base64, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        await Sharing.shareAsync(fileUri, {
-          mimeType:
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          dialogTitle: "Export College Data",
-          UTI: "com.microsoft.excel.xlsx",
-        });
+        if (RNPlatform.OS === "android") {
+          // Android: Let user choose where to save
+          await saveFile(filename, base64);
+        } else {
+          // iOS: Use share sheet
+          const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
+          await RealFileSystem.writeAsStringAsync(fileUri, base64, {
+            encoding: RealFileSystem.EncodingType.Base64,
+          });
+          await RealSharing.shareAsync(fileUri, {
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            dialogTitle: "Export College Data",
+            UTI: "com.microsoft.excel.xlsx",
+          });
+        }
       }
 
       setLoading(false);
@@ -905,7 +930,7 @@ export default function CollegeClassesScreen({ college }) {
     );
   }
 
- return (
+  return (
     <TouchableOpacity
       activeOpacity={1}
       onPress={handleOutsideClick}
@@ -926,9 +951,9 @@ export default function CollegeClassesScreen({ college }) {
             {/* Left: Logo + College Info */}
             <View className="flex-row items-center flex-1 gap-3">
               {/* Logo Box */}
-              <View 
+              <View
                 className="rounded-lg border overflow-hidden"
-                style={{ 
+                style={{
                   backgroundColor: colors.iconBg,
                   borderColor: colors.border,
                   width: 70,
@@ -953,13 +978,13 @@ export default function CollegeClassesScreen({ college }) {
 
               {/* College Name & Address - Full width, wrapping text */}
               <View className="flex-1">
-                <Text 
-                  className="font-bold text-base leading-5" 
+                <Text
+                  className="font-bold text-base leading-5"
                   style={{ color: colors.header }}
                 >
                   {college.name.toUpperCase()}
                 </Text>
-                <Text 
+                <Text
                   className="text-xs mt-1"
                   style={{ color: colors.textSecondary }}
                 >
@@ -970,17 +995,17 @@ export default function CollegeClassesScreen({ college }) {
 
             {/* Right: Small Logout Button */}
             <TouchableOpacity
-                        className="px-3 py-1.5 rounded-full border ml-1"
-                        style={{ borderColor: colors.error || "#ef4444", borderWidth: 1 }}
-                        onPress={handleLogout}
-                      >
-                        <Text
-                          className="text-xs font-bold"
-                          style={{ color: colors.error || "#ef4444" }}
-                        >
-                          Logout
-                        </Text>
-                      </TouchableOpacity>
+              className="px-3 py-1.5 rounded-full border ml-1"
+              style={{ borderColor: colors.error || "#ef4444", borderWidth: 1 }}
+              onPress={handleLogout}
+            >
+              <Text
+                className="text-xs font-bold"
+                style={{ color: colors.error || "#ef4444" }}
+              >
+                Logout
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -989,9 +1014,9 @@ export default function CollegeClassesScreen({ college }) {
         <View className="flex-row gap-3 mb-6">
           <TouchableOpacity
             className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
-            style={{ 
-              backgroundColor: colors.accent, 
-              borderColor: colors.accent 
+            style={{
+              backgroundColor: colors.accent,
+              borderColor: colors.accent
             }}
             onPress={exportToExcel}
           >
@@ -1002,14 +1027,14 @@ export default function CollegeClassesScreen({ college }) {
 
           <TouchableOpacity
             className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
-            style={{ 
-              backgroundColor: "transparent", 
+            style={{
+              backgroundColor: "transparent",
               borderColor: colors.accent,
               borderWidth: 1
             }}
             onPress={exportAllEventsToExcel}
           >
-            <Text 
+            <Text
               className="font-semibold text-xs text-center uppercase tracking-wide"
               style={{ color: colors.accent }}
             >
@@ -1031,7 +1056,7 @@ export default function CollegeClassesScreen({ college }) {
               Event Attendance
             </Text>
           </View>
-          
+
           <View className="p-4">
             {/* Dropdown Selector */}
             <TouchableOpacity
@@ -1039,7 +1064,7 @@ export default function CollegeClassesScreen({ college }) {
               onPress={() => setShowEventDropdown(!showEventDropdown)}
               className="flex-row justify-between items-center p-3 rounded-lg border mb-4"
               style={{
-                backgroundColor: "#fff",
+                backgroundColor: colors.iconBg,
                 borderColor: showEventDropdown ? colors.accent : colors.border,
               }}
             >
@@ -1071,7 +1096,7 @@ export default function CollegeClassesScreen({ college }) {
                         backgroundColor:
                           selectedEvent?._id === event._id
                             ? colors.iconBg
-                            : "#fff",
+                            : colors.cardBg,
                       }}
                       onPress={() => handleEventSelect(event)}
                     >
@@ -1139,9 +1164,9 @@ export default function CollegeClassesScreen({ college }) {
                         <View
                           key={index}
                           className="flex-row py-3 px-2 border-b last:border-0"
-                          style={{ 
+                          style={{
                             borderColor: colors.border,
-                            backgroundColor: "#fff" 
+                            backgroundColor: colors.cardBg
                           }}
                         >
                           <Text className="w-32 text-xs font-medium" style={{ color: colors.textPrimary }} numberOfLines={1}>
@@ -1188,7 +1213,7 @@ export default function CollegeClassesScreen({ college }) {
                 className="py-4 px-3 rounded-lg border mb-3 w-[48%]"
                 style={{
                   borderColor: colors.border,
-                  backgroundColor: "#fff",
+                  backgroundColor: colors.cardBg,
                 }}
                 onPress={() =>
                   navigate("ClassStudents", { college, className: c.className })
@@ -1223,4 +1248,5 @@ export default function CollegeClassesScreen({ college }) {
         </View>
       </ScrollView>
     </TouchableOpacity>
-  );}
+  );
+}

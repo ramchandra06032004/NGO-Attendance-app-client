@@ -6,6 +6,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -118,7 +119,36 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
+    // Platform-specific confirmation
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(
+        "Are you sure you want to submit this attendance? This action is irreversible and cannot be undone."
+      );
+      if (confirmed) {
+        submitAttendance();
+      }
+    } else {
+      // Show confirmation alert before submitting (Mobile)
+      Alert.alert(
+        "Confirm Submission",
+        "Are you sure you want to submit this attendance? This action is irreversible and cannot be undone.",
+        [
+          {
+            text: "Cancel",
+            style: "cancel"
+          },
+          {
+            text: "Submit",
+            onPress: () => submitAttendance(),
+            style: "destructive"
+          }
+        ]
+      );
+    }
+  };
+
+  const submitAttendance = async () => {
     const presentArray = Array.from(presentIds);
     const collegeId = college?._id || college?.id;
     const reqBody = {
@@ -151,18 +181,29 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
       const data = await response.json();
       console.log("Attendance submitted successfully:", data);
 
-      // Show success alert and navigate back
-      Alert.alert("Success", "Attendance has been submitted successfully!", [
-        {
-          text: "OK",
-          onPress: () => goBack()
-        },
-      ]);
+      // Show success alert and navigate back (Platform-specific)
+      if (Platform.OS === 'web') {
+        window.alert("Attendance has been submitted successfully!");
+        goBack();
+      } else {
+        Alert.alert("Success", "Attendance has been submitted successfully!", [
+          {
+            text: "OK",
+            onPress: () => goBack()
+          },
+        ]);
+      }
     } catch (err) {
       console.log("Error in submitting attendance:", err);
-      Alert.alert("Error", "Failed to submit attendance: " + err.message, [
-        { text: "OK" },
-      ]);
+
+      // Platform-specific error alert
+      if (Platform.OS === 'web') {
+        window.alert("Failed to submit attendance: " + err.message);
+      } else {
+        Alert.alert("Error", "Failed to submit attendance: " + err.message, [
+          { text: "OK" },
+        ]);
+      }
     }
   };
 
@@ -276,7 +317,7 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
         </View>
 
         <Text className="text-2xl font-extrabold mb-1" style={{ color: colors.header }}>
-          {college?.name || college?.collegeName || "College"}
+          {college?.name.toUpperCase() || college?.collegeName.toUpperCase() || "College"}
         </Text>
         <Text className="text-sm" style={{ color: colors.textSecondary }}>
           Mark Attendance

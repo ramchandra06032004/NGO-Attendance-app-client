@@ -83,8 +83,8 @@ export default function AdminLoginScreen() {
       }}
     >
       <View
-        className="w-full max-w-md bg-white rounded-2xl p-6 shadow-lg border"
-        style={{ borderColor: colors.border }}
+        className="w-full max-w-md rounded-2xl p-6 shadow-lg border"
+        style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
       >
         <Text className="text-2xl font-black text-center mb-3" style={{ color: colors.header }}>
           Admin Login

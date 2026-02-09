@@ -19,11 +19,12 @@ import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
 import AddNgoScreen from "./screens/admin/AddNgoScreen";
 import AddEventScreen from "./screens/ngo/AddEventScreen";
 import AttendanceRecords from "./screens/ngo/AttendanceRecords";
+import EntityDetailScreen from "./screens/admin/EntityDetailScreen";
 import { NavigationContext } from "./context/NavigationContext";
 import { AuthContext } from "./context/AuthContext";
 
 export default function AppContainer() {
-  
+
   const { route, navigate } = useContext(NavigationContext);
   console.log("AppContainer render, current route:", route.name);
   const { loading, isAuthenticated, userType, user } = useContext(AuthContext);
@@ -140,6 +141,9 @@ export default function AppContainer() {
       break;
     case "AttendanceRecords":
       Screen = <AttendanceRecords route={route} />;
+      break;
+    case "EntityDetail":
+      Screen = <EntityDetailScreen entity={route.params?.entity} entityType={route.params?.entityType} />;
       break;
     default:
       Screen = <HomeScreen />;

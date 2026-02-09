@@ -128,8 +128,8 @@ export default function CollegeLoginScreen() {
         keyboardDismissMode="on-drag"
       >
         <View
-          className="w-full max-w-md bg-white rounded-2xl p-6 shadow-lg border"
-          style={{ borderColor: colors.border }}
+          className="w-full max-w-md rounded-2xl p-6 shadow-lg border"
+          style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
         >
           <Text className="text-2xl font-black text-center mb-4" style={{ color: colors.header }}>
             College Login
@@ -146,66 +146,67 @@ export default function CollegeLoginScreen() {
             {loadingColleges ? (
               <ActivityIndicator size="small" color={colors.textPrimary} style={{ padding: 20 }} />
             ) : (
-              <FlatList
-                data={collegesList}
-                keyExtractor={(item, index) =>
-                  String(item?.id ?? item?._id ?? item?.code ?? index)
-                }
-                renderItem={({ item, index }) => {
-                  const id = String(item?.id ?? item?._id ?? item?.code ?? index);
-                  const selectedId = String(
-                    selectedCollege?.id ??
-                    selectedCollege?._id ??
-                    selectedCollege?.code ??
-                    ""
-                  );
-                  const active = selectedId === id;
-                  const label =
-                    item?.name ??
-                    item?.collegeName ??
-                    item?.title ??
-                    item?.label ??
-                    item?.instituteName ??
-                    `College ${index + 1}`;
-
-                  return (
-                    <Pressable
-                      onPress={() => {
-                        setSelectedCollege(item);
-                        setEmail(item.email || "");
-                      }}
-                      className="flex-row items-center justify-between py-3 px-4 rounded-lg"
-                      style={{
-                        backgroundColor: active ? (darkMode ? "#ffffff12" : "#fcfbf7ff") : "transparent",
-                        borderWidth: active ? 1 : 0,
-                        borderColor: active ? colors.accent : "transparent",
-                      }}
-                    >
-                      <Text
-                        className={`text-sm ${active ? "font-bold" : "font-normal"}`}
-                        style={[{ color: colors.textPrimary }]}
-                        numberOfLines={1}
-                      >
-                        {label}
-                      </Text>
-                      {active ? (
-                        <Text className="font-bold text-base" style={{ color: colors.accent }}>
-                          ✓
-                        </Text>
-                      ) : null}
-                    </Pressable>
-                  );
-                }}
-                ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+              <ScrollView
+                style={{ maxHeight: 240 }}
                 contentContainerStyle={{ padding: 6 }}
-                keyboardShouldPersistTaps="handled"
-                ListEmptyComponent={
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+              >
+                {collegesList.length === 0 ? (
                   <Text className="text-center mt-2" style={{ color: colors.textSecondary }}>
                     No colleges found
                   </Text>
-                }
-                style={{ maxHeight: 240 }}
-              />
+                ) : (
+                  collegesList.map((item, index) => {
+                    const id = String(item?.id ?? item?._id ?? item?.code ?? index);
+                    const selectedId = String(
+                      selectedCollege?.id ??
+                      selectedCollege?._id ??
+                      selectedCollege?.code ??
+                      ""
+                    );
+                    const active = selectedId === id;
+                    const label =
+                      item?.name ??
+                      item?.collegeName ??
+                      item?.title ??
+                      item?.label ??
+                      item?.instituteName ??
+                      `College ${index + 1}`;
+
+                    return (
+                      <View key={id}>
+                        <Pressable
+                          onPress={() => {
+                            setSelectedCollege(item);
+                            setEmail(item.email || "");
+                          }}
+                          className="flex-row items-center justify-between py-3 px-4 rounded-lg"
+                          style={{
+                            backgroundColor: active ? (darkMode ? "#ffffff12" : "#fcfbf7ff") : "transparent",
+                            borderWidth: active ? 1 : 0,
+                            borderColor: active ? colors.accent : "transparent",
+                          }}
+                        >
+                          <Text
+                            className={`text-sm ${active ? "font-bold" : "font-normal"}`}
+                            style={[{ color: colors.textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {label}
+                          </Text>
+                          {active ? (
+                            <Text className="font-bold text-base" style={{ color: colors.accent }}>
+                              ✓
+                            </Text>
+                          ) : null}
+                        </Pressable>
+                        {index < collegesList.length - 1 && <View style={{ height: 6 }} />}
+                      </View>
+                    );
+                  })
+                )}
+              </ScrollView>
             )}
           </View>
 
