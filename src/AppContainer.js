@@ -1,5 +1,5 @@
 import React, { useContext, useEffect } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ActivityIndicator, BackHandler } from "react-native";
 import HomeScreen from "./screens/HomeScreen";
 import NgoEventsScreen from "./screens/ngo/NgoEventsScreen";
 import EventDetailScreen from "./screens/ngo/EventDetailScreen";
@@ -25,7 +25,7 @@ import { AuthContext } from "./context/AuthContext";
 
 export default function AppContainer() {
 
-  const { route, navigate } = useContext(NavigationContext);
+  const { route, navigate, goBack } = useContext(NavigationContext);
   console.log("AppContainer render, current route:", route.name);
   const { loading, isAuthenticated, userType, user } = useContext(AuthContext);
 
@@ -42,6 +42,23 @@ export default function AppContainer() {
       }
     }
   }, [loading]); // Only depend on loading, not on route changes
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // If we're on the Home screen, allow default behavior (exit app)
+      if (route.name === 'Home') {
+        return false; // Let the system handle it (exit app)
+      }
+
+      // Otherwise, navigate back within the app
+      goBack();
+      return true; // Prevent default behavior (don't exit app)
+    });
+
+    // Cleanup listener on unmount
+    return () => backHandler.remove();
+  }, [route.name, goBack]); // Re-register when route changes
 
   // Show loading screen while validating token
   if (loading) {
