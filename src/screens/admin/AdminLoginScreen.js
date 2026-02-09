@@ -49,7 +49,7 @@ export default function AdminLoginScreen() {
         try {
           const errData = await response.json();
           if (errData && errData.message) errMsg = errData.message;
-        } catch {}
+        } catch { }
         throw new Error(errMsg);
       }
 
@@ -142,7 +142,7 @@ export default function AdminLoginScreen() {
         className="mt-6"
         disabled={isLoggingIn}
       >
-        <Text style={{ color: colors.textPrimary }}>Cancel</Text>
+        <Text className="font-semibold" style={{ color: colors.textPrimary }}>Cancel</Text>
       </TouchableOpacity>
     </View>
   );

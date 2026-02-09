@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Platform as RNPlatform,
   ScrollView,
+  TextInput,
 } from "react-native";
 
 import { ngo_host } from "../../../apis/api";
@@ -32,6 +33,9 @@ export default function AttendanceRecords({ route = {} }) {
   const [attendanceData, setAttendanceData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [viewMode, setViewMode] = useState("table"); // "table" or "card"
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
 
   useEffect(() => {
     if (event && event._id) {
@@ -67,7 +71,7 @@ export default function AttendanceRecords({ route = {} }) {
     }
   };
 
- // ✅ UPDATED FUNCTION: Uses exceljs to embed images
+  // ✅ UPDATED FUNCTION: Uses exceljs to embed images
   const exportToExcel = async () => {
     try {
       if (
@@ -96,7 +100,7 @@ export default function AttendanceRecords({ route = {} }) {
         try {
           let base64Data = "";
           let extension = "png";
-          
+
           // Simple extension detection
           if (profileImageUrl.toLowerCase().includes("jpg") || profileImageUrl.toLowerCase().includes("jpeg")) {
             extension = "jpeg";
@@ -106,10 +110,10 @@ export default function AttendanceRecords({ route = {} }) {
             // 🌍 WEB: Use Fetch + FileReader (Requires CORS allowed on Bucket)
             const response = await fetch(profileImageUrl);
             const blob = await response.blob();
-            
+
             const reader = new FileReader();
             reader.readAsDataURL(blob);
-            
+
             await new Promise((resolve) => {
               reader.onloadend = () => {
                 // Remove the "data:image/png;base64," prefix
@@ -121,10 +125,10 @@ export default function AttendanceRecords({ route = {} }) {
           } else {
             // 📱 MOBILE: Use FileSystem (More stable than fetch blob)
             const fileUri = `${FileSystem.cacheDirectory}temp_excel_image.${extension}`;
-            
+
             // Download to local cache first
             await FileSystem.downloadAsync(profileImageUrl, fileUri);
-            
+
             // Read as Base64
             base64Data = await FileSystem.readAsStringAsync(fileUri, {
               encoding: FileSystem.EncodingType.Base64,
@@ -153,7 +157,7 @@ export default function AttendanceRecords({ route = {} }) {
         worksheet.getCell("A2").value = "No Image";
       }
       // 3. Layout: Text Data (Matches previous design)
-      
+
       // Name (Merged B2:E2)
       worksheet.mergeCells("B2:E2");
       const nameCell = worksheet.getCell("B2");
@@ -182,7 +186,7 @@ export default function AttendanceRecords({ route = {} }) {
 
       // Event Info Rows
       const centerStyle = { horizontal: "center" };
-      
+
       const r6 = worksheet.getCell("A6");
       r6.value = `Event: ${attendanceData.event?.aim || "N/A"}`;
       r6.font = { bold: true, size: 14 };
@@ -320,6 +324,20 @@ export default function AttendanceRecords({ route = {} }) {
     return college ? college.name : "Unknown College";
   };
 
+  // Filter attendance records based on search query
+  const filteredAttendance = attendanceData.attendance?.filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    const collegeName = getCollegeName(item.classId._id).toLowerCase();
+
+    return (
+      item.name?.toLowerCase().includes(query) ||
+      collegeName.includes(query) ||
+      item.department?.toLowerCase().includes(query) ||
+      item.classId?.className?.toLowerCase().includes(query)
+    );
+  }) || [];
+
   if (loading) {
     return (
       <View
@@ -357,116 +375,239 @@ export default function AttendanceRecords({ route = {} }) {
 
   return (
     <View
-      className="flex-1 p-5"
+      className="flex-1"
       style={{
         backgroundColor: colors.backgroundColors
           ? colors.backgroundColors[0]
           : "#fff",
       }}
     >
-      {/* Header with Back and Export buttons */}
-      <View className="flex-row justify-between items-center mb-4 gap-2">
-        <TouchableOpacity
-          onPress={() => goBack()}
-          className="px-2.5 py-1.5 rounded-lg border"
-          style={{
-            borderColor: colors.border,
-            backgroundColor: colors.cardBg,
-          }}
-        >
-          <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity>
-
-        {attendanceData.attendance && attendanceData.attendance.length > 0 && (
+      {/* Header Section */}
+      <View className="px-5 pt-8 pb-4" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        {/* Back and Export Row */}
+        <View className="flex-row justify-between items-center mb-4">
           <TouchableOpacity
-            onPress={exportToExcel}
-            className="px-3.5 py-1.5 rounded-lg"
+            onPress={() => goBack()}
+            className="px-4 py-2 rounded-xl border flex-row items-center"
             style={{
-              backgroundColor: colors.accent,
+              borderColor: colors.border,
+              backgroundColor: colors.backgroundColors?.[0] || '#fff',
             }}
           >
-            <Text className="text-white font-semibold text-sm">Export to Excel sheet</Text>
+            <Text className="font-semibold" style={{ color: colors.textPrimary }}>← Back</Text>
           </TouchableOpacity>
+
+          {attendanceData.attendance && attendanceData.attendance.length > 0 && (
+            <TouchableOpacity
+              onPress={exportToExcel}
+              className="px-4 py-2 rounded-xl flex-row items-center"
+              style={{
+                backgroundColor: colors.accent,
+              }}
+            >
+              <Text className="text-white font-bold text-sm">Export Excel</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Search Button */}
+          {attendanceData.attendance && attendanceData.attendance.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowSearch(!showSearch)}
+              className="px-4 py-2 rounded-xl border"
+              style={{
+                backgroundColor: showSearch ? colors.accent : colors.cardBg,
+                borderColor: showSearch ? colors.accent : colors.border,
+              }}
+            >
+              <Text className="font-bold text-sm" style={{ color: showSearch ? '#fff' : colors.textPrimary }}>Search</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Event Title */}
+        <Text className="text-2xl font-extrabold mb-2" style={{ color: colors.header }}>
+          {attendanceData.event?.aim || "Event"}
+        </Text>
+
+        {/* Event Details */}
+        <View className="flex-row flex-wrap gap-3 mb-3">
+          <View className="flex-row items-center">
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>Location: {attendanceData.event?.location}</Text>
+          </View>
+          <View className="flex-row items-center">
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>Date: {new Date(attendanceData.event?.eventDate).toLocaleDateString()}</Text>
+          </View>
+        </View>
+
+        {/* Stats Card */}
+        <View className="p-3 rounded-xl mb-3" style={{ backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '30' }}>
+          <Text className="text-center font-bold text-lg" style={{ color: colors.accent }}>
+            {attendanceData.totalStudentsPresent} Students Present
+          </Text>
+        </View>
+
+        {/* Search Bar - Collapsible */}
+        {showSearch && (
+          <View className="mb-3">
+            <TextInput
+              className="px-4 py-3 rounded-xl border"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+                color: colors.textPrimary,
+              }}
+              placeholder="Search by name, college, department, or class..."
+              placeholderTextColor={colors.textSecondary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
         )}
+
+        {/* View Toggle */}
+        <View className="flex-row items-center justify-between">
+          <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>VIEW MODE</Text>
+          <View className="flex-row rounded-xl border" style={{ borderColor: colors.border, overflow: 'hidden' }}>
+            <TouchableOpacity
+              onPress={() => setViewMode("table")}
+              className="px-4 py-2"
+              style={{
+                backgroundColor: viewMode === "table" ? colors.accent : colors.cardBg,
+              }}
+            >
+              <Text className="font-bold text-xs" style={{ color: viewMode === "table" ? '#fff' : colors.textSecondary }}>Table</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setViewMode("card")}
+              className="px-4 py-2"
+              style={{
+                backgroundColor: viewMode === "card" ? colors.accent : colors.cardBg,
+                borderLeftWidth: 1,
+                borderLeftColor: colors.border,
+              }}
+            >
+              <Text className="font-bold text-xs" style={{ color: viewMode === "card" ? '#fff' : colors.textSecondary }}>Cards</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
 
-      <Text className="text-2xl font-bold mb-3" style={{ color: colors.header }}>
-        Attendance Records for {attendanceData.event?.aim || "Event"}
-      </Text>
-      <Text className="text-sm mb-2" style={{ color: colors.textSecondary }}>
-        📍 Location: {attendanceData.event?.location}
-      </Text>
-      <Text className="text-sm mb-2" style={{ color: colors.textSecondary }}>
-        📅 Date:{" "}
-        {new Date(attendanceData.event?.eventDate).toLocaleDateString()}
-      </Text>
-      <Text className="text-base font-bold mb-5" style={{ color: colors.textPrimary }}>
-        Total Students Present: {attendanceData.totalStudentsPresent}
-      </Text>
-      {!attendanceData.attendance || attendanceData.attendance.length === 0 ? (
-        <Text className="text-center mt-5 text-base" style={{ color: colors.textSecondary }}>
-          No attendance records found.
-        </Text>
-      ) : (
-        <>
-          {/* Horizontal Scrolling Table */}
+      {/* Content Area */}
+      <View className="flex-1 px-5 pt-4">
+        {!attendanceData.attendance || attendanceData.attendance.length === 0 ? (
+          <View className="flex-1 justify-center items-center">
+            <Text className="text-lg font-semibold mb-2" style={{ color: colors.textSecondary }}>No Records</Text>
+            <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
+              No attendance records found for this event.
+            </Text>
+          </View>
+        ) : viewMode === "table" ? (
+          // TABLE VIEW
           <ScrollView horizontal showsHorizontalScrollIndicator={true} className="flex-1">
             <View>
               {/* Table Header */}
               <View
-                className="flex-row p-2.5 rounded-lg mb-0.5"
+                className="flex-row p-3 rounded-xl mb-2"
                 style={{ backgroundColor: colors.accent }}
               >
-                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 150 }}>
-                  Student
+                <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 160 }}>
+                  Student Name
                 </Text>
-                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 150 }}>
+                <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 180 }}>
                   College
                 </Text>
-                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 120 }}>
+                <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 140 }}>
                   Department
                 </Text>
-                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 120 }}>
+                <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 120 }}>
                   Class
                 </Text>
-                <Text className="font-bold text-xs text-center px-1 text-white" style={{ width: 130 }}>
+                <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 140 }}>
                   Marked Date
                 </Text>
               </View>
 
               {/* Table Data Rows */}
-              {attendanceData.attendance.map((item, index) => (
-                <View
-                  key={item._id}
-                  className="flex-row p-2.5 rounded-lg mb-0.5 border items-center"
-                  style={{
-                    backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
-                    borderColor: colors.border,
-                  }}
-                >
-                  <Text className="text-xs text-center px-1" style={{ color: colors.textPrimary, width: 150 }}>
-                    {item.name}
-                  </Text>
-                  <Text className="text-xs text-center px-1" style={{ color: colors.textPrimary, width: 150 }}>
-                    {getCollegeName(item.classId._id)}
-                  </Text>
-                  <Text className="text-xs text-center px-1" style={{ color: colors.textSecondary, width: 120 }}>
-                    {item.department}
-                  </Text>
-                  <Text className="text-xs text-center px-1" style={{ color: colors.textSecondary, width: 120 }}>
-                    {item.classId.className}
-                  </Text>
-                  <Text className="text-xs text-center px-1" style={{ color: colors.textSecondary, width: 130 }}>
-                    {item.attendanceMarkedAt
-                      ? new Date(item.attendanceMarkedAt).toLocaleDateString()
-                      : "N/A"}
-                  </Text>
-                </View>
-              ))}
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {filteredAttendance.map((item, index) => (
+                  <View
+                    key={item._id}
+                    className="flex-row p-3 rounded-xl mb-2 border"
+                    style={{
+                      backgroundColor: index % 2 === 0 ? colors.cardBg : colors.backgroundColors?.[1] || '#f9f9f9',
+                      borderColor: colors.border,
+                    }}
+                  >
+                    <Text className="text-xs text-center px-2 font-semibold" style={{ color: colors.textPrimary, width: 160 }}>
+                      {item.name}
+                    </Text>
+                    <Text className="text-xs text-center px-2" style={{ color: colors.textPrimary, width: 180 }}>
+                      {getCollegeName(item.classId._id)}
+                    </Text>
+                    <Text className="text-xs text-center px-2" style={{ color: colors.textSecondary, width: 140 }}>
+                      {item.department}
+                    </Text>
+                    <Text className="text-xs text-center px-2" style={{ color: colors.textSecondary, width: 120 }}>
+                      {item.classId.className}
+                    </Text>
+                    <Text className="text-xs text-center px-2" style={{ color: colors.textSecondary, width: 140 }}>
+                      {item.attendanceMarkedAt
+                        ? new Date(item.attendanceMarkedAt).toLocaleDateString()
+                        : "N/A"}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
             </View>
           </ScrollView>
-        </>
-      )}
+        ) : (
+          // CARD VIEW
+          <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
+            {filteredAttendance.map((item, index) => (
+              <View
+                key={item._id}
+                className="p-4 rounded-xl mb-3 border"
+                style={{
+                  backgroundColor: colors.cardBg,
+                  borderColor: colors.border,
+                }}
+              >
+                {/* Student Name - Prominent */}
+                <Text className="text-base font-bold mb-3" style={{ color: colors.header }}>
+                  {item.name}
+                </Text>
+
+                {/* Details Grid */}
+                <View className="gap-2">
+                  <View className="flex-row items-center">
+                    <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>College:</Text>
+                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{getCollegeName(item.classId._id)}</Text>
+                  </View>
+
+                  <View className="flex-row items-center">
+                    <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>Department:</Text>
+                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{item.department}</Text>
+                  </View>
+
+                  <View className="flex-row items-center">
+                    <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>Class:</Text>
+                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{item.classId.className}</Text>
+                  </View>
+
+                  <View className="flex-row items-center">
+                    <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>Marked:</Text>
+                    <Text className="text-xs flex-1" style={{ color: colors.accent }}>
+                      {item.attendanceMarkedAt
+                        ? new Date(item.attendanceMarkedAt).toLocaleDateString()
+                        : "N/A"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
     </View>
   );
 }

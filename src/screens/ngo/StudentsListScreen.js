@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -26,6 +27,9 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
 
   // store present student IDs in a Set
   const [presentIds, setPresentIds] = useState(new Set());
+  const [loadingAttendance, setLoadingAttendance] = useState(true);
+  // Track students who were originally present (from database) - these will be locked
+  const [originallyPresentIds, setOriginallyPresentIds] = useState(new Set());
 
   useEffect(() => {
     // Normalize incoming college -> classes (handles className / name)
@@ -46,8 +50,14 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
     setClassObjects(normalized);
     setClasses(["All Classes", ...normalized.map((c) => c.name)]);
     setSelectedClass("All Classes");
-    setPresentIds(new Set());
-  }, [college]);
+
+    // Fetch existing attendance when component mounts
+    if (eventId) {
+      fetchExistingAttendance();
+    } else {
+      setLoadingAttendance(false);
+    }
+  }, [college, eventId]);
 
   const togglePresent = (studentId) => {
     setPresentIds((prev) => {
@@ -66,6 +76,46 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
       next.delete(studentId);
       return next;
     });
+  };
+
+  // Fetch existing attendance for this event
+  const fetchExistingAttendance = async () => {
+    try {
+      setLoadingAttendance(true);
+      const response = await fetch(
+        `${api.ngo_host}/event/${eventId}/attendance`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Extract student IDs from attendance data
+        const attendedStudentIds = data?.data?.attendance?.map(
+          (record) => record._id || record.id
+        ) || [];
+
+        console.log("Existing attendance loaded:", attendedStudentIds);
+        setPresentIds(new Set(attendedStudentIds));
+        setOriginallyPresentIds(new Set(attendedStudentIds)); // Lock these students
+      } else {
+        console.log("No existing attendance found or error fetching");
+        setPresentIds(new Set());
+        setOriginallyPresentIds(new Set());
+      }
+    } catch (err) {
+      console.log("Error fetching existing attendance:", err);
+      setPresentIds(new Set());
+      setOriginallyPresentIds(new Set());
+    } finally {
+      setLoadingAttendance(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -94,16 +144,19 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
         try {
           const errData = await response.json();
           if (errData && errData.message) errMsg = errData.message;
-        } catch {}
+        } catch { }
         throw new Error(errMsg);
       }
 
       const data = await response.json();
       console.log("Attendance submitted successfully:", data);
 
-      // Show success alert
+      // Show success alert and navigate back
       Alert.alert("Success", "Attendance has been submitted successfully!", [
-        { text: "OK" },
+        {
+          text: "OK",
+          onPress: () => goBack()
+        },
       ]);
     } catch (err) {
       console.log("Error in submitting attendance:", err);
@@ -131,184 +184,234 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
       const dept = student.department || student.dept || "—";
       const name = student.name || student.fullName || "Unknown";
       const isPresent = presentIds.has(id);
+      const isLocked = originallyPresentIds.has(id); // Check if student was originally present
 
       return (
         <View
           key={id}
-          className="flex-row items-center py-3 border-b"
+          className="p-4 rounded-xl mb-3 border"
           style={{
+            backgroundColor: colors.cardBg,
             borderColor: colors.border,
           }}
         >
-          <View className="flex-1">
-            <Text style={{ color: colors.textPrimary }}>{name}</Text>
-            <Text className="text-sm" style={{ color: colors.textSecondary }}>PRN: {prn}</Text>
-            <Text className="text-sm" style={{ color: colors.textSecondary }}>Dept: {dept}</Text>
-          </View>
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 mr-3">
+              <Text className="text-base font-bold mb-1" style={{ color: colors.header }}>{name}</Text>
+              <View className="flex-row gap-3">
+                <Text className="text-xs" style={{ color: colors.textSecondary }}>PRN: {prn}</Text>
+                <Text className="text-xs" style={{ color: colors.textSecondary }}>Dept: {dept}</Text>
+              </View>
+            </View>
 
-          <View className="flex-row">
-            <TouchableOpacity
-              onPress={() => togglePresent(id)}
-              className="px-3 py-2 rounded-lg border mr-2"
-              style={{
-                borderColor: colors.border,
-                backgroundColor: isPresent ? "#bbf7d0" : "transparent",
-              }}
-            >
-              <Text className="font-bold text-sm" style={{ color: colors.textPrimary }}>
-                Present
-              </Text>
-            </TouchableOpacity>
+            <View className="flex-row gap-2">
+              <TouchableOpacity
+                onPress={() => togglePresent(id)}
+                disabled={isLocked}
+                className="px-4 py-2 rounded-xl border"
+                style={{
+                  borderColor: isPresent ? colors.accent : colors.border,
+                  backgroundColor: isPresent ? colors.accent : colors.cardBg,
+                  opacity: isLocked ? 0.6 : 1,
+                }}
+              >
+                <Text className="font-bold text-xs" style={{ color: isPresent ? '#fff' : colors.textPrimary }}>
+                  {isLocked ? 'Marked' : 'Present'}
+                </Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => markAbsent(id)}
-              className="px-3 py-2 rounded-lg border"
-              style={{
-                borderColor: colors.border,
-                backgroundColor: !isPresent ? "#fecaca" : "transparent",
-              }}
-            >
-              <Text className="font-bold text-sm" style={{ color: colors.textPrimary }}>
-                Absent
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => markAbsent(id)}
+                disabled={isLocked}
+                className="px-4 py-2 rounded-xl border"
+                style={{
+                  borderColor: !isPresent ? colors.error || '#ef4444' : colors.border,
+                  backgroundColor: !isPresent ? colors.error || '#ef4444' : colors.cardBg,
+                  opacity: isLocked ? 0.6 : 1,
+                }}
+              >
+                <Text className="font-bold text-xs" style={{ color: !isPresent ? '#fff' : colors.textPrimary }}>
+                  Absent
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       );
     });
   };
 
+  // Calculate present count
+  const presentCount = presentIds.size;
+
   return (
     <View
-      className="flex-1 p-5 justify-center items-center"
+      className="flex-1"
       style={{
         backgroundColor: colors.backgroundColors
           ? colors.backgroundColors[0]
           : "#fff",
       }}
     >
-      <View
-        className="w-full max-w-2xl p-4.5 rounded-xl border flex-1"
-        style={{
-          backgroundColor: colors.cardBg,
-          borderColor: colors.border,
-        }}
-      >
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={true}>
-          <Text className="text-lg font-bold mb-2" style={{ color: colors.header }}>
-            Students — {college?.name || college?.collegeName || "College"}
-          </Text>
+      {/* Header Section */}
+      <View className="px-5 pt-8 pb-4" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View className="flex-row items-center justify-between mb-3">
+          <TouchableOpacity
+            onPress={() => goBack()}
+            className="px-4 py-2 rounded-xl border flex-row items-center"
+            style={{
+              borderColor: colors.border,
+              backgroundColor: colors.backgroundColors?.[0] || '#fff',
+            }}
+          >
+            <Text className="font-semibold" style={{ color: colors.textPrimary }}>← Back</Text>
+          </TouchableOpacity>
 
-          {/* Vertical dropdown filter for classes */}
-          <View className="mb-3">
-            <TouchableOpacity
-              onPress={() => setShowDropdown((s) => !s)}
-              className="px-4 py-2.5 rounded-lg border"
-              style={{
-                borderColor: colors.border,
-                backgroundColor: colors.iconBg,
-              }}
-            >
-              <Text className="font-semibold" style={{ color: colors.textPrimary }}>
-                {selectedClass}
-              </Text>
-            </TouchableOpacity>
+          {/* Stats Badge */}
+          <View className="px-4 py-2 rounded-xl" style={{ backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '30' }}>
+            <Text className="font-bold text-sm" style={{ color: colors.accent }}>
+              {presentCount} Present
+            </Text>
+          </View>
+        </View>
 
-            {showDropdown && (
-              <View
-                className="mt-2 rounded-lg border overflow-hidden"
+        <Text className="text-2xl font-extrabold mb-1" style={{ color: colors.header }}>
+          {college?.name || college?.collegeName || "College"}
+        </Text>
+        <Text className="text-sm" style={{ color: colors.textSecondary }}>
+          Mark Attendance
+        </Text>
+      </View>
+
+      {/* Main Content */}
+      <View className="flex-1 px-5 pt-4">
+        {loadingAttendance ? (
+          <View className="flex-1 justify-center items-center">
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text className="mt-3" style={{ color: colors.textSecondary }}>Loading attendance...</Text>
+          </View>
+        ) : (
+          <ScrollView className="flex-1" showsVerticalScrollIndicator={true}>
+
+            {/* Class Filter Dropdown */}
+            <View className="mb-4">
+              <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>FILTER BY CLASS</Text>
+              <TouchableOpacity
+                onPress={() => setShowDropdown((s) => !s)}
+                className="px-4 py-3 rounded-xl border flex-row items-center justify-between"
                 style={{
                   borderColor: colors.border,
                   backgroundColor: colors.cardBg,
                 }}
               >
-                <ScrollView
-                  className="max-h-55"
-                  showsVerticalScrollIndicator={true}
+                <Text className="font-semibold" style={{ color: colors.textPrimary }}>
+                  {selectedClass}
+                </Text>
+                <Text style={{ color: colors.textSecondary }}>{showDropdown ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+
+              {showDropdown && (
+                <View
+                  className="mt-2 rounded-xl border overflow-hidden"
+                  style={{
+                    borderColor: colors.border,
+                    backgroundColor: colors.cardBg,
+                  }}
                 >
-                  {classes.map((className) => (
-                    <TouchableOpacity
-                      key={className}
-                      onPress={() => {
-                        setSelectedClass(className);
-                        setShowDropdown(false);
-                      }}
-                      className="px-4 py-3 border-b"
-                      style={{
-                        backgroundColor:
-                          selectedClass === className ? colors.accent : "transparent",
-                        borderColor:
-                          selectedClass === className ? colors.accent : colors.border,
-                      }}
-                    >
-                      <Text
-                        className="font-semibold"
+                  <ScrollView
+                    className="max-h-55"
+                    showsVerticalScrollIndicator={true}
+                  >
+                    {classes.map((className) => (
+                      <TouchableOpacity
+                        key={className}
+                        onPress={() => {
+                          setSelectedClass(className);
+                          setShowDropdown(false);
+                        }}
+                        className="px-4 py-3 border-b"
                         style={{
-                          color:
-                            selectedClass === className ? "#fff" : colors.textPrimary,
+                          backgroundColor:
+                            selectedClass === className ? colors.accent : "transparent",
+                          borderColor: colors.border,
                         }}
                       >
-                        {className}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
-          </View>
-
-          <View className="w-full">
-            {classObjects.length === 0 ? (
-              <Text className="text-center mt-5 text-sm" style={{ color: colors.textSecondary }}>
-                No classes / students found
-              </Text>
-            ) : selectedClass === "All Classes" ? (
-              classObjects.map((cls) => (
-                <View key={cls._id} className="mb-3">
-                  <Text className="text-base font-bold mb-1.5" style={{ color: colors.header }}>
-                    {cls.name}
-                  </Text>
-                  {renderStudentsForClass(cls)}
+                        <Text
+                          className="font-semibold"
+                          style={{
+                            color:
+                              selectedClass === className ? "#fff" : colors.textPrimary,
+                          }}
+                        >
+                          {className}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
-              ))
-            ) : (
-              (() => {
-                const cls = classObjects.find((c) => c.name === selectedClass);
-                return cls ? (
-                  <View>
-                    <Text
-                      className="text-base font-bold mb-1.5"
-                      style={{ color: colors.header }}
-                    >
-                      {selectedClass}
+              )}
+            </View>
+
+            <View className="w-full">
+              {classObjects.length === 0 ? (
+                <View className="flex-1 justify-center items-center py-10">
+                  <Text className="text-lg font-semibold mb-2" style={{ color: colors.textSecondary }}>No Students</Text>
+                  <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
+                    No classes or students found
+                  </Text>
+                </View>
+              ) : selectedClass === "All Classes" ? (
+                classObjects.map((cls) => (
+                  <View key={cls._id} className="mb-4">
+                    <Text className="text-sm font-bold mb-3 uppercase" style={{ color: colors.textSecondary }}>
+                      {cls.name}
                     </Text>
                     {renderStudentsForClass(cls)}
                   </View>
-                ) : (
-                  <Text className="text-center mt-5 text-sm" style={{ color: colors.textSecondary }}>
-                    No students found for {selectedClass}
-                  </Text>
-                );
-              })()
-            )}
-          </View>
+                ))
+              ) : (
+                (() => {
+                  const cls = classObjects.find((c) => c.name === selectedClass);
+                  return cls ? (
+                    <View>
+                      <Text
+                        className="text-sm font-bold mb-3 uppercase"
+                        style={{ color: colors.textSecondary }}
+                      >
+                        {selectedClass}
+                      </Text>
+                      {renderStudentsForClass(cls)}
+                    </View>
+                  ) : (
+                    <View className="flex-1 justify-center items-center py-10">
+                      <Text className="text-lg font-semibold mb-2" style={{ color: colors.textSecondary }}>No Students</Text>
+                      <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
+                        No students found for {selectedClass}
+                      </Text>
+                    </View>
+                  );
+                })()
+              )}
+            </View>
 
-          <View className="mt-3">
-            <TouchableOpacity
-              onPress={handleSubmit}
-              className="p-3 rounded-lg items-center"
-              style={{
-                backgroundColor: colors.accent,
-              }}
-            >
-              <Text className="text-white font-bold">Submit Attendance</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity className="mt-3" onPress={() => goBack()}>
-            <Text style={{ color: colors.textPrimary }}>Back</Text>
-          </TouchableOpacity>
-        </ScrollView>
+            {/* Submit Button */}
+            <View className="mt-6 mb-4">
+              <TouchableOpacity
+                onPress={handleSubmit}
+                disabled={presentCount === 0}
+                className="p-4 rounded-xl items-center"
+                style={{
+                  backgroundColor: presentCount === 0 ? colors.border : colors.accent,
+                  opacity: presentCount === 0 ? 0.5 : 1,
+                }}
+              >
+                <Text className="text-white font-bold text-base">
+                  Submit Attendance {presentCount > 0 ? `(${presentCount})` : ''}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        )}
       </View>
     </View>
   );
