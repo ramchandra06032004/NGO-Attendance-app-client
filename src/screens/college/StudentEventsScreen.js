@@ -85,39 +85,11 @@ export default function StudentEventsScreen({ college, studentId }) {
     setFilteredEvents(computedFilteredEvents);
   }, [computedFilteredEvents]);
 
-  // --- FILTER LOGIC ---
-  const applyFilter = () => {
-    let filtered = allEvents;
-
-    // Text search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(ev =>
-        ev.eventName?.toLowerCase().includes(query) ||
-        ev.eventLocation?.toLowerCase().includes(query) ||
-        ev.ngoName?.toLowerCase().includes(query)
-      );
-    }
-
-    // Date range filter
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(ev => ev.rawDate && ev.rawDate >= start);
-    }
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(ev => ev.rawDate && ev.rawDate <= end);
-    }
-    setFilteredEvents(filtered);
-  };
 
   const clearFilter = () => {
     setStartDate(null);
     setEndDate(null);
     setSearchQuery('');
-    setFilteredEvents(allEvents);
   };
 
   const onDateChange = (event, selectedDate, type) => {
@@ -268,22 +240,13 @@ export default function StudentEventsScreen({ college, studentId }) {
               onChangeType="end"
             />
           </View>
-          <View className="flex-row">
-            <TouchableOpacity
-              onPress={applyFilter}
-              className="flex-1 py-2 rounded-lg mr-2 items-center"
-              style={{ backgroundColor: colors.accent }}
-            >
-              <Text className="text-white font-bold text-xs">Apply Filter</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={clearFilter}
-              className="flex-1 py-2 rounded-lg items-center border"
-              style={{ borderColor: colors.border }}
-            >
-              <Text className="font-bold text-xs" style={{ color: colors.textSecondary }}>Clear All</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            onPress={clearFilter}
+            className="py-2 rounded-lg items-center border"
+            style={{ borderColor: colors.border }}
+          >
+            <Text className="font-bold text-xs" style={{ color: colors.textSecondary }}>Clear All Filters</Text>
+          </TouchableOpacity>
         </View>
       )}
     </View>

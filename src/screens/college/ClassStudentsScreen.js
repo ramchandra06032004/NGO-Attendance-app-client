@@ -143,7 +143,7 @@ export default function ClassStudentsScreen({ college, className }) {
     >
       {/* --- 1. HEADER --- */}
       <View
-        className="px-5 pt-6 pb-4 border-b"
+        className="px-5 pt-10 pb-4 border-b"
         style={{
           backgroundColor: colors.cardBg,
           borderColor: colors.border,
@@ -184,7 +184,7 @@ export default function ClassStudentsScreen({ college, className }) {
 
         {/* --- 2. SEARCH BAR + TOGGLE BUTTON --- */}
         <View className="flex-row gap-2">
-          
+
           {/* Search Input Container */}
           <View
             className="flex-1 flex-row items-center px-4 py-2.5 rounded-xl border"
@@ -204,7 +204,7 @@ export default function ClassStudentsScreen({ college, className }) {
               placeholder="Search by name or PRN"
               placeholderTextColor={colors.textSecondary}
               // ✅ FIX: Explicitly remove borders and outlines
-              style={{ 
+              style={{
                 color: colors.textPrimary,
                 borderWidth: 0,          // Removes border on mobile
                 outlineStyle: 'none',    // Removes black box on Web
@@ -241,30 +241,30 @@ export default function ClassStudentsScreen({ college, className }) {
             </Text>
           </TouchableOpacity>
         </View>
-        
+
       </View>
 
       {/* --- 3. DYNAMIC STUDENT LIST --- */}
       <FlatList
         // Key forces re-render when switching layouts to prevent style bugs
-        key={isGridLayout ? "grid-layout" : "list-layout"} 
-        
+        key={isGridLayout ? "grid-layout" : "list-layout"}
+
         // Use filteredStudents so search works
-        data={filteredStudents} 
-        
+        data={filteredStudents}
+
         // Dynamic Props
         numColumns={isGridLayout ? 2 : 1}
         columnWrapperStyle={isGridLayout ? { justifyContent: "space-between" } : undefined}
         renderItem={isGridLayout ? renderGridItem : renderListItem}
-        
+
         // Container Styles
-        contentContainerStyle={{ 
+        contentContainerStyle={{
           paddingHorizontal: isGridLayout ? 20 : 0, // Grid needs padding, List is full width
           paddingTop: 20,
-          paddingBottom: 100 
+          paddingBottom: 120
         }}
         showsVerticalScrollIndicator={false}
-        
+
         ListEmptyComponent={
           <View className="items-center justify-center py-12">
             <Text className="text-gray-400 text-sm italic">
