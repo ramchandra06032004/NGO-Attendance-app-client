@@ -13,6 +13,7 @@ import NgoLoginScreen from "./screens/ngo/NgoLoginScreen";
 import CollegeLoginScreen from "./screens/college/CollegeLoginScreen";
 import AdminLoginScreen from "./screens/admin/AdminLoginScreen";
 import AdminPanelScreen from "./screens/admin/AdminPanelScreen";
+import RegisterAdminScreen from "./screens/admin/RegisterAdminScreen";
 import AddClassScreen from "./screens/college/AddClassScreen";
 import AddStudentScreen from "./screens/college/AddStudentScreen";
 import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
@@ -152,6 +153,9 @@ export default function AppContainer() {
       break;
     case "AdminPanel":
       Screen = <AdminPanelScreen />;
+      break;
+    case "RegisterAdmin":
+      Screen = <RegisterAdminScreen />;
       break;
     case "AddEvent":
       Screen = <AddEventScreen />;

@@ -11,6 +11,7 @@ export const host = "https://ngo-attendance-backend.el.r.appspot.com"; //Product
 
 //login auth apis
 export const auth_host = `${host}/api/v1/auth`;
+export const registerAdmin = `${auth_host}/register/admin`
 export const loginAPI = `${auth_host}/login`;
 export const logoutAPI = `${auth_host}/logout`;
 

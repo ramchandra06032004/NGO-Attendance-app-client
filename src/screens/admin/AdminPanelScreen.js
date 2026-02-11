@@ -8,6 +8,7 @@ import {
   ScrollView,
   TextInput,
   Image,
+  Platform,
 } from "react-native";
 import { AttendanceContext } from "../../context/AttendanceContext";
 import { NavigationContext } from "../../context/NavigationContext";
@@ -92,6 +93,22 @@ export default function AdminPanelScreen() {
     navigate("Home");
   };
 
+  const handleEditComingSoon = (entityType) => {
+    const message = `Coming Soon! \n\nEdit ${entityType} feature will be available in the next update.`;
+
+    if (Platform.OS === "web") {
+      window.alert(message);
+    } else {
+      Toast.show({
+        type: "info",
+        text1: "Coming Soon! ",
+        text2: `Edit ${entityType} feature will be available in the next update`,
+        position: "top",
+        visibilityTime: 3000,
+      });
+    }
+  };
+
   const renderItemName = (item) => {
     if (!item) return null;
     if (typeof item === "string") return item;
@@ -157,13 +174,22 @@ export default function AdminPanelScreen() {
               Manage Colleges and NGOs
             </Text>
           </View>
-          <TouchableOpacity
-            className="px-4 py-2 rounded-xl border"
-            style={{ borderColor: colors.border, backgroundColor: colors.error || '#ef4444' }}
-            onPress={handleLogout}
-          >
-            <Text className="text-white font-bold text-sm">Logout</Text>
-          </TouchableOpacity>
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              className="px-4 py-2 rounded-xl border"
+              style={{ borderColor: colors.border, backgroundColor: colors.accent }}
+              onPress={() => navigate("RegisterAdmin")}
+            >
+              <Text className="text-white font-bold text-sm">+ Admin</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-xl border"
+              style={{ borderColor: colors.border, backgroundColor: colors.error || '#ef4444' }}
+              onPress={handleLogout}
+            >
+              <Text className="text-white font-bold text-sm">Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Stats Badges */}
@@ -237,34 +263,45 @@ export default function AdminPanelScreen() {
                   const logoUrl = item?.logo || item?.logoUrl;
 
                   return (
-                    <TouchableOpacity
-                      onPress={() => handleEntityClick(item, 'college')}
+                    <View
                       className="px-4 py-3 border-b flex-row items-center"
                       style={{
                         borderColor: colors.border,
                       }}
                     >
-                      <View
-                        className="w-10 h-10 rounded-full items-center justify-center mr-3 overflow-hidden"
-                        style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '30' }}
+                      <TouchableOpacity
+                        onPress={() => handleEntityClick(item, 'college')}
+                        className="flex-1 flex-row items-center"
                       >
-                        {logoUrl ? (
-                          <Image
-                            source={{ uri: logoUrl }}
-                            className="w-full h-full"
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <Text className="font-bold text-sm" style={{ color: colors.accent }}>
-                            {getInitials(itemName)}
-                          </Text>
-                        )}
-                      </View>
-                      <Text className="flex-1 font-semibold" style={{ color: colors.textPrimary }}>
-                        {itemName}
-                      </Text>
+                        <View
+                          className="w-10 h-10 rounded-full items-center justify-center mr-3 overflow-hidden"
+                          style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '30' }}
+                        >
+                          {logoUrl ? (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              className="w-full h-full"
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text className="font-bold text-sm" style={{ color: colors.accent }}>
+                              {getInitials(itemName)}
+                            </Text>
+                          )}
+                        </View>
+                        <Text className="flex-1 font-semibold" style={{ color: colors.textPrimary }}>
+                          {itemName}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-3 py-1.5 rounded-lg mr-2"
+                        style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '40' }}
+                        onPress={() => handleEditComingSoon('College')}
+                      >
+                        <Text className="text-xs font-bold" style={{ color: colors.accent }}>Edit</Text>
+                      </TouchableOpacity>
                       <Text style={{ color: colors.textSecondary }}>›</Text>
-                    </TouchableOpacity>
+                    </View>
                   );
                 }}
                 ListEmptyComponent={
@@ -339,34 +376,45 @@ export default function AdminPanelScreen() {
                   const logoUrl = item?.logo || item?.logoUrl || item?.profileImage;
 
                   return (
-                    <TouchableOpacity
-                      onPress={() => handleEntityClick(item, 'ngo')}
+                    <View
                       className="px-4 py-3 border-b flex-row items-center"
                       style={{
                         borderColor: colors.border,
                       }}
                     >
-                      <View
-                        className="w-10 h-10 rounded-full items-center justify-center mr-3 overflow-hidden"
-                        style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '30' }}
+                      <TouchableOpacity
+                        onPress={() => handleEntityClick(item, 'ngo')}
+                        className="flex-1 flex-row items-center"
                       >
-                        {logoUrl ? (
-                          <Image
-                            source={{ uri: logoUrl }}
-                            className="w-full h-full"
-                            resizeMode="cover"
-                          />
-                        ) : (
-                          <Text className="font-bold text-sm" style={{ color: colors.accent }}>
-                            {getInitials(itemName)}
-                          </Text>
-                        )}
-                      </View>
-                      <Text className="flex-1 font-semibold" style={{ color: colors.textPrimary }}>
-                        {itemName}
-                      </Text>
+                        <View
+                          className="w-10 h-10 rounded-full items-center justify-center mr-3 overflow-hidden"
+                          style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '30' }}
+                        >
+                          {logoUrl ? (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              className="w-full h-full"
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text className="font-bold text-sm" style={{ color: colors.accent }}>
+                              {getInitials(itemName)}
+                            </Text>
+                          )}
+                        </View>
+                        <Text className="flex-1 font-semibold" style={{ color: colors.textPrimary }}>
+                          {itemName}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-3 py-1.5 rounded-lg mr-2"
+                        style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '40' }}
+                        onPress={() => handleEditComingSoon('NGO')}
+                      >
+                        <Text className="text-xs font-bold" style={{ color: colors.accent }}>Edit</Text>
+                      </TouchableOpacity>
                       <Text style={{ color: colors.textSecondary }}>›</Text>
-                    </TouchableOpacity>
+                    </View>
                   );
                 }}
                 ListEmptyComponent={
