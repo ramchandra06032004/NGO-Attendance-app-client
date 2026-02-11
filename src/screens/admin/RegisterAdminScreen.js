@@ -20,6 +20,7 @@ export default function RegisterAdminScreen() {
     const { darkMode, lightTheme, darkTheme } = useTheme();
     const colors = darkMode ? darkTheme : lightTheme;
 
+    const [currentAdminPassword, setCurrentAdminPassword] = useState("");
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -27,6 +28,17 @@ export default function RegisterAdminScreen() {
     const [loading, setLoading] = useState(false);
 
     async function onSubmit() {
+        // Validate current admin password first
+        if (!currentAdminPassword.trim()) {
+            const message = "Please confirm your admin password to proceed";
+            if (Platform.OS === "web") {
+                window.alert(message);
+            } else {
+                Alert.alert("Security Verification Required", message);
+            }
+            return;
+        }
+
         // Validation
         if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
             const message = "All fields are required";
@@ -88,6 +100,7 @@ export default function RegisterAdminScreen() {
                     username: username.trim(),
                     email: email.trim(),
                     password: password,
+                    currentAdminPassword: currentAdminPassword.trim(),
                 }),
             });
 
@@ -204,12 +217,58 @@ export default function RegisterAdminScreen() {
                     </Text>
                     <Text className="text-xs" style={{ color: colors.textSecondary }}>
                         {Platform.OS === "web"
-                            ? "Only existing admins can register new admins. If this is the first admin, registration is open."
-                            : "Only existing admins can register new admins.\nIf this is the first admin, registration is open."}
+                            ? "Only existing admins can register new admins. You must confirm your admin password for security verification."
+                            : "Only existing admins can register new admins.\nYou must confirm your admin password for security verification."}
                     </Text>
                 </View>
 
-                {/* Form Card */}
+                {/* Security Verification Card */}
+                <View
+                    className="rounded-xl border p-5 mb-4"
+                    style={{
+                        backgroundColor: colors.cardBg,
+                        borderColor: colors.border,
+                    }}
+                >
+                    <Text
+                        className="text-base font-bold mb-1"
+                        style={{ color: colors.header }}
+                    >
+                        🔐 Security Verification
+                    </Text>
+                    <Text
+                        className="text-xs mb-4"
+                        style={{ color: colors.textSecondary }}
+                    >
+                        Confirm your admin password to proceed
+                    </Text>
+
+                    {/* Current Admin Password Input */}
+                    <View className="mb-0">
+                        <Text
+                            className="text-sm font-semibold mb-2"
+                            style={{ color: colors.textSecondary }}
+                        >
+                            Your Admin Password *
+                        </Text>
+                        <TextInput
+                            placeholder="Enter your current admin password"
+                            placeholderTextColor={colors.textSecondary}
+                            secureTextEntry
+                            value={currentAdminPassword}
+                            onChangeText={setCurrentAdminPassword}
+                            className="p-3 rounded-xl border"
+                            style={{
+                                backgroundColor: colors.iconBg,
+                                borderColor: colors.border,
+                                color: colors.textPrimary,
+                            }}
+                            editable={!loading}
+                        />
+                    </View>
+                </View>
+
+                {/* New Admin Details Card */}
                 <View
                     className="rounded-xl border p-5 mb-6"
                     style={{
@@ -217,6 +276,19 @@ export default function RegisterAdminScreen() {
                         borderColor: colors.border,
                     }}
                 >
+                    <Text
+                        className="text-base font-bold mb-1"
+                        style={{ color: colors.header }}
+                    >
+                        👤 New Admin Details
+                    </Text>
+                    <Text
+                        className="text-xs mb-4"
+                        style={{ color: colors.textSecondary }}
+                    >
+                        Enter the details for the new admin account
+                    </Text>
+
                     {/* Username Input */}
                     <View className="mb-4">
                         <Text

@@ -146,7 +146,7 @@ export default function HomeScreen() {
         {/* Help Button - Fixed at bottom-left */}
         <Pressable
           onPress={() => {
-            const helpUrl = 'https://example.com'; // Replace this URL with your actual help page link
+            const helpUrl = 'https://ngo-website-1-d3az.onrender.com/'; // Replace this URL with your actual help page link
             Linking.openURL(helpUrl).catch(err => console.error('Failed to open URL:', err));
           }}
           className="px-4 py-2 rounded-full flex-row active:opacity-70"

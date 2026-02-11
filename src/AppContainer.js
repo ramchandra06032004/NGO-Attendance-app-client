@@ -23,6 +23,7 @@ import AttendanceRecords from "./screens/ngo/AttendanceRecords";
 import EntityDetailScreen from "./screens/admin/EntityDetailScreen";
 import { NavigationContext } from "./context/NavigationContext";
 import { AuthContext } from "./context/AuthContext";
+import Toast from "react-native-toast-message";
 
 export default function AppContainer() {
 
@@ -170,7 +171,12 @@ export default function AppContainer() {
       Screen = <HomeScreen />;
   }
 
-  return <View style={styles.container}>{Screen}</View>;
+  return (
+    <View style={styles.container}>
+      {Screen}
+      <Toast />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
