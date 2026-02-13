@@ -12,18 +12,20 @@ import {
   ChevronRight,
   HelpCircle,
   Mail,
+  BadgeCheck,
 } from 'lucide-react-native';
 import { NavigationContext } from '../context/NavigationContext'; // ✅ imported navigation context
+import { AuthContext } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 
 // --- Card Component ---
-const LoginCard = ({ icon: Icon, title, subtitle, iconColor, onPress, darkMode }) => {
+const LoginCard = ({ icon: Icon, title, subtitle, iconColor, onPress, darkMode, disabled }) => {
   const colors = darkMode ? darkTheme : lightTheme;
   return (
     <Pressable
-      onPress={onPress}
-      className="p-5 border rounded-2xl active:shadow-xl"
+      onPress={disabled ? null : onPress}
+      className={`p-5 border rounded-2xl ${disabled ? '' : 'active:shadow-xl'}`}
       style={{
         backgroundColor: darkMode ? '#1e3a5fff' : '#ffffff',
         borderColor: colors.border,
@@ -32,6 +34,7 @@ const LoginCard = ({ icon: Icon, title, subtitle, iconColor, onPress, darkMode }
         shadowOpacity: 0.1,
         shadowRadius: 8,
         elevation: 3,
+        opacity: disabled ? 0.5 : 1,
       }}
       onPressIn={(pressed) => { }}
     >
@@ -56,6 +59,7 @@ const LoginCard = ({ icon: Icon, title, subtitle, iconColor, onPress, darkMode }
 // --- Main App Component ---
 export default function HomeScreen() {
   const { navigate } = useContext(NavigationContext); // ✅ integrated navigation
+  const { userType, isAuthenticated } = useContext(AuthContext);
   const systemDark = useColorScheme() === 'dark';
   const { darkMode, setTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
@@ -76,19 +80,30 @@ export default function HomeScreen() {
       <SafeAreaView className="flex-1">
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, paddingBottom: 32, alignItems: 'center' }} showsVerticalScrollIndicator={false}>
           {/* Header */}
-          <View className="w-full flex-row justify-between items-center border-b pb-5 mb-8" style={{ borderBottomColor: colors.border }}>
+          <View className="w-full flex-row justify-between items-center border-b pb-2 mb-8" style={{ borderBottomColor: colors.border }}>
             <View className="flex-row items-center gap-3">
-              <View className="p-2 rounded-xl" style={{ backgroundColor: colors.iconBg }}>
-                <UsersRound size={40} color={colors.accent} strokeWidth={2.2} />
+              <View>
+                <Image
+                  source={require('../../assets/CODER_HIVE_logo.png')}
+                  style={{ width: 80, height: 80 }}
+                  resizeMode="contain"
+                />
               </View>
               <View>
-                <Text className="text-2xl font-black leading-7" style={{ color: colors.header }}>NGO Attendance</Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-2xl font-black leading-7" style={{ color: colors.header }}>MarkIn
+
+                  </Text>
+                  <BadgeCheck color={colors.accent} size={24} />
+                </View>
+
                 <Text className="text-xs font-medium leading-4" style={{ color: colors.textSecondary }}>
-                  Seamlessly Manage • Track • Verify
+                  Seamlessly Mark • Track • Verify Attendance
                 </Text>
               </View>
-            </View>
 
+
+            </View>
             <Pressable
               onPress={() => setTheme(!darkMode)}
               className="p-3 border rounded-full active:scale-95"
@@ -96,6 +111,7 @@ export default function HomeScreen() {
             >
               {darkMode ? <Sun size={24} color="#facc15" strokeWidth={2} /> : <Moon size={24} color="#1e293b" strokeWidth={2} />}
             </Pressable>
+
           </View>
 
           {/* Role Section */}
@@ -109,6 +125,7 @@ export default function HomeScreen() {
               iconColor={iconColors.ngo}
               darkMode={darkMode}
               onPress={() => navigate('NgoLogin')} // ✅ navigation added
+              disabled={isAuthenticated && userType !== 'ngo'}
             />
 
             <LoginCard
@@ -118,6 +135,7 @@ export default function HomeScreen() {
               iconColor={iconColors.college}
               darkMode={darkMode}
               onPress={() => navigate('CollegeLogin')} // ✅ navigation added
+              disabled={isAuthenticated && userType !== 'college'}
             />
 
             <LoginCard
@@ -127,6 +145,7 @@ export default function HomeScreen() {
               iconColor={iconColors.admin}
               darkMode={darkMode}
               onPress={() => navigate('AdminLogin')} // ✅ navigation added
+              disabled={isAuthenticated && userType !== 'admin'}
             />
           </View>
 

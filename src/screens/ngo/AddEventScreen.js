@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  ToastAndroid,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
+import Toast from "react-native-toast-message";
 const api = require("../../../apis/api");
 
 export default function AddEventScreen() {
@@ -31,6 +33,21 @@ export default function AddEventScreen() {
     }
     if (selectedDate) {
       setEventDate(selectedDate);
+    }
+  };
+
+  const handleImageInputFocus = () => {
+    const message = "Feature coming soon in next updates";
+    if (Platform.OS === "web") {
+      window.alert(message);
+    } else if (Platform.OS === 'android') {
+      Toast.show({
+        type: "info",
+        text1: "Coming Soon! ",
+        text2: `Feature will be available soon in the further updates`,
+        position: "top",
+        visibilityTime: 3000,
+      });
     }
   };
 
@@ -215,6 +232,7 @@ export default function AddEventScreen() {
           placeholder="Images (URLs separated by commas)"
           value={images}
           onChangeText={setImages}
+          onFocus={handleImageInputFocus}
           className="border rounded-lg p-3 mb-4 text-base"
           style={{
             backgroundColor: colors.iconBg,

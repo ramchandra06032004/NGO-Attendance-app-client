@@ -6,13 +6,15 @@ import {
   TextInput,
   ScrollView,
   Pressable,
-  FlatList,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
+import { Search, Mail, Lock, School, Check, ChevronLeft } from "lucide-react-native";
 
 export default function CollegeLoginScreen() {
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -25,6 +27,7 @@ export default function CollegeLoginScreen() {
   const [loadingColleges, setLoadingColleges] = useState(true);
   const [selectedCollege, setSelectedCollege] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetchColleges();
@@ -46,14 +49,7 @@ export default function CollegeLoginScreen() {
       }
 
       const data = await response.json();
-      console.log("API Response:", data);
       const collegesArray = data?.data?.colleges || [];
-
-      if (!Array.isArray(collegesArray)) {
-        console.error("Invalid colleges data:", collegesArray);
-        throw new Error("Invalid response format");
-      }
-
       setCollegesList(Array.isArray(collegesArray) ? collegesArray : []);
       setLoadingColleges(false);
     } catch (err) {
@@ -67,10 +63,8 @@ export default function CollegeLoginScreen() {
 
     setIsLoggingIn(true);
     const reqBody = { email: email, password: password, userType: "college" };
-    console.log(reqBody);
 
     try {
-      // Switch user type (logs out if different user was logged in)
       await switchUserType("college");
 
       const response = await fetch(api.loginAPI, {
@@ -93,192 +87,201 @@ export default function CollegeLoginScreen() {
       }
 
       const data = await response.json();
-      console.log("Login response:", data);
-
-      // Extract tokens and user data from response
       const accessToken = data.accessToken || data.token;
       const refreshToken = data.refreshToken;
       const userData = data.user || selectedCollege;
 
-      // Store in AuthContext
       await loginUser(userData, accessToken, refreshToken, "college");
 
       alert("Login successful");
       navigate("CollegeClasses", { college: selectedCollege });
     } catch (err) {
-      console.log("Error in sending login API", err);
       alert("Login failed: " + err.message);
     } finally {
       setIsLoggingIn(false);
     }
   }
 
+  const filteredColleges = collegesList.filter((college) => {
+    const name = college.name || college.collegeName || "";
+    return name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
   return (
-    <View
-      className="flex-1"
-      style={{
-        backgroundColor:
-          (colors.backgroundColors && colors.backgroundColors[0]) || "#ecfeff",
-      }}
-    >
-      <ScrollView
-        contentContainerStyle={{ flexGrow: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 20, paddingVertical: 32 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
+    <View className="flex-1" style={{ backgroundColor: colors.backgroundColors[0] }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
       >
-        <View
-          className="w-full max-w-md rounded-2xl p-6 shadow-lg border"
-          style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, padding: 20 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text className="text-2xl font-black text-center mb-4" style={{ color: colors.header }}>
-            College Login
-          </Text>
-
-          <Text className="text-sm mb-4" style={{ color: colors.textPrimary }}>
-            Select college
-          </Text>
-
-          <View
-            className="rounded-2xl mb-4 border overflow-hidden"
-            style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
-          >
-            {loadingColleges ? (
-              <ActivityIndicator size="small" color={colors.textPrimary} style={{ padding: 20 }} />
-            ) : (
-              <ScrollView
-                style={{ maxHeight: 240 }}
-                contentContainerStyle={{ padding: 6 }}
-                nestedScrollEnabled={true}
-                showsVerticalScrollIndicator={true}
-              >
-                {collegesList.length === 0 ? (
-                  <Text className="text-center mt-2" style={{ color: colors.textSecondary }}>
-                    No colleges found
-                  </Text>
-                ) : (
-                  collegesList.map((item, index) => {
-                    const id = String(item?.id ?? item?._id ?? item?.code ?? index);
-                    const selectedId = String(
-                      selectedCollege?.id ??
-                      selectedCollege?._id ??
-                      selectedCollege?.code ??
-                      ""
-                    );
-                    const active = selectedId === id;
-                    const label =
-                      item?.name ??
-                      item?.collegeName ??
-                      item?.title ??
-                      item?.label ??
-                      item?.instituteName ??
-                      `College ${index + 1}`;
-
-                    return (
-                      <View key={id}>
-                        <Pressable
-                          onPress={() => {
-                            setSelectedCollege(item);
-                            setEmail(item.email || "");
-                          }}
-                          className="flex-row items-center justify-between py-3 px-4 rounded-lg"
-                          style={{
-                            backgroundColor: active ? (darkMode ? "#ffffff12" : "#fcfbf7ff") : "transparent",
-                            borderWidth: active ? 1 : 0,
-                            borderColor: active ? colors.accent : "transparent",
-                          }}
-                        >
-                          <Text
-                            className={`text-sm ${active ? "font-bold" : "font-normal"}`}
-                            style={[{ color: colors.textPrimary }]}
-                            numberOfLines={1}
-                          >
-                            {label}
-                          </Text>
-                          {active ? (
-                            <Text className="font-bold text-base" style={{ color: colors.accent }}>
-                              ✓
-                            </Text>
-                          ) : null}
-                        </Pressable>
-                        {index < collegesList.length - 1 && <View style={{ height: 6 }} />}
-                      </View>
-                    );
-                  })
-                )}
-              </ScrollView>
-            )}
+          {/* Header Section */}
+          <View className="flex-row items-center mb-6 mt-4">
+            <TouchableOpacity
+              onPress={goBack}
+              className="p-2 rounded-full mr-4 border"
+              style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+            >
+              <ChevronLeft size={24} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text className="text-2xl font-black" style={{ color: colors.header }}>
+              College Portal
+            </Text>
           </View>
 
-          {selectedCollege ? (
-            <View className="mt-4">
-              <Text className="text-sm font-medium mb-3" style={{ color: colors.textPrimary }}>
-                Logging in as{" "}
-                <Text className="font-bold" style={{ color: colors.header }}>
-                  {selectedCollege.name}
+          {/* Main Card */}
+          <View
+            className="w-full rounded-3xl p-6 shadow-sm border"
+            style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+          >
+            {/* College Selection Section */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-4">
+                <School size={20} color={colors.accent} style={{ marginRight: 8 }} />
+                <Text className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                  Select Your College
                 </Text>
-              </Text>
-              <TextInput
-                placeholder="Email"
-                value={email}
-                onChangeText={setEmail}
-                className="p-4 rounded-lg mb-4 border text-base"
-                style={{
-                  backgroundColor: colors.iconBg,
-                  borderColor: colors.border,
-                  color: colors.textPrimary,
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                placeholderTextColor={colors.textSecondary}
-                editable={!isLoggingIn}
-              />
-              <TextInput
-                placeholder="Password"
-                value={password}
-                onChangeText={setPassword}
-                className="p-4 rounded-lg mb-4 border text-base"
-                style={{
-                  backgroundColor: colors.iconBg,
-                  borderColor: colors.border,
-                  color: colors.textPrimary,
-                }}
-                secureTextEntry
-                placeholderTextColor={colors.textSecondary}
-                editable={!isLoggingIn}
-              />
+              </View>
 
-              <TouchableOpacity
-                className="p-4 rounded-lg items-center"
-                style={{
-                  backgroundColor: colors.accent,
-                  opacity: isLoggingIn ? 0.6 : 1,
-                }}
-                onPress={onLogin}
-                disabled={isLoggingIn}
+              {/* Search Bar */}
+              <View
+                className="flex-row items-center p-3 rounded-xl mb-4 border"
+                style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
               >
-                {isLoggingIn ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text className="text-white font-bold text-base">Login</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <Text className="text-center text-sm mt-3" style={{ color: colors.textSecondary }}>
-              Please select a college to continue
-            </Text>
-          )}
-        </View>
+                <Search size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                <TextInput
+                  placeholder="Search college..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  className="flex-1 text-base"
+                  style={{ color: colors.textPrimary, outlineStyle: "none" }}
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
 
-        <TouchableOpacity
-          onPress={goBack}
-          className="mt-4 pb-2"
-          disabled={isLoggingIn}
-        >
-          <Text className="text-base font-semibold" style={{ color: colors.textPrimary }}>Cancel</Text>
-        </TouchableOpacity>
-      </ScrollView>
+              {/* College List */}
+              <View
+                className="rounded-xl border overflow-hidden"
+                style={{ height: 200, borderColor: colors.border }}
+              >
+                {loadingColleges ? (
+                  <View className="flex-1 justify-center items-center">
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  </View>
+                ) : (
+                  <ScrollView nestedScrollEnabled={true}>
+                    {filteredColleges.length === 0 ? (
+                      <View className="p-4 items-center">
+                        <Text style={{ color: colors.textSecondary }}>No colleges found</Text>
+                      </View>
+                    ) : (
+                      filteredColleges.map((item, index) => {
+                        const isSelected = selectedCollege._id === item._id;
+                        return (
+                          <Pressable
+                            key={item._id || index}
+                            onPress={() => {
+                              setSelectedCollege(item);
+                              setEmail(item.email || "");
+                            }}
+                            className={`flex-row items-center justify-between p-3 border-b`}
+                            style={{
+                              backgroundColor: isSelected ? (darkMode ? "rgba(45, 212, 191, 0.15)" : "#f0fdfa") : "transparent",
+                              borderBottomColor: colors.border,
+                              borderBottomWidth: index === filteredColleges.length - 1 ? 0 : 1
+                            }}
+                          >
+                            <Text
+                              className={`flex-1 text-sm ${isSelected ? "font-bold" : "font-medium"}`}
+                              style={{ color: isSelected ? colors.accent : colors.textPrimary }}
+                            >
+                              {item.name || item.collegeName}
+                            </Text>
+                            {isSelected && <Check size={16} color={colors.accent} />}
+                          </Pressable>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+
+            {/* Login Form Section */}
+            {selectedCollege && (
+              <View className="pt-4 border-t" style={{ borderColor: colors.border }}>
+                <Text className="text-sm font-medium mb-4 text-center" style={{ color: colors.textSecondary }}>
+                  Logging in as <Text style={{ color: colors.header, fontWeight: 'bold' }}>{selectedCollege.name}</Text>
+                </Text>
+
+                <View className="gap-4">
+                  <View
+                    className="flex-row items-center p-3.5 rounded-xl border"
+                    style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
+                  >
+                    <Mail size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                    <TextInput
+                      placeholder="Email Address"
+                      value={email}
+                      onChangeText={setEmail}
+                      className="flex-1 text-base"
+                      style={{ color: colors.textPrimary, outlineStyle: "none" }}
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      editable={!isLoggingIn}
+                    />
+                  </View>
+
+                  <View
+                    className="flex-row items-center p-3.5 rounded-xl border"
+                    style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
+                  >
+                    <Lock size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                    <TextInput
+                      placeholder="Password"
+                      value={password}
+                      onChangeText={setPassword}
+                      className="flex-1 text-base"
+                      style={{ color: colors.textPrimary, outlineStyle: "none" }}
+                      placeholderTextColor={colors.textSecondary}
+                      secureTextEntry
+                      editable={!isLoggingIn}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={onLogin}
+                    disabled={isLoggingIn}
+                    className="py-4 rounded-xl items-center mt-2 shadow-sm"
+                    style={{
+                      backgroundColor: colors.accent,
+                      opacity: isLoggingIn ? 0.7 : 1
+                    }}
+                  >
+                    {isLoggingIn ? (
+                      <ActivityIndicator color="white" size="small" />
+                    ) : (
+                      <Text className="text-white font-bold text-base tracking-wide">
+                        Secure Login
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {!selectedCollege && (
+              <View className="items-center py-4 opacity-50">
+                <Text style={{ color: colors.textSecondary }}>Select a college to continue</Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }

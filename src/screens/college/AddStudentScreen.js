@@ -1,10 +1,11 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
 import { useTheme } from '../../context/ThemeContext';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import { shareAsync } from 'expo-sharing';
 import * as ExcelJS from 'exceljs';
 import * as api from '../../../apis/api';
 import { Buffer } from 'buffer';
@@ -128,6 +129,89 @@ export default function AddStudentScreen({ college, className }) {
     }
   }
 
+  const downloadTemplate = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Students');
+
+      // 1. Setup Headers & Columns
+      worksheet.columns = [
+        { header: 'Name', key: 'name', width: 20 },
+        { header: 'PRN', key: 'prn', width: 15 },
+        { header: 'Department', key: 'department', width: 20 },
+        { header: 'Email', key: 'email', width: 25 },
+      ];
+
+      // Add Sample Row
+      worksheet.addRow(['John Doe', '123456', 'Computer Science', 'john@example.com']);
+
+      // 2. Generate Excel Buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+      const base64String = Buffer.from(buffer).toString('base64');
+      const filename = 'Student_Template.xlsx';
+
+      // --- WEB DOWNLOAD ---
+      if (Platform.OS === 'web') {
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        return;
+      }
+
+      // --- ANDROID "SAVE TO DEVICE" (SAF) ---
+      if (Platform.OS === 'android') {
+        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+
+        if (permissions.granted) {
+          // Creates a blank file in the user-selected directory
+          const uri = await FileSystem.StorageAccessFramework.createFileAsync(
+            permissions.directoryUri,
+            filename,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          );
+
+          // Writes the Excel data into that file
+          await FileSystem.writeAsStringAsync(uri, base64String, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          Alert.alert('Success', 'Template saved to your device!');
+        } else {
+          // Fallback to sharing if they deny folder access
+          await shareFallback(base64String, filename);
+        }
+      }
+
+      // --- iOS "SAVE TO FILES" ---
+      else {
+        // iOS handles "Save to Files" natively within the Share Sheet
+        await shareFallback(base64String, filename);
+      }
+
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      Alert.alert('Error', 'Failed to generate template');
+    }
+  };
+
+  // Helper function for iOS or Android fallback
+  const shareFallback = async (base64String, filename) => {
+    const fileUri = FileSystem.cacheDirectory + filename;
+    await FileSystem.writeAsStringAsync(fileUri, base64String, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    await Sharing.shareAsync(fileUri, {
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      dialogTitle: 'Save Student Template',
+      UTI: 'com.microsoft.excel.xlsx', // Required for iOS to recognize Excel
+    });
+  };
+
   function removeStudent(idx) {
     setStudents(prev => prev.filter((_, i) => i !== idx));
   }
@@ -197,6 +281,11 @@ export default function AddStudentScreen({ college, className }) {
         {/* Upload Section */}
         <View className="p-4 rounded-lg mb-4" style={{ backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }}>
           <Text className="text-base font-semibold mb-3" style={{ color: colors.textPrimary }}>Import from File</Text>
+
+          <TouchableOpacity onPress={downloadTemplate} className="p-3 rounded-lg items-center mb-3 border" style={{ borderColor: colors.accent, backgroundColor: 'transparent' }}>
+            <Text className="font-semibold" style={{ color: colors.accent }}>Download Excel Template</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity onPress={pickAndParseFile} className="p-3 rounded-lg items-center mb-2" style={{ backgroundColor: colors.accent }}>
             <Text className="text-white font-semibold">Pick Excel/CSV File</Text>
           </TouchableOpacity>
