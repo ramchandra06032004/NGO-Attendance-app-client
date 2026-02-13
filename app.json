@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MarkIn",
-    "slug": "MarkIn",
+    "slug": "NGOAttendanceApp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -21,7 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.omdhavale15.MarkIn-Attendance-App",
+      "package": "com.omdhavale15.NGOAttendanceApp",
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
