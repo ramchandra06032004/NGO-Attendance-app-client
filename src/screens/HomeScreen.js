@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import {
-  View, Text, Pressable, SafeAreaView, ScrollView, useColorScheme, Image, Linking,
+  View, Text, Pressable, SafeAreaView, ScrollView, useColorScheme, Image, Linking, Platform,
 } from 'react-native';
 import {
   Sun,
@@ -191,8 +191,17 @@ export default function HomeScreen() {
         {/* Report/Mail Bugs Button - Fixed at bottom-right */}
         <Pressable
           onPress={() => {
-            const bugReportEmail = 'mailto:[EMAIL_ADDRESS]?subject=Bug Report&body=Please describe the bug you encountered:'; // Replace with your email
-            Linking.openURL(bugReportEmail).catch(err => console.error('Failed to open email:', err));
+            // On web, open Gmail compose directly; on mobile, use mailto
+            if (Platform.OS === 'web') {
+              const email = 'coderzhiveai@gmail.com';
+              const subject = encodeURIComponent('Bug Report');
+              const body = encodeURIComponent('Please describe the bug you encountered:');
+              const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`;
+              window.open(gmailUrl, '_blank');
+            } else {
+              const bugReportEmail = 'mailto:coderzhiveai@gmail.com?subject=Bug Report&body=Please describe the bug you encountered:';
+              Linking.openURL(bugReportEmail).catch(err => console.error('Failed to open email:', err));
+            }
           }}
           className="px-4 py-2 rounded-full flex-row active:opacity-70"
           style={{

@@ -34,7 +34,16 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
 
   useEffect(() => {
     // Normalize incoming college -> classes (handles className / name)
-    console.log("StudentsListScreen college prop:", college);
+    const collegeId = college?._id || college?.id;
+    const collegeName = college?.name || college?.collegeName;
+
+    console.log("=== STUDENTS LIST SCREEN EFFECT TRIGGERED ===");
+    console.log("College ID:", collegeId);
+    console.log("College Name:", collegeName);
+    console.log("Event ID:", eventId);
+    console.log("Resetting presentIds and originallyPresentIds...");
+    console.log("============================================");
+
     const clsArray = Array.isArray(college?.classes) ? college.classes : [];
     const normalized = clsArray
       .map((c) => {
@@ -52,13 +61,17 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
     setClasses(["All Classes", ...normalized.map((c) => c.name)]);
     setSelectedClass("All Classes");
 
+    // Reset presentIds and originallyPresentIds immediately when college changes
+    setPresentIds(new Set());
+    setOriginallyPresentIds(new Set());
+
     // Fetch existing attendance when component mounts
     if (eventId) {
       fetchExistingAttendance();
     } else {
       setLoadingAttendance(false);
     }
-  }, [college, eventId]);
+  }, [college?._id || college?.id, eventId]); // Use college ID instead of entire object
 
   const togglePresent = (studentId) => {
     setPresentIds((prev) => {
@@ -83,6 +96,20 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
   const fetchExistingAttendance = async () => {
     try {
       setLoadingAttendance(true);
+
+      // Build a Set of all valid student IDs from the current college
+      const validStudentIds = new Set();
+      const clsArray = Array.isArray(college?.classes) ? college.classes : [];
+      clsArray.forEach((cls) => {
+        const students = Array.isArray(cls.students) ? cls.students : [];
+        students.forEach((student) => {
+          const id = student._id || student.id || student.prn;
+          if (id) validStudentIds.add(id);
+        });
+      });
+
+      console.log("Valid student IDs for this college:", Array.from(validStudentIds));
+
       const response = await fetch(
         `${api.ngo_host}/event/${eventId}/attendance`,
         {
@@ -98,13 +125,18 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
       if (response.ok) {
         const data = await response.json();
         // Extract student IDs from attendance data
-        const attendedStudentIds = data?.data?.attendance?.map(
+        const allAttendedStudentIds = data?.data?.attendance?.map(
           (record) => record._id || record.id
         ) || [];
 
-        console.log("Existing attendance loaded:", attendedStudentIds);
-        setPresentIds(new Set(attendedStudentIds));
-        setOriginallyPresentIds(new Set(attendedStudentIds)); // Lock these students
+        // Filter to only include students from the current college
+        const filteredStudentIds = allAttendedStudentIds.filter(id => validStudentIds.has(id));
+
+        console.log("All attendance loaded:", allAttendedStudentIds);
+        console.log("Filtered to current college:", filteredStudentIds);
+
+        setPresentIds(new Set(filteredStudentIds));
+        setOriginallyPresentIds(new Set(filteredStudentIds)); // Lock these students
       } else {
         console.log("No existing attendance found or error fetching");
         setPresentIds(new Set());
@@ -151,6 +183,15 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
   const submitAttendance = async () => {
     const presentArray = Array.from(presentIds);
     const collegeId = college?._id || college?.id;
+    const collegeName = college?.name || college?.collegeName;
+
+    console.log("=== SUBMIT ATTENDANCE DEBUG ===");
+    console.log("College ID:", collegeId);
+    console.log("College Name:", collegeName);
+    console.log("Present IDs:", presentArray);
+    console.log("Present IDs count:", presentArray.length);
+    console.log("===============================");
+
     const reqBody = {
       studentIds: presentArray,
       eventId: eventId,

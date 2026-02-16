@@ -111,6 +111,7 @@ export default function AppContainer() {
     case "StudentsList":
       Screen = (
         <StudentsListScreen
+          key={`${route.params?.eventId}-${route.params?.college?._id || route.params?.college?.id}`}
           eventId={route.params?.eventId}
           college={route.params?.college}
         />
