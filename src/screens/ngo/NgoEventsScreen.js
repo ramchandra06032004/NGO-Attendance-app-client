@@ -30,7 +30,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const [endDate, setEndDate] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
-  const { logout } = useContext(AuthContext);
+  const { logout, accessToken } = useContext(AuthContext);
 
   useEffect(() => {
     fetchEvents();
@@ -60,6 +60,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 

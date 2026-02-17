@@ -73,7 +73,7 @@ export default function AttendanceRecords({ route = {} }) {
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
   const { goBack } = useContext(NavigationContext);
-  const { user } = useContext(AuthContext);
+  const { user, accessToken } = useContext(AuthContext);
 
   const [attendanceData, setAttendanceData] = useState([]);
   const [registeredStudents, setRegisteredStudents] = useState([]);
@@ -103,6 +103,7 @@ export default function AttendanceRecords({ route = {} }) {
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
@@ -128,6 +129,7 @@ export default function AttendanceRecords({ route = {} }) {
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
