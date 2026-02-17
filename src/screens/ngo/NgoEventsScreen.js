@@ -54,6 +54,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
 
   const fetchEvents = async () => {
     try {
+      console.log("Fetching events with token:", accessToken ? "Token present" : "No token");
       const response = await fetch(api.eventAllAPI, {
         method: "GET",
         credentials: "include",
