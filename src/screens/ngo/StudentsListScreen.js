@@ -9,6 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
+import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
 
@@ -22,6 +23,7 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
   const isFromRegisteredStudents = !!registeredStudents;
 
   const { goBack } = useContext(NavigationContext);
+  const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
@@ -181,6 +183,7 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 
@@ -284,6 +287,7 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(reqBody),
       });
