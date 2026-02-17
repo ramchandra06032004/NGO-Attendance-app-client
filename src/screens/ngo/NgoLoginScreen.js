@@ -89,15 +89,18 @@ export default function NgoLoginScreen() {
 
       const data = await response.json();
       console.log("[NgoLogin] Backend response:", {
-        hasAccessToken: !!(data.accessToken || data.token),
-        hasRefreshToken: !!data.refreshToken,
-        hasUser: !!data.user,
-        dataKeys: Object.keys(data)
+        hasAccessToken: !!(data.data?.accessToken || data.data?.token || data.accessToken || data.token),
+        hasRefreshToken: !!(data.data?.refreshToken || data.refreshToken),
+        hasUser: !!(data.data?.user || data.user),
+        dataKeys: Object.keys(data),
+        nestedDataKeys: data.data ? Object.keys(data.data) : []
       });
 
-      const accessToken = data.accessToken || data.token;
-      const refreshToken = data.refreshToken;
-      const userData = data.user || selectedNgo;
+      // Backend wraps response in ApiResponse class, so token is in data.data
+      const responseData = data.data || data;
+      const accessToken = responseData.accessToken || responseData.token;
+      const refreshToken = responseData.refreshToken;
+      const userData = responseData.user || selectedNgo;
 
       console.log("[NgoLogin] Calling loginUser with token:", !!accessToken);
       await loginUser(userData, accessToken, refreshToken, "ngo");
