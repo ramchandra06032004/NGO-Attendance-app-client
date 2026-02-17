@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
+import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -13,6 +14,7 @@ import { Buffer } from 'buffer';
 export default function AddStudentScreen({ college, className }) {
   const { goBack } = useContext(NavigationContext);
   const { addStudent } = useContext(AttendanceContext);
+  const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
@@ -247,6 +249,7 @@ export default function AddStudentScreen({ college, className }) {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(requestBody)
       });

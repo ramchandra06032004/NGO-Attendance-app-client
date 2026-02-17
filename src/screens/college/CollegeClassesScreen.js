@@ -27,7 +27,7 @@ export default function CollegeClassesScreen({ college }) {
   const classes = college.classes || [];
   const [newClass, setNewClass] = useState('');
   const [loading, setLoading] = useState(false);
-  const { logout } = useContext(AuthContext);
+  const { logout, accessToken } = useContext(AuthContext);
   const [showEventDropdown, setShowEventDropdown] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventsList, setEventsList] = useState([]);
@@ -629,6 +629,7 @@ export default function CollegeClassesScreen({ college }) {
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
           },
         });
 

@@ -1,11 +1,13 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
+import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import * as api from '../../../apis/api';
 
 export default function AddClassScreen({ college }) {
   const { goBack } = useContext(NavigationContext);
+  const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
@@ -20,9 +22,10 @@ export default function AddClassScreen({ college }) {
     try {
       const response = await fetch(api.addClassAPI, {
         method: 'POST',
-        credentials:'include',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({ className: className.trim() })
       });
