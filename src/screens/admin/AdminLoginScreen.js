@@ -56,10 +56,11 @@ export default function AdminLoginScreen() {
       const data = await response.json();
       console.log("Login response:", data);
 
-      // Extract tokens and user data from response
-      const accessToken = data.accessToken || data.token;
-      const refreshToken = data.refreshToken;
-      const userData = data.user || { email: email };
+      // Backend wraps response in ApiResponse class, so token is in data.data
+      const responseData = data.data || data;
+      const accessToken = responseData.accessToken || responseData.token;
+      const refreshToken = responseData.refreshToken;
+      const userData = responseData.user || { email: email };
 
       // Store in AuthContext
       await loginUser(userData, accessToken, refreshToken, "admin");
