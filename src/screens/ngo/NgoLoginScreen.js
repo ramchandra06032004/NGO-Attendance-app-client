@@ -88,10 +88,18 @@ export default function NgoLoginScreen() {
       }
 
       const data = await response.json();
+      console.log("[NgoLogin] Backend response:", {
+        hasAccessToken: !!(data.accessToken || data.token),
+        hasRefreshToken: !!data.refreshToken,
+        hasUser: !!data.user,
+        dataKeys: Object.keys(data)
+      });
+
       const accessToken = data.accessToken || data.token;
       const refreshToken = data.refreshToken;
       const userData = data.user || selectedNgo;
 
+      console.log("[NgoLogin] Calling loginUser with token:", !!accessToken);
       await loginUser(userData, accessToken, refreshToken, "ngo");
 
       alert("Login successful");
