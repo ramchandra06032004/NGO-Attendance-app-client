@@ -12,10 +12,14 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
 
-export default function StudentsListScreen({ college, eventId: propEventId }) {
+export default function StudentsListScreen({ college, eventId: propEventId, route }) {
   //added line for testing git commit
   // eventId is passed as prop (not using react-navigation)
   const eventId = propEventId;
+
+  // Get registered students from route params if navigating from RegisteredStudentsScreen
+  const registeredStudents = route?.params?.registeredStudents;
+  const isFromRegisteredStudents = !!registeredStudents;
 
   const { goBack } = useContext(NavigationContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -33,6 +37,47 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
   const [originallyPresentIds, setOriginallyPresentIds] = useState(new Set());
 
   useEffect(() => {
+    // If coming from RegisteredStudentsScreen, use the provided students
+    if (isFromRegisteredStudents) {
+      console.log("=== USING REGISTERED STUDENTS ===");
+      console.log("Registered students count:", registeredStudents.length);
+
+      // Group registered students by class
+      const studentsByClass = {};
+      registeredStudents.forEach((student) => {
+        const className = student.class?.name || "Unassigned";
+        const classId = student.class?._id || "unassigned";
+
+        if (!studentsByClass[classId]) {
+          studentsByClass[classId] = {
+            _id: classId,
+            name: className,
+            students: [],
+          };
+        }
+        studentsByClass[classId].students.push(student);
+      });
+
+      const normalized = Object.values(studentsByClass);
+      setClassObjects(normalized);
+      setClasses(["All Classes", ...normalized.map((c) => c.name)]);
+      setSelectedClass("All Classes");
+
+      // Reset presentIds initially
+      setPresentIds(new Set());
+      setOriginallyPresentIds(new Set());
+
+      // Fetch existing attendance to check if any registered students are already marked
+      if (eventId) {
+        fetchExistingAttendance();
+      } else {
+        setLoadingAttendance(false);
+      }
+
+      return;
+    }
+
+    // Original logic for normal attendance marking flow
     // Normalize incoming college -> classes (handles className / name)
     const collegeId = college?._id || college?.id;
     const collegeName = college?.name || college?.collegeName;
@@ -71,7 +116,7 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
     } else {
       setLoadingAttendance(false);
     }
-  }, [college?._id || college?.id, eventId]); // Use college ID instead of entire object
+  }, [college?._id || college?.id, eventId, isFromRegisteredStudents]); // Use college ID instead of entire object
 
   const togglePresent = (studentId) => {
     setPresentIds((prev) => {
@@ -97,39 +142,71 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
     try {
       setLoadingAttendance(true);
 
-      // Build a Set of all valid student IDs from the current college
+      // Build a Set of all valid student IDs
       const validStudentIds = new Set();
-      const clsArray = Array.isArray(college?.classes) ? college.classes : [];
-      clsArray.forEach((cls) => {
-        const students = Array.isArray(cls.students) ? cls.students : [];
-        students.forEach((student) => {
+
+      if (isFromRegisteredStudents) {
+        // When coming from RegisteredStudentsScreen, use the registered students
+        registeredStudents.forEach((student) => {
           const id = student._id || student.id || student.prn;
           if (id) validStudentIds.add(id);
         });
-      });
+      } else {
+        // Original logic: get students from college classes
+        const clsArray = Array.isArray(college?.classes) ? college.classes : [];
+        clsArray.forEach((cls) => {
+          const students = Array.isArray(cls.students) ? cls.students : [];
+          students.forEach((student) => {
+            const id = student._id || student.id || student.prn;
+            if (id) validStudentIds.add(id);
+          });
+        });
+      }
 
       console.log("Valid student IDs for this college:", Array.from(validStudentIds));
 
-      const response = await fetch(
-        `${api.ngo_host}/event/${eventId}/attendance`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      // Get collegeId from route params or college prop
+      const collegeId = route?.params?.collegeId || college?._id || college?.id;
+
+      // Use college-specific endpoint if we have a collegeId
+      const attendanceUrl = collegeId
+        ? `${api.ngo_host}/event/${eventId}/college/${collegeId}/attendance`
+        : `${api.ngo_host}/event/${eventId}/attendance`;
+
+      console.log("Fetching attendance from:", attendanceUrl);
+
+      const response = await fetch(attendanceUrl, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
 
       if (response.ok) {
         const data = await response.json();
-        // Extract student IDs from attendance data
-        const allAttendedStudentIds = data?.data?.attendance?.map(
-          (record) => record._id || record.id
-        ) || [];
 
-        // Filter to only include students from the current college
+        let allAttendedStudentIds = [];
+
+        // Check if this is college-specific response (nested structure)
+        if (data?.data?.attendance?.[0]?.students) {
+          // College-specific endpoint format: attendance[0].students[{studentId, ...}]
+          allAttendedStudentIds = data.data.attendance[0].students
+            .filter(student => student.attendanceMarkedAt) // Only students who were actually marked
+            .map(student => student.studentId || student._id);
+
+          console.log("Using college-specific attendance format");
+        } else {
+          // Event-wide endpoint format: attendance[{_id, ...}]
+          allAttendedStudentIds = data?.data?.attendance?.map(
+            (record) => record._id || record.id
+          ) || [];
+
+          console.log("Using event-wide attendance format");
+        }
+
+        // Filter to only include students from the current college/registered list
         const filteredStudentIds = allAttendedStudentIds.filter(id => validStudentIds.has(id));
 
         console.log("All attendance loaded:", allAttendedStudentIds);
@@ -182,8 +259,9 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
 
   const submitAttendance = async () => {
     const presentArray = Array.from(presentIds);
-    const collegeId = college?._id || college?.id;
-    const collegeName = college?.name || college?.collegeName;
+    // Get collegeId from college prop OR from route params (when coming from RegisteredStudentsScreen)
+    const collegeId = college?._id || college?.id || route?.params?.collegeId;
+    const collegeName = college?.name || college?.collegeName || route?.params?.collegeName;
 
     console.log("=== SUBMIT ATTENDANCE DEBUG ===");
     console.log("College ID:", collegeId);
@@ -325,6 +403,9 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
 
   // Calculate present count
   const presentCount = presentIds.size;
+
+  // Calculate NEW students marked (excluding already-locked students)
+  const newStudentsCount = Array.from(presentIds).filter(id => !originallyPresentIds.has(id)).length;
 
   return (
     <View
@@ -480,15 +561,15 @@ export default function StudentsListScreen({ college, eventId: propEventId }) {
             <View className="mt-6 mb-4">
               <TouchableOpacity
                 onPress={handleSubmit}
-                disabled={presentCount === 0}
+                disabled={newStudentsCount === 0}
                 className="p-4 rounded-xl items-center"
                 style={{
-                  backgroundColor: presentCount === 0 ? colors.border : colors.accent,
-                  opacity: presentCount === 0 ? 0.5 : 1,
+                  backgroundColor: newStudentsCount === 0 ? colors.border : colors.accent,
+                  opacity: newStudentsCount === 0 ? 0.5 : 1,
                 }}
               >
                 <Text className="text-white font-bold text-base">
-                  Submit Attendance {presentCount > 0 ? `(${presentCount})` : ''}
+                  Submit Attendance {newStudentsCount > 0 ? `(${newStudentsCount} new)` : '(No new students)'}
                 </Text>
               </TouchableOpacity>
             </View>

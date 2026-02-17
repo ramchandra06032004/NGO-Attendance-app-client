@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Mail,
   BadgeCheck,
+  GraduationCap,
 } from 'lucide-react-native';
 import { NavigationContext } from '../context/NavigationContext'; // ✅ imported navigation context
 import { AuthContext } from '../context/AuthContext';
@@ -68,6 +69,7 @@ export default function HomeScreen() {
     ngo: darkMode ? '#f97316' : '#ea580c',
     college: darkMode ? '#3b82f6' : '#2563eb',
     admin: darkMode ? '#22c55e' : '#16a34a',
+    student: darkMode ? '#a855f7' : '#9333ea',
   };
 
   return (
@@ -146,6 +148,16 @@ export default function HomeScreen() {
               darkMode={darkMode}
               onPress={() => navigate('AdminLogin')} // ✅ navigation added
               disabled={isAuthenticated && userType !== 'admin'}
+            />
+
+            <LoginCard
+              icon={GraduationCap}
+              title="Student Login"
+              subtitle="View and register for events"
+              iconColor={iconColors.student}
+              darkMode={darkMode}
+              onPress={() => navigate('StudentLogin')} // ✅ navigation added
+              disabled={isAuthenticated && userType !== 'student'}
             />
           </View>
 

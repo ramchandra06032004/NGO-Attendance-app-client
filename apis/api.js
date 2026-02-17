@@ -2,12 +2,12 @@
 import { Platform } from "react-native";
 
 // ✅ Correct Syntax: Use a ternary operator
-// export const host = Platform.OS === "android" 
-//   ? "http://10.0.2.2:3000" 
-//   : "http://localhost:3000";
+export const host = Platform.OS === "android"
+    ? "http://10.0.2.2:3000"
+    : "http://localhost:3000";
 //export const host = "http://10.0.2.2:3000"; //Production
 // export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
-export const host = "https://ngo-attendance-backend.el.r.appspot.com"; //Production
+//export const host = "https://ngo-attendance-backend.el.r.appspot.com"; //Production
 
 //login auth apis
 export const auth_host = `${host}/api/v1/auth`;
@@ -33,3 +33,12 @@ export const addStudentAPI = `${college_host}/students`; //add new students unde
 export const getAllCollegeAPI = `${college_host}/get-all-colleges`; //get list of all registered colleges
 export const updateStudentAPI = `${college_host}/students`; //update existing student data api
 export const updateClassAPI = `${college_host}/classes`; //update existing class data api
+
+//Student features apis
+export const student_host = `${host}/api/v1/student`;
+export const studentEventsAPI = `${host}/api/v1/student/events`; //get all available events
+export const studentRegisterEventAPI = `${host}/api/v1/student/register-event`; //register for an event
+export const studentMyEventsAPI = `${host}/api/v1/student/my-events`; //get student's registered events with status
+
+//ngo registered students api
+export const ngoRegisteredStudentsAPI = (eventId) => `${ngo_host}/events/${eventId}/registered-students`; //get student's registered events with status

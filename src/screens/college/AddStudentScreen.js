@@ -18,7 +18,7 @@ export default function AddStudentScreen({ college, className }) {
 
   // Manage a dynamic list of students to add
   const [students, setStudents] = useState([
-    { id: Date.now().toString(), name: '', prn: '', department: '', email: '' },
+    { id: Date.now().toString(), name: '', prn: '', department: '', email: '', password: '' },
   ]);
 
   function updateStudent(idx, key, value) {
@@ -26,7 +26,7 @@ export default function AddStudentScreen({ college, className }) {
   }
 
   function addEmptyStudent() {
-    setStudents(prev => [...prev, { id: Date.now().toString() + Math.random().toString(36).slice(2), name: '', prn: '', department: '', email: '' }]);
+    setStudents(prev => [...prev, { id: Date.now().toString() + Math.random().toString(36).slice(2), name: '', prn: '', department: '', email: '', password: '' }]);
   }
 
   async function pickAndParseFile() {
@@ -109,7 +109,8 @@ export default function AddStudentScreen({ college, className }) {
         const prn = r.prn || r.PRN || r.Prn || r['PRN'] || r.roll || r.Roll || '';
         const department = r.department || r.dept || r.Department || r.Dept || '';
         const email = r.email || r.Email || '';
-        return { id: Date.now().toString() + Math.random().toString(36).slice(2), name: String(name).trim(), prn: String(prn).trim(), department: String(department).trim(), email: String(email).trim() };
+        const password = r.password || r.Password || 'defaultPassword123';
+        return { id: Date.now().toString() + Math.random().toString(36).slice(2), name: String(name).trim(), prn: String(prn).trim(), department: String(department).trim(), email: String(email).trim(), password: String(password).trim() };
       }).filter(s => s.name);
 
       if (mapped.length === 0) {
@@ -140,10 +141,11 @@ export default function AddStudentScreen({ college, className }) {
         { header: 'PRN', key: 'prn', width: 15 },
         { header: 'Department', key: 'department', width: 20 },
         { header: 'Email', key: 'email', width: 25 },
+        { header: 'Password', key: 'password', width: 20 },
       ];
 
       // Add Sample Row
-      worksheet.addRow(['John Doe', '123456', 'Computer Science', 'john@example.com']);
+      worksheet.addRow(['John Doe', '123456', 'Computer Science', 'john@example.com', 'password123']);
 
       // 2. Generate Excel Buffer
       const buffer = await workbook.xlsx.writeBuffer();
@@ -234,7 +236,8 @@ export default function AddStudentScreen({ college, className }) {
           name: s.name.trim(),
           department: s.department.trim(),
           email: s.email.trim(),
-          prn: s.prn.trim()
+          prn: s.prn.trim(),
+          password: s.password.trim() || 'defaultPassword123'
         }))
       };
       console.log(requestBody)
@@ -290,7 +293,7 @@ export default function AddStudentScreen({ college, className }) {
             <Text className="text-white font-semibold">Pick Excel/CSV File</Text>
           </TouchableOpacity>
           <Text className="text-xs text-center" style={{ color: colors.textSecondary }}>
-            Supported: .xlsx, .xls, .csv with columns: Name, PRN, Department, Email
+            Supported: .xlsx, .xls, .csv with columns: Name, PRN, Department, Email, Password
           </Text>
         </View>
 
@@ -370,6 +373,19 @@ export default function AddStudentScreen({ college, className }) {
                   onChangeText={(v) => updateStudent(idx, 'email', v)}
                   className="p-2 rounded border"
                   style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }}
+                />
+              </View>
+
+              <View>
+                <Text className="text-xs mb-1" style={{ color: colors.textSecondary }}>Password</Text>
+                <TextInput
+                  placeholder="Password (default: defaultPassword123)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={s.password}
+                  onChangeText={(v) => updateStudent(idx, 'password', v)}
+                  className="p-2 rounded border"
+                  style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }}
+                  secureTextEntry
                 />
               </View>
             </View>
