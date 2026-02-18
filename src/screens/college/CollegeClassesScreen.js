@@ -33,6 +33,23 @@ export default function CollegeClassesScreen({ college }) {
   const [eventsList, setEventsList] = useState([]);
   const [eventAttendanceList, setEventAttendanceList] = useState([]);
   const [showAttendanceTable, setShowAttendanceTable] = useState(false);
+  const [eventLoading, setEventLoading] = useState(false);
+
+  // Helper to determine status based on attendance mark and date
+  const getEventStatus = (eventObj, attendanceDateStr) => {
+    // 1. If marked present, it's "Present"
+    if (attendanceDateStr && attendanceDateStr !== "N/A") return "Present";
+
+    // 2. If not marked, check if date is past
+    if (!eventObj || !eventObj.eventDate) return "Registered"; // Default fallback
+
+    const eventDate = new Date(eventObj.eventDate);
+    eventDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return eventDate < today ? "Absent" : "Registered";
+  };
 
   // Helper function to save file to local storage
   const saveFile = async (filename, base64Data) => {
@@ -109,35 +126,56 @@ export default function CollegeClassesScreen({ college }) {
     navigate("Home");
   };
 
-  const handleEventSelect = (event) => {
+  const handleEventSelect = async (event) => {
     setSelectedEvent(event);
     setShowEventDropdown(false);
     setShowAttendanceTable(true);
+    setEventAttendanceList([]);
+    setEventLoading(true);
 
-    // Get all students who attended this event
-    const attendanceList = [];
-
-    college.classes?.forEach((cls) => {
-      cls.students?.forEach((student) => {
-        const attended = student.attendedEvents?.find(
-          (att) => att.eventId?._id === event._id
-        );
-
-        if (attended) {
-          attendanceList.push({
-            studentName: student.name,
-            prn: student.prn,
-            department: student.department,
-            className: cls.className,
-            attendanceDate: attended.attendanceMarkedAt
-              ? new Date(attended.attendanceMarkedAt).toDateString()
-              : "N/A",
-          });
+    try {
+      // Fetch fresh data from the API — returns ALL registered students
+      // (both those who marked attendance and those who didn't)
+      const response = await fetch(
+        `${college_host}/event/${event._id}/attendance`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
         }
-      });
-    });
+      );
 
-    setEventAttendanceList(attendanceList);
+      if (!response.ok) throw new Error("Failed to fetch attendance");
+
+      const data = await response.json();
+      // data.data.attendance is an array of college objects, each with a students array
+      const students = data?.data?.attendance?.[0]?.students || [];
+
+      const attendanceList = students.map((student) => {
+        const attDate = student.attendanceMarkedAt
+          ? new Date(student.attendanceMarkedAt).toDateString()
+          : "N/A";
+        return {
+          studentName: student.name,
+          prn: student.prn,
+          department: student.department || "N/A",
+          className: student.className || "N/A",
+          attendanceDate: attDate,
+          status: getEventStatus(event, attDate),
+        };
+      });
+
+      setEventAttendanceList(attendanceList);
+    } catch (err) {
+      console.error("Error fetching event attendance:", err);
+      alert("Could not load attendance data: " + err.message);
+    } finally {
+      setEventLoading(false);
+    }
   };
 
   const handleOutsideClick = () => {
@@ -206,32 +244,46 @@ export default function CollegeClassesScreen({ college }) {
 
       let hasData = false;
 
-      // --- 2. ITERATE AND CREATE SHEET FOR EACH EVENT ---
-      eventsList.forEach((event) => {
-        // A. Gather Attendance Data
-        const eventAttendance = [];
-        college.classes?.forEach((cls) => {
-          cls.students?.forEach((student) => {
-            const attended = student.attendedEvents?.find(
-              (att) => att.eventId?._id === event._id
-            );
-
-            if (attended) {
-              eventAttendance.push({
+      // --- 2. ITERATE AND CREATE SHEET FOR EACH EVENT (via API) ---
+      for (const event of eventsList) {
+        // A. Fetch fresh attendance data from API
+        let eventAttendance = [];
+        try {
+          const res = await fetch(
+            `${college_host}/event/${event._id}/attendance`,
+            {
+              method: "GET",
+              credentials: "include",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+          if (res.ok) {
+            const apiData = await res.json();
+            const students = apiData?.data?.attendance?.[0]?.students || [];
+            eventAttendance = students.map((student) => {
+              const attDate = student.attendanceMarkedAt
+                ? new Date(student.attendanceMarkedAt).toLocaleDateString()
+                : "N/A";
+              return {
                 studentName: student.name,
                 prn: student.prn,
-                department: student.department,
-                className: cls.className,
-                attendanceDate: attended.attendanceMarkedAt
-                  ? new Date(attended.attendanceMarkedAt).toLocaleDateString()
-                  : "N/A",
-              });
-            }
-          });
-        });
+                department: student.department || "N/A",
+                className: student.className || "N/A",
+                attendanceDate: attDate,
+                status: getEventStatus(event, attDate),
+              };
+            });
+          }
+        } catch (err) {
+          console.warn(`Could not fetch attendance for event ${event._id}:`, err);
+        }
 
-        // Skip events with no attendance
-        if (eventAttendance.length === 0) return;
+        // Skip events with no registered students
+        if (eventAttendance.length === 0) continue;
         hasData = true;
 
         // B. Setup Worksheet
@@ -292,11 +344,12 @@ export default function CollegeClassesScreen({ college }) {
         addInfoRow("NGO", event.createdBy?.name || event.createdBy || "N/A", 8);
         addInfoRow("Location", event.location || "N/A", 9);
         addInfoRow("Date", new Date(event.eventDate).toLocaleDateString(), 10);
-        addInfoRow("Total Students Present", eventAttendance.length, 11);
+        addInfoRow("Total Registered", eventAttendance.length, 11);
+        addInfoRow("Total Present", eventAttendance.filter(r => r.status === "Present").length, 12);
 
         // F. Table Headers
-        const headerRow = worksheet.getRow(13);
-        headerRow.values = ["Student Name", "PRN", "Department", "Class", "Attendance Date"];
+        const headerRow = worksheet.getRow(14);
+        headerRow.values = ["Student Name", "PRN", "Department", "Class", "Status", "Attendance Date"];
         headerRow.height = 25;
 
         headerRow.eachCell((cell) => {
@@ -322,17 +375,26 @@ export default function CollegeClassesScreen({ college }) {
             record.prn,
             record.department,
             record.className,
+            record.status,
             record.attendanceDate,
           ]);
 
           // Zebra Striping
           const isEven = idx % 2 === 0;
-          row.eachCell((cell) => {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
-            };
+          row.eachCell((cell, colNumber) => {
+            // Status Column Color Logic (Col 5)
+            if (colNumber === 5) {
+              const s = record.status;
+              const color = s === "Present" ? "FF10b981" : (s === "Absent" ? "FFef4444" : "FFf59e0b");
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+              cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+            } else {
+              cell.fill = {
+                type: "pattern",
+                pattern: "solid",
+                fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
+              };
+            }
             cell.alignment = { horizontal: "center", vertical: "middle" };
             cell.border = {
               top: { style: "thin" },
@@ -349,9 +411,10 @@ export default function CollegeClassesScreen({ college }) {
           { width: 15 }, // PRN
           { width: 20 }, // Dept
           { width: 20 }, // Class
+          { width: 15 }, // Status
           { width: 20 }, // Date
         ];
-      });
+      } // end for...of eventsList
 
       if (!hasData) {
         setLoading(false);
@@ -516,11 +579,12 @@ export default function CollegeClassesScreen({ college }) {
       addInfoRow("NGO", selectedEvent.createdBy?.name || selectedEvent.createdBy || "N/A", 8);
       addInfoRow("Location", selectedEvent.location || "N/A", 9);
       addInfoRow("Date", new Date(selectedEvent.eventDate).toLocaleDateString(), 10);
-      addInfoRow("Total Students Present", eventAttendanceList.length, 11);
+      addInfoRow("Total Registered", eventAttendanceList.length, 11);
+      addInfoRow("Total Present", eventAttendanceList.filter(r => r.status === "Present").length, 12);
 
-      // --- C. TABLE HEADERS (Row 13) ---
-      const headerRow = worksheet.getRow(13);
-      headerRow.values = ["Student Name", "PRN", "Department", "Class", "Attendance Date"];
+      // --- C. TABLE HEADERS (Row 14) ---
+      const headerRow = worksheet.getRow(14);
+      headerRow.values = ["Student Name", "PRN", "Department", "Class", "Status", "Attendance Date"];
 
       headerRow.eachCell((cell) => {
         cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
@@ -546,17 +610,26 @@ export default function CollegeClassesScreen({ college }) {
           record.prn || "",
           record.department || "",
           record.className || record.classId?.className || "",
+          record.status || "Registered",
           record.attendanceDate || new Date().toLocaleDateString(),
         ]);
 
         // Alternating Row Colors
         const isEven = idx % 2 === 0;
-        row.eachCell((cell) => {
-          cell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
-          };
+        row.eachCell((cell, colNumber) => {
+          if (colNumber === 5) {
+            // Status Color
+            const s = record.status || "Registered";
+            const color = s === "Present" ? "FF10b981" : (s === "Absent" ? "FFef4444" : "FFf59e0b");
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+            cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+          } else {
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
+            };
+          }
           cell.alignment = { horizontal: "center", vertical: "middle" };
           cell.border = {
             top: { style: "thin" },
@@ -573,6 +646,7 @@ export default function CollegeClassesScreen({ college }) {
         { width: 15 }, // PRN
         { width: 20 }, // Dept
         { width: 20 }, // Class
+        { width: 15 }, // Status
         { width: 20 }, // Date
       ];
 
@@ -757,6 +831,7 @@ export default function CollegeClassesScreen({ college }) {
           "Department",
           "Event Name",
           "NGO Name",
+          "Status",
           "Event Date",
           "Attendance Date",
         ];
@@ -794,20 +869,33 @@ export default function CollegeClassesScreen({ college }) {
               const eventDate = event?.eventId?.eventDate
                 ? new Date(event.eventId.eventDate).toLocaleDateString()
                 : "N/A";
-              const attendanceDate = event?.attendanceMarkedAt
+              const attendanceDateStr = event?.attendanceMarkedAt
                 ? new Date(event.attendanceMarkedAt).toLocaleDateString()
                 : "N/A";
 
+              const status = getEventStatus(event?.eventId, attendanceDateStr);
+
               const row = worksheet.getRow(currentRowIndex + idx);
               row.values = [
-                student.name, // Value is set, but will be merged later
+                student.name,
                 student.prn,
                 student.department,
                 eventName,
                 ngoName,
+                status,
                 eventDate,
-                attendanceDate,
+                attendanceDateStr,
               ];
+
+              // Color Logic for Status (Col 6)
+              row.eachCell((cell, colNumber) => {
+                if (colNumber === 6) {
+                  const color = status === "Present" ? "FF10b981" : (status === "Absent" ? "FFef4444" : "FFf59e0b");
+                  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+                  cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+                }
+                // Borders will be applied in the student loop below, but we can set alignment here if needed
+              });
             });
           } else {
             // No events
@@ -818,6 +906,7 @@ export default function CollegeClassesScreen({ college }) {
               student.department || "",
               "No events attended",
               "-",
+              "-", // Status
               "-",
               "-",
             ];
@@ -1119,77 +1208,102 @@ export default function CollegeClassesScreen({ college }) {
             {/* Selected Event Data */}
             {showAttendanceTable && selectedEvent && (
               <View>
-                <View className="flex-row justify-between items-end mb-3">
-                  <View>
-                    <Text className="text-xs uppercase font-bold text-gray-400">
-                      Total Present
-                    </Text>
-                    <Text
-                      className="text-3xl font-light"
-                      style={{ color: colors.textPrimary }}
-                    >
-                      {eventAttendanceList.length}
-                    </Text>
+                {eventLoading ? (
+                  <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+                    <ActivityIndicator size="small" color={colors.accent} />
+                    <Text style={{ color: colors.textSecondary, marginTop: 8, fontSize: 12 }}>Loading attendance...</Text>
                   </View>
-                  {eventAttendanceList.length > 0 && (
-                    <TouchableOpacity
-                      onPress={exportEventAttendanceToExcel}
-                    >
-                      <Text className="text-xs font-bold underline" style={{ color: colors.accent }}>
-                        Download Report
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                {eventAttendanceList.length > 0 ? (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    className="border rounded-lg"
-                    style={{ borderColor: colors.border }}
-                  >
-                    <View>
-                      {/* Grid Header */}
-                      <View
-                        className="flex-row py-2 px-2 border-b"
-                        style={{ backgroundColor: "#F3F4F6", borderColor: colors.border }}
-                      >
-                        <Text className="w-32 text-xs font-bold text-gray-500 uppercase">Student Name</Text>
-                        <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">PRN</Text>
-                        <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">Class</Text>
-                        <Text className="w-28 text-xs font-bold text-gray-500 uppercase text-right">Date</Text>
-                      </View>
-                      {/* Grid Rows */}
-                      {eventAttendanceList.map((record, index) => (
-                        <View
-                          key={index}
-                          className="flex-row py-3 px-2 border-b last:border-0"
-                          style={{
-                            borderColor: colors.border,
-                            backgroundColor: colors.cardBg
-                          }}
-                        >
-                          <Text className="w-32 text-xs font-medium" style={{ color: colors.textPrimary }} numberOfLines={1}>
-                            {record.studentName}
-                          </Text>
-                          <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
-                            {record.prn}
-                          </Text>
-                          <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
-                            {record.className}
-                          </Text>
-                          <Text className="w-28 text-xs text-right" style={{ color: colors.textSecondary }}>
-                            {record.attendanceDate}
+                ) : (
+                  <>
+                    <View className="flex-row justify-between items-end mb-3">
+                      <View className="flex-row gap-4">
+                        <View>
+                          <Text className="text-[10px] uppercase font-bold" style={{ color: '#10b981' }}>Present</Text>
+                          <Text className="text-2xl font-light" style={{ color: '#10b981' }}>
+                            {eventAttendanceList.filter(r => r.status === "Present").length}
                           </Text>
                         </View>
-                      ))}
+                        <View>
+                          <Text className="text-[10px] uppercase font-bold" style={{ color: '#ef4444' }}>Absent</Text>
+                          <Text className="text-2xl font-light" style={{ color: '#ef4444' }}>
+                            {eventAttendanceList.filter(r => r.status === "Absent").length}
+                          </Text>
+                        </View>
+                        <View>
+                          <Text className="text-[10px] uppercase font-bold" style={{ color: '#f59e0b' }}>Registered</Text>
+                          <Text className="text-2xl font-light" style={{ color: '#f59e0b' }}>
+                            {eventAttendanceList.filter(r => r.status === "Registered").length}
+                          </Text>
+                        </View>
+                      </View>
+                      {eventAttendanceList.length > 0 && (
+                        <TouchableOpacity onPress={exportEventAttendanceToExcel}>
+                          <Text className="text-xs font-bold underline" style={{ color: colors.accent }}>
+                            Download Report
+                          </Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
-                  </ScrollView>
-                ) : (
-                  <Text className="text-center py-4 text-xs italic" style={{ color: colors.textSecondary }}>
-                    No attendance records found.
-                  </Text>
+
+                    {eventAttendanceList.length > 0 ? (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        className="border rounded-lg"
+                        style={{ borderColor: colors.border }}
+                      >
+                        <View>
+                          {/* Grid Header */}
+                          <View
+                            className="flex-row py-2 px-2 border-b"
+                            style={{ backgroundColor: "#F3F4F6", borderColor: colors.border }}
+                          >
+                            <Text className="w-32 text-xs font-bold text-gray-500 uppercase">Student Name</Text>
+                            <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">PRN</Text>
+                            <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">Class</Text>
+                            <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">Status</Text>
+                            <Text className="w-28 text-xs font-bold text-gray-500 uppercase text-right">Date</Text>
+                          </View>
+                          {/* Grid Rows */}
+                          {eventAttendanceList.map((record, index) => (
+                            <View
+                              key={index}
+                              className="flex-row py-3 px-2 border-b last:border-0"
+                              style={{
+                                borderColor: colors.border,
+                                backgroundColor: colors.cardBg
+                              }}
+                            >
+                              <Text className="w-32 text-xs font-medium" style={{ color: colors.textPrimary }} numberOfLines={1}>
+                                {record.studentName}
+                              </Text>
+                              <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
+                                {record.prn}
+                              </Text>
+                              <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
+                                {record.className}
+                              </Text>
+                              <View className="w-24 items-center justify-center">
+                                <Text className="text-[10px] font-bold px-2 py-0.5 rounded text-white overflow-hidden"
+                                  style={{
+                                    backgroundColor: record.status === "Present" ? "#10b981" : (record.status === "Absent" ? "#ef4444" : "#f59e0b")
+                                  }}>
+                                  {record.status}
+                                </Text>
+                              </View>
+                              <Text className="w-28 text-xs text-right" style={{ color: colors.textSecondary }}>
+                                {record.attendanceDate}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    ) : (
+                      <Text className="text-center py-4 text-xs italic" style={{ color: colors.textSecondary }}>
+                        No students registered for this event.
+                      </Text>
+                    )}
+                  </>
                 )}
               </View>
             )}

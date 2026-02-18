@@ -118,6 +118,15 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
     // Filter events based on search query and date range
     const filteredEvents = events.filter((event) => {
+        // Hide past events — only show today and upcoming
+        if (event.eventDate) {
+            const eventDate = new Date(event.eventDate);
+            eventDate.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (eventDate < today) return false;
+        }
+
         // Text search filter
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
@@ -199,7 +208,7 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
             {/* Title & My Events Button */}
             <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-2xl font-extrabold" style={{ color: colors.header }}>
-                    Available Events
+                    Upcoming Events
                 </Text>
                 <TouchableOpacity
                     className="px-4 py-2 rounded-xl flex-row items-center"

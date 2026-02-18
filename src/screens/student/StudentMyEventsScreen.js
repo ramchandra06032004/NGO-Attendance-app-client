@@ -13,7 +13,7 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
-import { ChevronLeft, CheckCircle, Clock } from "lucide-react-native";
+import { ChevronLeft, CheckCircle, Clock, XCircle } from "lucide-react-native";
 
 export default function StudentMyEventsScreen({ student }) {
     const { goBack } = useContext(NavigationContext);
@@ -79,11 +79,24 @@ export default function StudentMyEventsScreen({ student }) {
         return true;
     });
 
-    const getStatusColor = (status) => {
+    // Returns true when the student registered but the event date has already passed
+    const isMissed = (event) => {
+        if (event.status !== "Registered") return false;
+        if (!event.eventDate) return false;
+        const eventDate = new Date(event.eventDate);
+        eventDate.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return eventDate < today;
+    };
+
+    const getStatusColor = (status, missed) => {
+        if (missed) return "#ef4444"; // red for absent
         return status === "Attended" ? "#10b981" : "#f59e0b";
     };
 
-    const getStatusIcon = (status) => {
+    const getStatusIcon = (status, missed) => {
+        if (missed) return XCircle;
         return status === "Attended" ? CheckCircle : Clock;
     };
 
@@ -188,8 +201,9 @@ export default function StudentMyEventsScreen({ student }) {
                         </View>
                     }
                     renderItem={({ item }) => {
-                        const StatusIcon = getStatusIcon(item.status);
-                        const statusColor = getStatusColor(item.status);
+                        const missed = isMissed(item);
+                        const StatusIcon = getStatusIcon(item.status, missed);
+                        const statusColor = getStatusColor(item.status, missed);
 
                         return (
                             <View
@@ -211,7 +225,7 @@ export default function StudentMyEventsScreen({ student }) {
                                             className="text-xs font-bold"
                                             style={{ color: statusColor }}
                                         >
-                                            {item.status}
+                                            {missed ? "Absent" : item.status}
                                         </Text>
                                     </View>
                                     {item.attendanceMarkedAt && (
@@ -271,6 +285,19 @@ export default function StudentMyEventsScreen({ student }) {
                                 >
                                     {item.description}
                                 </Text>
+
+                                {/* Missed Event Banner */}
+                                {missed && (
+                                    <View
+                                        className="flex-row items-center mt-3 px-3 py-2 rounded-xl"
+                                        style={{ backgroundColor: "#ef444415", borderLeftWidth: 3, borderLeftColor: "#ef4444" }}
+                                    >
+                                        {/* <Text style={{ fontSize: 16, marginRight: 6 }}>😔</Text> */}
+                                        <Text className="text-xs font-semibold" style={{ color: "#ef4444" }}>
+                                            You missed this event!
+                                        </Text>
+                                    </View>
+                                )}
                             </View>
                         );
                     }}

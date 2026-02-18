@@ -1,9 +1,11 @@
 import React, { useContext, useEffect, useState, useMemo, createElement } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Platform, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Platform, TextInput, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { NavigationContext } from '../../context/NavigationContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
+import { AuthContext } from '../../context/AuthContext';
+import { studentEventsAPI } from '../../../apis/api';
 
 export default function StudentEventsScreen({ college, studentId }) {
   const { goBack } = useContext(NavigationContext);
@@ -15,6 +17,8 @@ export default function StudentEventsScreen({ college, studentId }) {
   const [student, setStudent] = useState({ name: 'Student', id: studentId, attendedEvents: [] });
   const [className, setClassName] = useState('');
   const [viewMode, setViewMode] = useState('card');
+  const [loading, setLoading] = useState(false);
+  const { accessToken } = useContext(AuthContext);
 
   // Filter States
   const [startDate, setStartDate] = useState(null);
@@ -26,25 +30,78 @@ export default function StudentEventsScreen({ college, studentId }) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
 
+  // Helper to determine Present / Absent / Registered status
+  const getEventStatus = (eventObj, attendanceDateStr) => {
+    if (attendanceDateStr && attendanceDateStr !== 'N/A') return 'Present';
+    if (!eventObj || !eventObj.eventDate) return 'Registered';
+    const eventDate = new Date(eventObj.eventDate);
+    eventDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return eventDate < today ? 'Absent' : 'Registered';
+  };
+
   useEffect(() => {
-    const foundStudent = college.classes.flatMap(c => c.students).find(s => s._id.toString() === studentId) || { name: 'Student', id: studentId, attendedEvents: [] };
-    setStudent(foundStudent);
+    const fetchStudentAndEvents = async () => {
+      setLoading(true);
+      try {
+        // 1. Get student basic info from college prop
+        const foundStudent = college.classes.flatMap(c => c.students).find(s => s._id.toString() === studentId) || { name: 'Student', id: studentId, attendedEvents: [] };
+        setStudent(foundStudent);
 
-    const foundClass = college.classes.find(c => c.students.some(s => s._id.toString() === studentId));
-    setClassName(foundClass ? foundClass.className : '');
+        const foundClass = college.classes.find(c => c.students.some(s => s._id.toString() === studentId));
+        setClassName(foundClass ? foundClass.className : '');
 
-    const attendedEvents = foundStudent.attendedEvents?.map(att => ({
-      eventName: att.eventId?.aim || 'General Event',
-      ngoName: att.eventId?.createdBy?.name || 'N/A',
-      eventLocation: att.eventId?.location || 'Campus',
-      rawDate: att.eventId?.eventDate ? new Date(att.eventId.eventDate) : null,
-      eventDate: att.eventId?.eventDate ? new Date(att.eventId.eventDate).toDateString() : 'N/A',
-      attendedDate: att.attendanceMarkedAt ? new Date(att.attendanceMarkedAt).toDateString() : 'N/A',
-    })) || [];
+        // 2. Fetch ALL events from API (allows us to see registrations, not just attendance)
+        const response = await fetch(studentEventsAPI, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json"
+          }
+        });
 
-    setAllEvents(attendedEvents);
-    setFilteredEvents(attendedEvents);
-  }, [studentId]);
+        if (!response.ok) throw new Error("Failed to fetch events");
+        const data = await response.json();
+        const apiEvents = data?.data?.events || [];
+
+        // 3. Filter events where this student is registered
+        // Logic: event.colleges contains collegeId, and that college's students list contains studentId
+        const studentRegistrations = apiEvents.filter(ev => {
+          return ev.colleges?.some(c =>
+            c.collegeId?.toString() === college._id?.toString() &&
+            c.students?.some(sId => sId?.toString() === studentId)
+          );
+        });
+
+        // 4. Map to display objects with status
+        const processedEvents = studentRegistrations.map(ev => {
+          // Check if student actually attended (from their own attendedEvents record)
+          const attendanceRecord = foundStudent.attendedEvents?.find(att => att.eventId?._id?.toString() === ev._id?.toString());
+          const attendedDate = attendanceRecord?.attendanceMarkedAt ? new Date(attendanceRecord.attendanceMarkedAt).toDateString() : 'N/A';
+
+          return {
+            eventName: ev.aim || 'General Event',
+            ngoName: ev.createdBy?.name || 'N/A',
+            eventLocation: ev.location || 'Campus',
+            rawDate: ev.eventDate ? new Date(ev.eventDate) : null,
+            eventDate: ev.eventDate ? new Date(ev.eventDate).toDateString() : 'N/A',
+            attendedDate,
+            status: getEventStatus(ev, attendedDate),
+          };
+        });
+
+        setAllEvents(processedEvents);
+        setFilteredEvents(processedEvents);
+      } catch (err) {
+        console.error("Error loading student events:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStudentAndEvents();
+  }, [studentId, accessToken, college]);
 
   // Use useMemo to compute filtered events - prevents infinite loop
   const computedFilteredEvents = useMemo(() => {
@@ -271,48 +328,60 @@ export default function StudentEventsScreen({ college, studentId }) {
       <Text className="font-bold text-white text-center text-[9px] px-0.5" style={{ flex: 1 }}>Venue</Text>
       <Text className="font-bold text-white text-center text-[9px] px-0.5" style={{ flex: 0.9 }}>NGO</Text>
       <Text className="font-bold text-white text-center text-[9px] px-0.5" style={{ flex: 1 }}>E-Date</Text>
-      <Text className="font-bold text-white text-center text-[9px] px-0.5" style={{ flex: 1 }}>Attended</Text>
+      <Text className="font-bold text-white text-center text-[9px] px-0.5" style={{ flex: 1 }}>Status</Text>
     </View>
   );
 
-  const renderTableRow = (item, index) => (
-    <View key={index} className="flex-row p-2 border-b border-l border-r" style={{
-      backgroundColor: index % 2 === 0 ? colors.cardBg : (colors.backgroundColors?.[1] || '#f9f9f9'),
-      borderColor: colors.border,
-      alignItems: 'center'
-    }}>
-      <Text className="text-center text-[9px]" style={{ color: colors.textPrimary, flex: 1.1 }}>{item.eventName}</Text>
-      <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 1 }}>{item.eventLocation}</Text>
-      <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 0.9 }}>{item.ngoName}</Text>
-      <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 1 }}>{item.eventDate}</Text>
-      <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 1 }}>{item.attendedDate}</Text>
-    </View>
-  );
+  const renderTableRow = (item, index) => {
+    const statusColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
+    return (
+      <View key={index} className="flex-row p-2 border-b border-l border-r" style={{
+        backgroundColor: index % 2 === 0 ? colors.cardBg : (colors.backgroundColors?.[1] || '#f9f9f9'),
+        borderColor: colors.border,
+        alignItems: 'center'
+      }}>
+        <Text className="text-center text-[9px]" style={{ color: colors.textPrimary, flex: 1.1 }}>{item.eventName}</Text>
+        <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 1 }}>{item.eventLocation}</Text>
+        <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 0.9 }}>{item.ngoName}</Text>
+        <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 1 }}>{item.eventDate}</Text>
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#fff', backgroundColor: statusColor, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
+            {item.status}
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
-  const renderEventCard = (item, index) => (
-    <View key={index} className="mb-4 p-5 rounded-2xl border-l-4 border shadow-sm" style={{ backgroundColor: colors.cardBg, borderLeftColor: colors.accent, borderColor: colors.border, elevation: 2 }}>
-      <View className="flex-row justify-between items-start mb-2">
-        <View className="flex-1 mr-2">
-          <Text className="text-lg font-bold" style={{ color: colors.textPrimary }}>{item.eventName}</Text>
-          <Text className="text-sm font-medium mt-1" style={{ color: colors.textSecondary }}>{item.eventLocation}</Text>
+  const renderEventCard = (item, index) => {
+    const statusColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
+    const borderColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
+    return (
+      <View key={index} className="mb-4 p-5 rounded-2xl border-l-4 border shadow-sm" style={{ backgroundColor: colors.cardBg, borderLeftColor: borderColor, borderColor: colors.border, elevation: 2 }}>
+        <View className="flex-row justify-between items-start mb-2">
+          <View className="flex-1 mr-2">
+            <Text className="text-lg font-bold" style={{ color: colors.textPrimary }}>{item.eventName}</Text>
+            <Text className="text-sm font-medium mt-1" style={{ color: colors.textSecondary }}>{item.eventLocation}</Text>
+          </View>
+          {/* Status Badge */}
+          <View style={{ backgroundColor: statusColor, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>{item.status}</Text>
+          </View>
         </View>
-        <View className="px-2 py-1 rounded-md" style={{ backgroundColor: colors.accent + '15' }}>
-          <Text className="text-[10px] font-bold uppercase" style={{ color: colors.accent }}>NGO: {item.ngoName}</Text>
+        <View className="h-[1px] w-full my-3 opacity-10" style={{ backgroundColor: colors.textSecondary }} />
+        <View className="flex-row justify-between items-center">
+          <View>
+            <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>Event Date</Text>
+            <Text className="text-xs font-semibold" style={{ color: colors.textPrimary }}>{item.eventDate}</Text>
+          </View>
+          <View>
+            <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>NGO</Text>
+            <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>{item.ngoName}</Text>
+          </View>
         </View>
       </View>
-      <View className="h-[1px] w-full my-3 opacity-10" style={{ backgroundColor: colors.textSecondary }} />
-      <View className="flex-row justify-between items-center">
-        <View>
-          <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>Event Date</Text>
-          <Text className="text-xs font-semibold" style={{ color: colors.textPrimary }}>{item.eventDate}</Text>
-        </View>
-        <View className="items-end">
-          <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>Attended On</Text>
-          <Text className="text-sm font-bold" style={{ color: colors.accent }}>{item.attendedDate}</Text>
-        </View>
-      </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#F8FAFC' }}>
@@ -331,14 +400,47 @@ export default function StudentEventsScreen({ college, studentId }) {
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 40, paddingTop: 20 }} showsVerticalScrollIndicator={false}>
         {renderHeader()}
         {renderFilterSection()}
+
+        {/* --- ATTENDANCE ANALYTICS --- */}
+        {!loading && filteredEvents.length > 0 && (
+          <View className="flex-row justify-between p-4 rounded-xl mb-6 border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+            <View className="items-center flex-1">
+              <Text className="text-[10px] uppercase font-bold" style={{ color: '#10b981' }}>Present</Text>
+              <Text className="text-xl font-bold" style={{ color: '#10b981' }}>
+                {filteredEvents.filter(e => e.status === 'Present').length}
+              </Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: colors.border, height: '100%', marginHorizontal: 10 }} />
+            <View className="items-center flex-1">
+              <Text className="text-[10px] uppercase font-bold" style={{ color: '#ef4444' }}>Absent</Text>
+              <Text className="text-xl font-bold" style={{ color: '#ef4444' }}>
+                {filteredEvents.filter(e => e.status === 'Absent').length}
+              </Text>
+            </View>
+            <View style={{ width: 1, backgroundColor: colors.border, height: '100%', marginHorizontal: 10 }} />
+            <View className="items-center flex-1">
+              <Text className="text-[10px] uppercase font-bold" style={{ color: '#f59e0b' }}>Registered</Text>
+              <Text className="text-xl font-bold" style={{ color: '#f59e0b' }}>
+                {filteredEvents.filter(e => e.status === 'Registered').length}
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-bold" style={{ color: colors.textPrimary }}>Activity History</Text>
           <Text className="text-xs font-medium opacity-60" style={{ color: colors.textSecondary }}>{filteredEvents.length} Events Found</Text>
         </View>
         {renderViewToggle()}
-        {filteredEvents.length === 0 ? (
+
+        {loading ? (
+          <View className="py-20 items-center">
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text className="mt-4 text-xs" style={{ color: colors.textSecondary }}>Loading event history...</Text>
+          </View>
+        ) : filteredEvents.length === 0 ? (
           <View className="items-center justify-center py-10 opacity-60">
-            <Text className="text-lg font-medium" style={{ color: colors.textSecondary }}>No events match your search.</Text>
+            <Text className="text-lg font-medium" style={{ color: colors.textSecondary }}>No events found for this student.</Text>
           </View>
         ) : (
           <View>
