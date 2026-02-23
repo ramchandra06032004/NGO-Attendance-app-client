@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useMemo } from "react";
 import {
     View,
     Text,
@@ -100,6 +100,36 @@ export default function StudentMyEventsScreen({ student }) {
         return status === "Attended" ? CheckCircle : Clock;
     };
 
+    // --- Score Calculation ---
+    const score = useMemo(() => {
+        const attended = events.filter(e => e.status === 'Attended').length;
+        return attended * 10;
+    }, [events]);
+
+    const maxScore = useMemo(() => {
+        const pastEvents = events.filter(e => e.status === 'Attended' || isMissed(e)).length;
+        return pastEvents > 0 ? pastEvents * 10 : 10;
+    }, [events]);
+
+    // Grade is based on attendance ratio: attended / (attended + missed)
+    const attendanceRatio = useMemo(() => {
+        const attended = events.filter(e => e.status === 'Attended').length;
+        const missed = events.filter(e => isMissed(e)).length;
+        const total = attended + missed;
+        return total > 0 ? (attended / total) * 100 : null; // null = no past events yet
+    }, [events]);
+
+    const getGrade = (ratio) => {
+        if (ratio === null) return { label: 'No Data', color: '#94a3b8', icon: '➖' };
+        if (ratio >= 80) return { label: 'Excellent', color: '#10b981', icon: '🌟' };
+        if (ratio >= 60) return { label: 'Good', color: '#3b82f6', icon: '✅' };
+        if (ratio >= 40) return { label: 'Average', color: '#f59e0b', icon: '⚠️' };
+        return { label: 'Poor', color: '#ef4444', icon: '❌' };
+    };
+
+    const grade = getGrade(attendanceRatio);
+    const scorePct = Math.min(100, maxScore > 0 ? (score / maxScore) * 100 : 0);
+
     return (
         <View
             className="flex-1 px-5 pt-8"
@@ -125,13 +155,14 @@ export default function StudentMyEventsScreen({ student }) {
             {/* Stats Card */}
             {!loading && events.length > 0 && (
                 <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-                    <View className="flex-row justify-around">
+                    {/* Counts row */}
+                    <View className="flex-row justify-around mb-4">
                         <View className="items-center">
                             <Text className="text-2xl font-bold" style={{ color: colors.accent }}>
                                 {events.length}
                             </Text>
                             <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Total Events
+                                Total
                             </Text>
                         </View>
                         <View className="items-center">
@@ -143,13 +174,41 @@ export default function StudentMyEventsScreen({ student }) {
                             </Text>
                         </View>
                         <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
-                                {events.filter(e => e.status === "Registered").length}
+                            <Text className="text-2xl font-bold" style={{ color: "#ef4444" }}>
+                                {events.filter(e => isMissed(e)).length}
                             </Text>
                             <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Registered
+                                Absent
                             </Text>
                         </View>
+                        <View className="items-center">
+                            <Text className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
+                                {events.filter(e => e.status === "Registered" && !isMissed(e)).length}
+                            </Text>
+                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                Upcoming
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Score Section */}
+                    <View style={{ backgroundColor: grade.color + '12', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: grade.color + '40' }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: colors.textSecondary }}>My Score</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 }}>
+                                <Text style={{ fontSize: 11, marginRight: 3 }}>{grade.icon}</Text>
+                                <Text style={{ fontSize: 11, fontWeight: 'bold', color: grade.color }}>{grade.label}</Text>
+                            </View>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginBottom: 6 }}>
+                            <Text style={{ fontSize: 26, fontWeight: '900', color: grade.color, lineHeight: 30 }}>{score}</Text>
+                            <Text style={{ fontSize: 12, color: colors.textSecondary, marginLeft: 4, marginBottom: 2 }}>/ {maxScore} pts</Text>
+                        </View>
+                        {/* Progress bar */}
+                        <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
+                            <View style={{ height: '100%', width: `${scorePct}%`, backgroundColor: grade.color, borderRadius: 3 }} />
+                        </View>
+                        <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Grade based on attendance ratio (attended ÷ past events)</Text>
                     </View>
                 </View>
             )}

@@ -41,6 +41,36 @@ export default function StudentEventsScreen({ college, studentId }) {
     return eventDate < today ? 'Absent' : 'Registered';
   };
 
+  // Score calculation (based on all-time events, not filtered view)
+  const score = useMemo(() => {
+    const present = allEvents.filter(e => e.status === 'Present').length;
+    return present * 10;
+  }, [allEvents]);
+
+  const maxScore = useMemo(() => {
+    const past = allEvents.filter(e => e.status !== 'Registered').length;
+    return past > 0 ? past * 10 : 10;
+  }, [allEvents]);
+
+  // Grade is based on attendance ratio: present / (present + absent)
+  const attendanceRatio = useMemo(() => {
+    const present = allEvents.filter(e => e.status === 'Present').length;
+    const absent = allEvents.filter(e => e.status === 'Absent').length;
+    const total = present + absent;
+    return total > 0 ? (present / total) * 100 : null; // null = no past events yet
+  }, [allEvents]);
+
+  const getGrade = (ratio) => {
+    if (ratio === null) return { label: 'No Data', color: '#94a3b8', icon: '➖' };
+    if (ratio >= 80) return { label: 'Excellent', color: '#10b981', icon: '🌟' };
+    if (ratio >= 60) return { label: 'Good', color: '#3b82f6', icon: '✅' };
+    if (ratio >= 40) return { label: 'Average', color: '#f59e0b', icon: '⚠️' };
+    return { label: 'Poor', color: '#ef4444', icon: '❌' };
+  };
+
+  const grade = getGrade(attendanceRatio);
+  const scorePct = Math.min(100, maxScore > 0 ? (score / maxScore) * 100 : 0);
+
   useEffect(() => {
     const fetchStudentAndEvents = async () => {
       setLoading(true);
@@ -240,7 +270,7 @@ export default function StudentEventsScreen({ college, studentId }) {
         </View>
       </View>
       <View className="h-[1px] w-full mb-4 opacity-20" style={{ backgroundColor: colors.textSecondary }} />
-      <View className="flex-row justify-between">
+      <View className="flex-row justify-between mb-4">
         <View className="flex-1">
           <Text className="text-[10px] uppercase font-bold mb-1 opacity-60" style={{ color: colors.textSecondary }}>Department</Text>
           <Text className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{student.department || "N/A"}</Text>
@@ -250,6 +280,28 @@ export default function StudentEventsScreen({ college, studentId }) {
           <Text className="text-sm font-semibold" style={{ color: colors.textPrimary }}>{className || "N/A"}</Text>
         </View>
       </View>
+
+      {/* Score Card */}
+      {allEvents.length > 0 && (
+        <View style={{ backgroundColor: grade.color + '12', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: grade.color + '40' }}>
+          <View className="flex-row justify-between items-center mb-2">
+            <Text className="text-[10px] uppercase font-bold" style={{ color: colors.textSecondary }}>Attendance Score</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
+              <Text style={{ fontSize: 11, marginRight: 3 }}>{grade.icon}</Text>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: grade.color }}>{grade.label}</Text>
+            </View>
+          </View>
+          <View className="flex-row items-end mb-2">
+            <Text style={{ fontSize: 28, fontWeight: '900', color: grade.color, lineHeight: 32 }}>{score}</Text>
+            <Text style={{ fontSize: 13, color: colors.textSecondary, marginLeft: 4, marginBottom: 2 }}>/ {maxScore} pts</Text>
+          </View>
+          {/* Progress bar */}
+          <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
+            <View style={{ height: '100%', width: `${scorePct}%`, backgroundColor: grade.color, borderRadius: 3 }} />
+          </View>
+          <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Grade based on attendance ratio (present ÷ past events)</Text>
+        </View>
+      )}
     </View>
   );
 

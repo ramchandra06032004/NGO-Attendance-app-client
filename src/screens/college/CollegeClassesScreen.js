@@ -9,7 +9,7 @@ import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
 import { useTheme } from '../../context/ThemeContext';
 import { AuthContext } from "../../context/AuthContext";
-import { college_host } from "../../../apis/api";
+import { college_host, getAllCollegeAPI } from "../../../apis/api";
 
 // And ensure FileSystem/Sharing are required for mobile (as in your previous code)
 // Platform-specific imports
@@ -24,7 +24,6 @@ export default function CollegeClassesScreen({ college }) {
   const { addClass } = useContext(AttendanceContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
-  const classes = college.classes || [];
   const [newClass, setNewClass] = useState('');
   const [loading, setLoading] = useState(false);
   const { logout, accessToken } = useContext(AuthContext);
@@ -34,6 +33,13 @@ export default function CollegeClassesScreen({ college }) {
   const [eventAttendanceList, setEventAttendanceList] = useState([]);
   const [showAttendanceTable, setShowAttendanceTable] = useState(false);
   const [eventLoading, setEventLoading] = useState(false);
+  const [collegeData, setCollegeData] = useState(college); // local fresh copy
+  const [dataLoading, setDataLoading] = useState(false);
+  const [classSearch, setClassSearch] = useState('');
+  const classes = collegeData.classes || [];
+  const filteredClasses = classes.filter(c =>
+    c.className?.toLowerCase().includes(classSearch.toLowerCase())
+  );
 
   // Helper to determine status based on attendance mark and date
   const getEventStatus = (eventObj, attendanceDateStr) => {
@@ -96,12 +102,39 @@ export default function CollegeClassesScreen({ college }) {
     }
   };
 
+  // Fetch fresh college data on mount to avoid stale cached data after refresh
   useEffect(() => {
-    // console.log("College data: ", college); // <--- COMMENT THIS OUT to fix the crash
-    // Extract unique events from all classes and students
-    const allEvents = new Map();
+    const fetchFreshCollegeData = async () => {
+      try {
+        setDataLoading(true);
+        const response = await fetch(getAllCollegeAPI, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!response.ok) throw new Error('Failed to fetch college data');
+        const data = await response.json();
+        const colleges = data?.data?.colleges || [];
+        // Match by _id to get THIS college's fresh fully-populated data
+        const fresh = colleges.find(c => c._id?.toString() === college._id?.toString());
+        if (fresh) setCollegeData(fresh);
+      } catch (err) {
+        console.warn('Could not refresh college data, using cached data:', err);
+      } finally {
+        setDataLoading(false);
+      }
+    };
+    if (accessToken && college?._id) {
+      fetchFreshCollegeData();
+    }
+  }, [college._id, accessToken]);
 
-    college.classes?.forEach((cls) => {
+  // Re-extract events list whenever fresh college data loads
+  useEffect(() => {
+    const allEvents = new Map();
+    collegeData.classes?.forEach((cls) => {
       cls.students?.forEach((student) => {
         student.attendedEvents?.forEach((event) => {
           const eventId = event.eventId?._id;
@@ -117,9 +150,8 @@ export default function CollegeClassesScreen({ college }) {
         });
       });
     });
-
     setEventsList(Array.from(allEvents.values()));
-  }, [college]);
+  }, [collegeData]);
 
   const handleLogout = async () => {
     await logout();
@@ -195,9 +227,9 @@ export default function CollegeClassesScreen({ college }) {
       setLoading(true);
 
       const workbook = new ExcelJS.Workbook();
-      const collegeName = college.name?.toUpperCase() || "College";
-      const collegeAddress = college.address || "Address not available";
-      const logoUrl = college.logoUrl || college.profileImage; // Check both keys
+      const collegeName = collegeData.name?.toUpperCase() || "College";
+      const collegeAddress = collegeData.address || "Address not available";
+      const logoUrl = collegeData.logoUrl || collegeData.profileImage;
 
       // --- 1. PRE-LOAD LOGO IMAGE (ONCE) ---
       let logoImageId = null;
@@ -423,7 +455,7 @@ export default function CollegeClassesScreen({ college }) {
       }
 
       // --- 3. WRITE & SAVE ---
-      const filename = `all_events_${college.name?.replace(/\s+/g, "_")}.xlsx`;
+      const filename = `all_events_${collegeData.name?.replace(/\s+/g, "_")}.xlsx`;
       const buffer = await workbook.xlsx.writeBuffer();
 
       if (RNPlatform.OS === "web") {
@@ -474,9 +506,9 @@ export default function CollegeClassesScreen({ college }) {
       setLoading(true);
 
       const workbook = new ExcelJS.Workbook();
-      const collegeName = college.name?.toUpperCase() || "College";
-      const collegeAddress = college.address || "Address not available";
-      const logoUrl = college.logoUrl || college.profileImage; // Check both keys
+      const collegeName = collegeData.name?.toUpperCase() || "College";
+      const collegeAddress = collegeData.address || "Address not available";
+      const logoUrl = collegeData.logoUrl || collegeData.profileImage;
 
       // --- 1. PRE-LOAD LOGO IMAGE ---
       let logoImageId = null;
@@ -728,9 +760,9 @@ export default function CollegeClassesScreen({ college }) {
       setLoading(true);
 
       const workbook = new ExcelJS.Workbook();
-      const collegeName = college.name.toUpperCase() || "College";
-      const collegeAddress = college.address || "Address not available";
-      const logoUrl = college.logoUrl;
+      const collegeName = collegeData.name?.toUpperCase() || "College";
+      const collegeAddress = collegeData.address || "Address not available";
+      const logoUrl = collegeData.logoUrl;
 
       // --- 1. PRE-LOAD LOGO IMAGE ---
       let logoImageId = null;
@@ -775,8 +807,66 @@ export default function CollegeClassesScreen({ college }) {
         }
       }
 
-      // --- 2. CREATE SHEETS PER CLASS ---
-      college.classes.forEach((classData) => {
+      // --- 2. FETCH ALL EVENTS' FULL REGISTRATION DATA ---
+      // Build a map: studentId → [{ eventId, eventName, ngoName, eventDate, status, attendanceDate }]
+      const studentEventMap = {}; // key: student._id, value: array of event records
+
+      for (const event of eventsList) {
+        try {
+          const res = await fetch(
+            `${college_host}/event/${event._id}/attendance`,
+            {
+              method: "GET",
+              credentials: "include",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+          if (!res.ok) continue;
+          const apiData = await res.json();
+          const students = apiData?.data?.attendance?.[0]?.students || [];
+
+          students.forEach((student) => {
+            const attDate = student.attendanceMarkedAt
+              ? new Date(student.attendanceMarkedAt).toLocaleDateString()
+              : "N/A";
+            const status = getEventStatus(event, attDate);
+            const record = {
+              eventName: event.aim || "N/A",
+              ngoName: event.createdBy || "N/A",
+              eventDate: event.eventDate
+                ? new Date(event.eventDate).toLocaleDateString()
+                : "N/A",
+              attendanceDate: attDate,
+              status,
+              studentId: student._id?.toString() || student.prn,
+              prn: student.prn,
+              name: student.name,
+              department: student.department || "N/A",
+              className: student.className || "N/A",
+            };
+            // Store under BOTH _id and prn so lookup always succeeds
+            const idKey = student._id?.toString();
+            const prnKey = student.prn?.toString();
+            if (idKey) {
+              if (!studentEventMap[idKey]) studentEventMap[idKey] = [];
+              studentEventMap[idKey].push(record);
+            }
+            if (prnKey && prnKey !== idKey) {
+              if (!studentEventMap[prnKey]) studentEventMap[prnKey] = [];
+              studentEventMap[prnKey].push(record);
+            }
+          });
+        } catch (err) {
+          console.warn(`Could not fetch attendance for event ${event._id}:`, err);
+        }
+      }
+
+      // --- 3. CREATE SHEETS PER CLASS ---
+      collegeData.classes.forEach((classData) => {
         if (!classData.students || classData.students.length === 0) return;
 
         const safeSheetName = (classData.className || "Class")
@@ -796,19 +886,19 @@ export default function CollegeClassesScreen({ college }) {
         }
 
         // --- B. HEADER INFORMATION ---
-        worksheet.mergeCells("B2:G2");
+        worksheet.mergeCells("B2:H2");
         const nameCell = worksheet.getCell("B2");
         nameCell.value = collegeName;
         nameCell.font = { bold: true, size: 18 };
         nameCell.alignment = { vertical: "middle" };
 
-        worksheet.mergeCells("B3:G3");
+        worksheet.mergeCells("B3:H3");
         const addrCell = worksheet.getCell("B3");
         addrCell.value = collegeAddress;
         addrCell.font = { color: { argb: "FF666666" }, size: 12 };
         addrCell.alignment = { vertical: "top" };
 
-        worksheet.mergeCells("A5:G5");
+        worksheet.mergeCells("A5:H5");
         const classHeader = worksheet.getCell("A5");
         classHeader.value = `CLASS: ${classData.className}`;
         classHeader.fill = {
@@ -854,89 +944,84 @@ export default function CollegeClassesScreen({ college }) {
         headerRow.height = 25;
 
         // --- D. DATA ROWS WITH MERGING ---
-        let currentRowIndex = 8; // Start after header
+        let currentRowIndex = 8;
+        let blockIndex = 0;
 
         classData.students.forEach((student) => {
-          const events = student.attendedEvents || [];
+          // Look up by _id first, then by prn (dual-key for reliable matching)
+          const idKey = student._id?.toString();
+          const prnKey = student.prn?.toString();
+          const events = studentEventMap[idKey] || studentEventMap[prnKey] || [];
+
           const rowCount = events.length > 0 ? events.length : 1;
           const startRow = currentRowIndex;
           const endRow = currentRowIndex + rowCount - 1;
+          const isEvenBlock = blockIndex % 2 === 0;
+          const bgColor = isEvenBlock ? "FFFFFFFF" : "FFF2F2F2";
 
           if (events.length > 0) {
             events.forEach((event, idx) => {
-              const eventName = event?.eventId?.aim || "N/A";
-              const ngoName = event?.eventId?.createdBy?.name || "N/A";
-              const eventDate = event?.eventId?.eventDate
-                ? new Date(event.eventId.eventDate).toLocaleDateString()
-                : "N/A";
-              const attendanceDateStr = event?.attendanceMarkedAt
-                ? new Date(event.attendanceMarkedAt).toLocaleDateString()
-                : "N/A";
-
-              const status = getEventStatus(event?.eventId, attendanceDateStr);
-
               const row = worksheet.getRow(currentRowIndex + idx);
               row.values = [
-                student.name,
-                student.prn,
-                student.department,
-                eventName,
-                ngoName,
-                status,
-                eventDate,
-                attendanceDateStr,
+                student.name || "",
+                student.prn || "N/A",
+                student.department || event.department || "N/A",
+                event.eventName,
+                event.ngoName,
+                event.status,
+                event.eventDate,
+                event.attendanceDate,
               ];
-
-              // Color Logic for Status (Col 6)
-              row.eachCell((cell, colNumber) => {
-                if (colNumber === 6) {
-                  const color = status === "Present" ? "FF10b981" : (status === "Absent" ? "FFef4444" : "FFf59e0b");
-                  cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
-                  cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-                }
-                // Borders will be applied in the student loop below, but we can set alignment here if needed
-              });
             });
           } else {
-            // No events
             const row = worksheet.getRow(currentRowIndex);
             row.values = [
               student.name || "",
               student.prn || "N/A",
               student.department || "",
-              "No events attended",
+              "No events registered",
               "-",
-              "-", // Status
+              "-",
               "-",
               "-",
             ];
           }
 
-          // --- APPLY MERGING ---
-          // Merge Name, PRN, Dept columns (A, B, C) vertically for this student
+          // --- APPLY MERGING for student identity columns ---
           if (rowCount > 1) {
             worksheet.mergeCells(`A${startRow}:A${endRow}`);
             worksheet.mergeCells(`B${startRow}:B${endRow}`);
             worksheet.mergeCells(`C${startRow}:C${endRow}`);
           }
 
-          // --- APPLY STYLING TO ALL ROWS FOR THIS STUDENT ---
+          // --- APPLY STYLING: background first, then override col 6 (Status) ---
           for (let r = startRow; r <= endRow; r++) {
             const row = worksheet.getRow(r);
-            // Alternate colors based on STUDENT groups (not just individual rows)
-            // Using startRow ensures the whole block is the same color
-            const isEvenBlock = startRow % 2 === 0;
-            const bgColor = isEvenBlock ? "FFFFFFFF" : "FFF2F2F2";
+            const eventIdx = r - startRow;
+            const status = events[eventIdx]?.status;
 
             row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-              cell.fill = {
-                type: "pattern",
-                pattern: "solid",
-                fgColor: { argb: bgColor },
-              };
+              if (colNumber === 6 && status && status !== "-") {
+                // Status cell: colored badge
+                const color =
+                  status === "Present"
+                    ? "FF10b981"
+                    : status === "Absent"
+                      ? "FFef4444"
+                      : "FFf59e0b";
+                cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+                cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+              } else {
+                // All other cells: alternating row background
+                cell.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: bgColor },
+                };
+              }
               cell.alignment = {
                 horizontal: "center",
-                vertical: "middle", // Important for merged cells
+                vertical: "middle",
                 wrapText: true,
               };
               cell.border = {
@@ -948,8 +1033,8 @@ export default function CollegeClassesScreen({ college }) {
             });
           }
 
-          // Advance the row index
           currentRowIndex += rowCount;
+          blockIndex++;
         });
 
         // Set Column Widths
@@ -958,14 +1043,15 @@ export default function CollegeClassesScreen({ college }) {
           { width: 15 }, // PRN
           { width: 20 }, // Dept
           { width: 30 }, // Event
-          { width: 20 }, // NGO
-          { width: 15 }, // Date
-          { width: 15 }, // Date
+          { width: 22 }, // NGO
+          { width: 14 }, // Status
+          { width: 15 }, // Event Date
+          { width: 18 }, // Attendance Date
         ];
       });
 
-      // --- 3. WRITE & SAVE FILE ---
-      const filename = `college_data_${college.name?.replace(
+      // --- 4. WRITE & SAVE FILE ---
+      const filename = `college_data_${collegeData.name?.replace(
         /\s+/g,
         "_"
       )}.xlsx`;
@@ -983,14 +1069,11 @@ export default function CollegeClassesScreen({ college }) {
         window.URL.revokeObjectURL(url);
         alert("College data exported successfully!");
       } else {
-        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
 
         if (RNPlatform.OS === "android") {
-          // Android: Let user choose where to save
           await saveFile(filename, base64);
         } else {
-          // iOS: Use share sheet
           const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
           await RealFileSystem.writeAsStringAsync(fileUri, base64, {
             encoding: RealFileSystem.EncodingType.Base64,
@@ -1028,7 +1111,7 @@ export default function CollegeClassesScreen({ college }) {
       style={{
         backgroundColor: colors.backgroundColors
           ? colors.backgroundColors[0]
-          : "#F8F9FA", // Very light grey professional background
+          : "#F8F9FA",
       }}
     >
       <ScrollView
@@ -1051,16 +1134,16 @@ export default function CollegeClassesScreen({ college }) {
                   flexShrink: 0,
                 }}
               >
-                {college.logoUrl ? (
+                {collegeData.logoUrl ? (
                   <Image
-                    source={{ uri: college.logoUrl }}
+                    source={{ uri: collegeData.logoUrl }}
                     style={{ width: '100%', height: '100%' }}
                     resizeMode="cover"
                   />
                 ) : (
                   <View className="flex-1 justify-center items-center" style={{ backgroundColor: colors.accent }}>
                     <Text className="text-white font-bold text-2xl">
-                      {college.name?.[0]?.toUpperCase() || "C"}
+                      {collegeData.name?.[0]?.toUpperCase() || "C"}
                     </Text>
                   </View>
                 )}
@@ -1072,13 +1155,13 @@ export default function CollegeClassesScreen({ college }) {
                   className="font-bold text-base leading-5"
                   style={{ color: colors.header }}
                 >
-                  {college.name.toUpperCase()}
+                  {collegeData.name?.toUpperCase()}
                 </Text>
                 <Text
                   className="text-xs mt-1"
                   style={{ color: colors.textSecondary }}
                 >
-                  {college.address}
+                  {collegeData.address}
                 </Text>
               </View>
             </View>
@@ -1147,7 +1230,11 @@ export default function CollegeClassesScreen({ college }) {
             </Text>
           </View>
 
-          <View className="p-4">
+          <View
+            className="p-4"
+            onStartShouldSetResponder={() => true}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             {/* Dropdown Selector */}
             <TouchableOpacity
               activeOpacity={0.8}
@@ -1170,14 +1257,23 @@ export default function CollegeClassesScreen({ college }) {
               <Text style={{ color: colors.textSecondary, fontSize: 10 }}>▼</Text>
             </TouchableOpacity>
 
-            {/* Dropdown Options */}
-            {showEventDropdown && (
+            {/* Dropdown Loading or Options */}
+            {dataLoading ? (
+              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                <ActivityIndicator size="small" color={colors.accent} />
+                <Text style={{ color: colors.textSecondary, marginTop: 8, fontSize: 12 }}>Loading events...</Text>
+              </View>
+            ) : showEventDropdown && (
               <View
                 className="border rounded-lg mb-4 overflow-hidden"
                 style={{ borderColor: colors.border, maxHeight: 200 }}
               >
                 <ScrollView nestedScrollEnabled>
-                  {eventsList.map((event, idx) => (
+                  {eventsList.length === 0 ? (
+                    <View style={{ padding: 16, alignItems: 'center' }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>No events found</Text>
+                    </View>
+                  ) : eventsList.map((event, idx) => (
                     <TouchableOpacity
                       key={event._id}
                       className={`p-3 ${idx !== eventsList.length - 1 ? "border-b" : ""}`}
@@ -1248,11 +1344,13 @@ export default function CollegeClassesScreen({ college }) {
                     {eventAttendanceList.length > 0 ? (
                       <ScrollView
                         horizontal
-                        showsHorizontalScrollIndicator={false}
-                        className="border rounded-lg"
+                        showsHorizontalScrollIndicator
+                        scrollEnabled
                         style={{ borderColor: colors.border }}
+                        className="border rounded-lg"
+                        contentContainerStyle={{ minWidth: 550 }}
                       >
-                        <View>
+                        <View style={{ minWidth: 550 }}>
                           {/* Grid Header */}
                           <View
                             className="flex-row py-2 px-2 border-b"
@@ -1312,7 +1410,7 @@ export default function CollegeClassesScreen({ college }) {
 
         {/* --- 4. CLASS MANAGEMENT --- */}
         <View>
-          <View className="flex-row justify-between items-center mb-4">
+          <View className="flex-row justify-between items-center mb-3">
             <Text
               className="text-base font-bold"
               style={{ color: colors.header }}
@@ -1321,45 +1419,84 @@ export default function CollegeClassesScreen({ college }) {
             </Text>
           </View>
 
-          <View className="flex-row flex-wrap justify-between">
-            {classes.map((c) => (
+          {/* Class Search Bar */}
+          <View
+            className="flex-row items-center p-2.5 rounded-lg border mb-4"
+            style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
+          >
+            <Text style={{ color: colors.textSecondary, marginRight: 8, fontSize: 14 }}>⌕</Text>
+            <TextInput
+              placeholder="Search classes..."
+              value={classSearch}
+              onChangeText={setClassSearch}
+              style={{ flex: 1, color: colors.textPrimary, fontSize: 13, outlineStyle: 'none' }}
+              placeholderTextColor={colors.textSecondary}
+            />
+            {classSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setClassSearch('')}>
+                <Text style={{ color: colors.textSecondary, fontSize: 16, paddingHorizontal: 4 }}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Classes Grid — skeleton while loading */}
+          {dataLoading ? (
+            <View className="flex-row flex-wrap justify-between">
+              {[1, 2, 3, 4].map(i => (
+                <View
+                  key={i}
+                  className="py-4 px-3 rounded-lg border mb-3 w-[48%] items-center"
+                  style={{ borderColor: colors.border, backgroundColor: colors.cardBg, opacity: 0.5 }}
+                >
+                  <View style={{ height: 14, width: 80, borderRadius: 6, backgroundColor: colors.border }} />
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View className="flex-row flex-wrap justify-between">
+              {filteredClasses.length === 0 && classSearch.length > 0 ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 13, paddingVertical: 12 }}>
+                  No classes match "{classSearch}"
+                </Text>
+              ) : filteredClasses.map((c) => (
+                <TouchableOpacity
+                  key={c._id || c.className}
+                  className="py-4 px-3 rounded-lg border mb-3 w-[48%]"
+                  style={{
+                    borderColor: colors.border,
+                    backgroundColor: colors.cardBg,
+                  }}
+                  onPress={() =>
+                    navigate("ClassStudents", { college: collegeData, className: c.className })
+                  }
+                >
+                  <Text
+                    className="font-medium text-sm text-center"
+                    style={{ color: colors.textPrimary }}
+                  >
+                    {c.className}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              {/* "Add New" Button - Dashed Style */}
               <TouchableOpacity
-                key={c._id || c.className}
-                className="py-4 px-3 rounded-lg border mb-3 w-[48%]"
+                className="py-4 px-3 rounded-lg border border-dashed mb-3 w-[48%] justify-center items-center"
                 style={{
-                  borderColor: colors.border,
-                  backgroundColor: colors.cardBg,
+                  borderColor: colors.accent,
+                  backgroundColor: "transparent",
                 }}
-                onPress={() =>
-                  navigate("ClassStudents", { college, className: c.className })
-                }
+                onPress={() => navigate("AddClass", { college: collegeData })}
               >
                 <Text
-                  className="font-medium text-sm text-center"
-                  style={{ color: colors.textPrimary }}
+                  className="font-bold text-sm"
+                  style={{ color: colors.accent }}
                 >
-                  {c.className}
+                  + Add New Class
                 </Text>
               </TouchableOpacity>
-            ))}
-
-            {/* "Add New" Button - Dashed Style */}
-            <TouchableOpacity
-              className="py-4 px-3 rounded-lg border border-dashed mb-3 w-[48%] justify-center items-center"
-              style={{
-                borderColor: colors.accent,
-                backgroundColor: "transparent",
-              }}
-              onPress={() => navigate("AddClass", { college })}
-            >
-              <Text
-                className="font-bold text-sm"
-                style={{ color: colors.accent }}
-              >
-                + Add New Class
-              </Text>
-            </TouchableOpacity>
-          </View>
+            </View>
+          )}
         </View>
       </ScrollView>
     </TouchableOpacity>
