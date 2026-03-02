@@ -10,9 +10,10 @@ import { shareAsync } from 'expo-sharing';
 import * as ExcelJS from 'exceljs';
 import * as api from '../../../apis/api';
 import { Buffer } from 'buffer';
+import Toast from 'react-native-toast-message';
 
 export default function AddStudentScreen({ college, className }) {
-  const { goBack } = useContext(NavigationContext);
+  const { goBack, navigate } = useContext(NavigationContext);
   const { addStudent } = useContext(AttendanceContext);
   const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -31,6 +32,82 @@ export default function AddStudentScreen({ college, className }) {
     setStudents(prev => [...prev, { id: Date.now().toString() + Math.random().toString(36).slice(2), name: '', prn: '', department: '', email: '', password: '' }]);
   }
 
+  // Helper: read a blob/file URI as text (web)
+  function readFileAsText(uri) {
+    return new Promise((resolve, reject) => {
+      fetch(uri)
+        .then(r => r.text())
+        .then(resolve)
+        .catch(reject);
+    });
+  }
+
+  // Helper: read a blob/file URI as ArrayBuffer (web)
+  function readFileAsArrayBuffer(uri) {
+    return new Promise((resolve, reject) => {
+      fetch(uri)
+        .then(r => r.arrayBuffer())
+        .then(resolve)
+        .catch(reject);
+    });
+  }
+
+  async function parseCSVContent(csvContent) {
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+      Alert.alert('No data found in CSV file');
+      return null;
+    }
+    const headers = lines[0].split(',').map(h => h.trim());
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim());
+      const rowData = {};
+      headers.forEach((header, index) => {
+        rowData[header] = values[index] || '';
+      });
+      rows.push(rowData);
+    }
+    return rows;
+  }
+
+  // ExcelJS returns { text, hyperlink } for auto-hyperlinked cells (emails, URLs).
+  // This helper extracts the plain string from any cell value.
+  function cellToString(value) {
+    if (value == null) return '';
+    if (typeof value === 'object') {
+      // Hyperlink object: { text: '...', hyperlink: 'mailto:...' }
+      if (value.text != null) return String(value.text);
+      if (value.hyperlink != null) return String(value.hyperlink).replace(/^mailto:/i, '');
+      // RichText object: { richText: [{ text: '...' }, ...] }
+      if (Array.isArray(value.richText)) return value.richText.map(r => r.text || '').join('');
+      return '';
+    }
+    return String(value);
+  }
+
+  async function parseExcelBuffer(buffer) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer);
+    const worksheet = workbook.worksheets[0];
+    const headerRow = worksheet.getRow(1);
+    const headers = [];
+    headerRow.eachCell((cell, colNumber) => {
+      headers[colNumber] = cellToString(cell.value);
+    });
+    const rows = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      const rowData = {};
+      row.eachCell((cell, colNumber) => {
+        const header = headers[colNumber];
+        if (header) rowData[header] = cellToString(cell.value);
+      });
+      rows.push(rowData);
+    });
+    return rows;
+  }
+
   async function pickAndParseFile() {
     try {
       const res = await DocumentPicker.getDocumentAsync({
@@ -38,66 +115,34 @@ export default function AddStudentScreen({ college, className }) {
         copyToCacheDirectory: true
       });
 
-      // Check if user canceled the picker
       if (res.canceled) return;
 
-      // Get the file URI from the assets array
       const fileUri = res.assets[0].uri;
       const fileName = res.assets[0].name || '';
+      const isCSV = fileName.toLowerCase().endsWith('.csv');
 
       let rows = [];
 
-      // Check if it's a CSV file
-      if (fileName.toLowerCase().endsWith('.csv')) {
-        // Read as UTF-8 for CSV
-        const csvContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' });
-
-        // Parse CSV manually
-        const lines = csvContent.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
-          Alert.alert('No data found in CSV file');
-          return;
-        }
-
-        const headers = lines[0].split(',').map(h => h.trim());
-
-        for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
-          const rowData = {};
-          headers.forEach((header, index) => {
-            rowData[header] = values[index] || '';
-          });
-          rows.push(rowData);
+      if (Platform.OS === 'web') {
+        // ---- WEB: use fetch/FileReader instead of expo-file-system ----
+        if (isCSV) {
+          const csvContent = await readFileAsText(fileUri);
+          rows = await parseCSVContent(csvContent);
+          if (!rows) return;
+        } else {
+          const arrayBuffer = await readFileAsArrayBuffer(fileUri);
+          rows = await parseExcelBuffer(arrayBuffer);
         }
       } else {
-        // Handle Excel files (.xlsx, .xls)
-        const fileStr = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
-
-        // parse base64 content into workbook using ExcelJS
-        const workbook = new ExcelJS.Workbook();
-        await workbook.xlsx.load(Buffer.from(fileStr, 'base64'));
-
-        const worksheet = workbook.worksheets[0];
-
-        // Get headers from first row
-        const headerRow = worksheet.getRow(1);
-        const headers = [];
-        headerRow.eachCell((cell, colNumber) => {
-          headers[colNumber] = cell.value;
-        });
-
-        // Parse data rows
-        worksheet.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) return; // Skip header row
-          const rowData = {};
-          row.eachCell((cell, colNumber) => {
-            const header = headers[colNumber];
-            if (header) {
-              rowData[header] = cell.value || '';
-            }
-          });
-          rows.push(rowData);
-        });
+        // ---- NATIVE (Android / iOS): use expo-file-system ----
+        if (isCSV) {
+          const csvContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' });
+          rows = await parseCSVContent(csvContent);
+          if (!rows) return;
+        } else {
+          const fileStr = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+          rows = await parseExcelBuffer(Buffer.from(fileStr, 'base64'));
+        }
       }
 
       if (!rows || rows.length === 0) {
@@ -105,7 +150,6 @@ export default function AddStudentScreen({ college, className }) {
         return;
       }
 
-      // Map rows to expected student fields. We'll try common header names.
       const mapped = rows.map(r => {
         const name = r.name || r.Name || r['Student name'] || r['Student Name'] || r.student || '';
         const prn = r.prn || r.PRN || r.Prn || r['PRN'] || r.roll || r.Roll || '';
@@ -120,7 +164,6 @@ export default function AddStudentScreen({ college, className }) {
         return;
       }
 
-      // Filter out empty students from current list and merge with imported students
       setStudents(prev => {
         const nonEmptyStudents = prev.filter(s => s.name.trim());
         return [...nonEmptyStudents, ...mapped];
@@ -220,6 +263,8 @@ export default function AddStudentScreen({ college, className }) {
     setStudents(prev => prev.filter((_, i) => i !== idx));
   }
 
+  const emptyStudent = () => ({ id: Date.now().toString() + Math.random().toString(36).slice(2), name: '', prn: '', department: '', email: '', password: '' });
+
   async function onSave() {
     try {
       // Find the class ID from college.classes
@@ -230,11 +275,17 @@ export default function AddStudentScreen({ college, className }) {
       }
 
       const classId = selectedClass._id;
+      const validStudents = students.filter(s => s.name.trim());
+
+      if (validStudents.length === 0) {
+        Toast.show({ type: 'error', text1: 'No students to save', text2: 'Please fill in at least one student name.' });
+        return;
+      }
 
       // Prepare the request body
       const requestBody = {
         classId: classId,
-        students: students.filter(s => s.name.trim()).map(s => ({
+        students: validStudents.map(s => ({
           name: s.name.trim(),
           department: s.department.trim(),
           email: s.email.trim(),
@@ -242,7 +293,7 @@ export default function AddStudentScreen({ college, className }) {
           password: s.password.trim() || 'defaultPassword123'
         }))
       };
-      console.log(requestBody)
+
       // Call the API
       const response = await fetch(api.addStudentAPI, {
         method: 'POST',
@@ -257,13 +308,33 @@ export default function AddStudentScreen({ college, className }) {
       const result = await response.json();
 
       if (response.ok) {
-        Alert.alert('Success', 'Students added successfully');
-        goBack();
+        // 1. Fire toast immediately (shows on both web & Android)
+        Toast.show({
+          type: 'success',
+          text1: '✅ Students Added!',
+          text2: `${validStudents.length} student${validStudents.length > 1 ? 's' : ''} added to ${className} successfully.`,
+          visibilityTime: 3000,
+        });
+
+        // 2. Reset the form to one empty row
+        setStudents([emptyStudent()]);
+
+        // 3. Alert with navigate-back option
+        Alert.alert(
+          'Success',
+          `${validStudents.length} student${validStudents.length > 1 ? 's' : ''} added to ${className}!`,
+          [
+            { text: 'Add More', style: 'cancel' },
+            { text: 'View Class', onPress: () => navigate('CollegeClasses', { college }) },
+          ]
+        );
       } else {
+        Toast.show({ type: 'error', text1: 'Failed to add students', text2: result.message || 'Please try again.' });
         Alert.alert('Error', result.message || 'Failed to add students');
       }
     } catch (error) {
       console.error('Error adding students:', error);
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to add students. Please try again.' });
       Alert.alert('Error', 'Failed to add students');
     }
   }
