@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList, Image } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList, Image, Modal } from 'react-native';
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -27,7 +27,8 @@ export default function CollegeClassesScreen({ college }) {
   const [newClass, setNewClass] = useState('');
   const [loading, setLoading] = useState(false);
   const { logout, accessToken } = useContext(AuthContext);
-  const [showEventDropdown, setShowEventDropdown] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [eventSearch, setEventSearch] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [eventsList, setEventsList] = useState([]);
   const [eventAttendanceList, setEventAttendanceList] = useState([]);
@@ -160,7 +161,7 @@ export default function CollegeClassesScreen({ college }) {
 
   const handleEventSelect = async (event) => {
     setSelectedEvent(event);
-    setShowEventDropdown(false);
+    setShowEventModal(false);
     setShowAttendanceTable(true);
     setEventAttendanceList([]);
     setEventLoading(true);
@@ -212,7 +213,6 @@ export default function CollegeClassesScreen({ college }) {
 
   const handleOutsideClick = () => {
     setShowAttendanceTable(false);
-    setShowEventDropdown(false);
   };
   //Exports all events attendance data to excel file
   const exportAllEventsToExcel = async () => {
@@ -1235,71 +1235,220 @@ export default function CollegeClassesScreen({ college }) {
             onStartShouldSetResponder={() => true}
             onTouchEnd={(e) => e.stopPropagation()}
           >
-            {/* Dropdown Selector */}
+            {/* --- Event Picker Button --- */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => setShowEventDropdown(!showEventDropdown)}
+              onPress={() => setShowEventModal(true)}
               className="flex-row justify-between items-center p-3 rounded-lg border mb-4"
               style={{
                 backgroundColor: colors.iconBg,
-                borderColor: showEventDropdown ? colors.accent : colors.border,
+                borderColor: selectedEvent ? colors.accent : colors.border,
               }}
             >
-              <Text
-                style={{
-                  color: selectedEvent ? colors.textPrimary : colors.textSecondary,
-                  fontWeight: selectedEvent ? "600" : "400",
-                }}
-              >
-                {selectedEvent ? selectedEvent.aim : "Select an Event"}
+              <View style={{ flex: 1, marginRight: 8 }}>
+                {selectedEvent ? (
+                  <>
+                    <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
+                      {selectedEvent.aim}
+                    </Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
+                      {new Date(selectedEvent.eventDate).toDateString()} · {selectedEvent.createdBy || 'NGO'}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
+                    {dataLoading ? 'Loading events...' : `Select an event (${eventsList.length} available)`}
+                  </Text>
+                )}
+              </View>
+              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '600' }}>
+                {selectedEvent ? '✎ Change' : '▼ Pick'}
               </Text>
-              {/* Simple geometric text chevron */}
-              <Text style={{ color: colors.textSecondary, fontSize: 10 }}>▼</Text>
             </TouchableOpacity>
 
-            {/* Dropdown Loading or Options */}
-            {dataLoading ? (
-              <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                <ActivityIndicator size="small" color={colors.accent} />
-                <Text style={{ color: colors.textSecondary, marginTop: 8, fontSize: 12 }}>Loading events...</Text>
-              </View>
-            ) : showEventDropdown && (
-              <View
-                className="border rounded-lg mb-4 overflow-hidden"
-                style={{ borderColor: colors.border, maxHeight: 200 }}
-              >
-                <ScrollView nestedScrollEnabled>
-                  {eventsList.length === 0 ? (
-                    <View style={{ padding: 16, alignItems: 'center' }}>
-                      <Text style={{ color: colors.textSecondary, fontSize: 13 }}>No events found</Text>
-                    </View>
-                  ) : eventsList.map((event, idx) => (
+            {/* --- Searchable Event Picker Modal --- */}
+            <Modal
+              visible={showEventModal}
+              animationType="slide"
+              transparent
+              onRequestClose={() => setShowEventModal(false)}
+            >
+              <View style={{
+                flex: 1,
+                backgroundColor: 'rgba(0,0,0,0.45)',
+                justifyContent: 'flex-end',
+              }}>
+                <View style={{
+                  backgroundColor: colors.cardBg,
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  maxHeight: '85%',
+                  paddingTop: 12,
+                }}>
+                  {/* Handle bar */}
+                  <View style={{ alignItems: 'center', marginBottom: 8 }}>
+                    <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
+                  </View>
+
+                  {/* Modal Header */}
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: 16,
+                    paddingBottom: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                  }}>
+                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.header }}>
+                      Select Event
+                    </Text>
                     <TouchableOpacity
-                      key={event._id}
-                      className={`p-3 ${idx !== eventsList.length - 1 ? "border-b" : ""}`}
+                      onPress={() => { setShowEventModal(false); setEventSearch(''); }}
                       style={{
-                        borderColor: colors.border,
-                        backgroundColor:
-                          selectedEvent?._id === event._id
-                            ? colors.iconBg
-                            : colors.cardBg,
+                        backgroundColor: colors.iconBg,
+                        borderRadius: 16,
+                        paddingHorizontal: 12,
+                        paddingVertical: 5,
                       }}
-                      onPress={() => handleEventSelect(event)}
                     >
-                      <Text
-                        className="font-medium text-sm"
-                        style={{ color: colors.textPrimary }}
-                      >
-                        {event.aim}
-                      </Text>
-                      <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                        {new Date(event.eventDate).toDateString()}
-                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>✕ Close</Text>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                  </View>
+
+                  {/* Search Bar */}
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    margin: 12,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 10,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    backgroundColor: colors.iconBg,
+                  }}>
+                    <Text style={{ color: colors.textSecondary, marginRight: 8, fontSize: 16 }}>⌕</Text>
+                    <TextInput
+                      placeholder="Search by event name, NGO, or location..."
+                      placeholderTextColor={colors.textSecondary}
+                      value={eventSearch}
+                      onChangeText={setEventSearch}
+                      autoFocus
+                      style={{ flex: 1, color: colors.textPrimary, fontSize: 13, outlineStyle: 'none' }}
+                    />
+                    {eventSearch.length > 0 && (
+                      <TouchableOpacity onPress={() => setEventSearch('')}>
+                        <Text style={{ color: colors.textSecondary, fontSize: 16, paddingLeft: 6 }}>✕</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+
+                  {/* Results count */}
+                  {eventSearch.length > 0 && (
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, paddingHorizontal: 16, marginBottom: 6 }}>
+                      {eventsList.filter(e =>
+                        e.aim?.toLowerCase().includes(eventSearch.toLowerCase()) ||
+                        (e.createdBy?.name || e.createdBy || '').toLowerCase().includes(eventSearch.toLowerCase()) ||
+                        e.location?.toLowerCase().includes(eventSearch.toLowerCase())
+                      ).length} result(s)
+                    </Text>
+                  )}
+
+                  {/* Event List */}
+                  {dataLoading ? (
+                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                      <ActivityIndicator size="large" color={colors.accent} />
+                      <Text style={{ color: colors.textSecondary, marginTop: 10, fontSize: 13 }}>Loading events...</Text>
+                    </View>
+                  ) : (
+                    <FlatList
+                      data={eventsList.filter(e =>
+                        e.aim?.toLowerCase().includes(eventSearch.toLowerCase()) ||
+                        (e.createdBy?.name || e.createdBy || '').toLowerCase().includes(eventSearch.toLowerCase()) ||
+                        e.location?.toLowerCase().includes(eventSearch.toLowerCase())
+                      )}
+                      keyExtractor={(item) => item._id}
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={{ paddingBottom: 30 }}
+                      ListEmptyComponent={
+                        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                          <Text style={{ fontSize: 32 }}>🔍</Text>
+                          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 10 }}>
+                            {eventSearch ? `No events matching "${eventSearch}"` : 'No events found'}
+                          </Text>
+                        </View>
+                      }
+                      renderItem={({ item, index }) => {
+                        const isSelected = selectedEvent?._id === item._id;
+                        return (
+                          <TouchableOpacity
+                            activeOpacity={0.7}
+                            onPress={() => {
+                              setShowEventModal(false);
+                              setEventSearch('');
+                              handleEventSelect(item);
+                            }}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              paddingHorizontal: 16,
+                              paddingVertical: 12,
+                              borderBottomWidth: 1,
+                              borderBottomColor: colors.border,
+                              backgroundColor: isSelected ? (colors.iconBg) : colors.cardBg,
+                            }}
+                          >
+                            {/* Index badge */}
+                            <View style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 16,
+                              backgroundColor: isSelected ? colors.accent : colors.iconBg,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginRight: 12,
+                              flexShrink: 0,
+                            }}>
+                              <Text style={{ fontSize: 12, fontWeight: '700', color: isSelected ? '#fff' : colors.textSecondary }}>
+                                {index + 1}
+                              </Text>
+                            </View>
+
+                            {/* Event Info */}
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }} numberOfLines={2}>
+                                {item.aim}
+                              </Text>
+                              <View style={{ flexDirection: 'row', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
+                                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                                  📅 {new Date(item.eventDate).toDateString()}
+                                </Text>
+                                {(item.createdBy?.name || item.createdBy) && (
+                                  <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>
+                                    🏢 {item.createdBy?.name || item.createdBy}
+                                  </Text>
+                                )}
+                                {item.location && (
+                                  <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>
+                                    📍 {item.location}
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+
+                            {/* Selected checkmark */}
+                            {isSelected && (
+                              <Text style={{ color: colors.accent, fontSize: 18, marginLeft: 8 }}>✓</Text>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      }}
+                    />
+                  )}
+                </View>
               </View>
-            )}
+            </Modal>
 
             {/* Selected Event Data */}
             {showAttendanceTable && selectedEvent && (
