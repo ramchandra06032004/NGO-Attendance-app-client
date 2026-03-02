@@ -37,6 +37,8 @@ export default function CollegeClassesScreen({ college }) {
   const [collegeData, setCollegeData] = useState(college); // local fresh copy
   const [dataLoading, setDataLoading] = useState(false);
   const [classSearch, setClassSearch] = useState('');
+  const [tableSearch, setTableSearch] = useState('');
+  const [tableStatusFilter, setTableStatusFilter] = useState('All');
   const classes = collegeData.classes || [];
   const filteredClasses = classes.filter(c =>
     c.className?.toLowerCase().includes(classSearch.toLowerCase())
@@ -1458,102 +1460,194 @@ export default function CollegeClassesScreen({ college }) {
                     <ActivityIndicator size="small" color={colors.accent} />
                     <Text style={{ color: colors.textSecondary, marginTop: 8, fontSize: 12 }}>Loading attendance...</Text>
                   </View>
-                ) : (
-                  <>
-                    <View className="flex-row justify-between items-end mb-3">
-                      <View className="flex-row gap-4">
-                        <View>
-                          <Text className="text-[10px] uppercase font-bold" style={{ color: '#10b981' }}>Present</Text>
-                          <Text className="text-2xl font-light" style={{ color: '#10b981' }}>
-                            {eventAttendanceList.filter(r => r.status === "Present").length}
-                          </Text>
-                        </View>
-                        <View>
-                          <Text className="text-[10px] uppercase font-bold" style={{ color: '#ef4444' }}>Absent</Text>
-                          <Text className="text-2xl font-light" style={{ color: '#ef4444' }}>
-                            {eventAttendanceList.filter(r => r.status === "Absent").length}
-                          </Text>
-                        </View>
-                        <View>
-                          <Text className="text-[10px] uppercase font-bold" style={{ color: '#f59e0b' }}>Registered</Text>
-                          <Text className="text-2xl font-light" style={{ color: '#f59e0b' }}>
-                            {eventAttendanceList.filter(r => r.status === "Registered").length}
-                          </Text>
-                        </View>
-                      </View>
-                      {eventAttendanceList.length > 0 && (
-                        <TouchableOpacity onPress={exportEventAttendanceToExcel}>
-                          <Text className="text-xs font-bold underline" style={{ color: colors.accent }}>
-                            Download Report
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
+                ) : eventAttendanceList.length === 0 ? (
+                  <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16, fontSize: 13, fontStyle: 'italic' }}>
+                    No students registered for this event.
+                  </Text>
+                ) : (() => {
+                  // Derived filtered list (computed inline so it stays reactive)
+                  const statusFiltered = tableStatusFilter === 'All'
+                    ? eventAttendanceList
+                    : eventAttendanceList.filter(r => r.status === tableStatusFilter);
+                  const tableFiltered = tableSearch.trim()
+                    ? statusFiltered.filter(r =>
+                      (r.studentName || '').toLowerCase().includes(tableSearch.toLowerCase()) ||
+                      (r.prn || '').toLowerCase().includes(tableSearch.toLowerCase()) ||
+                      (r.className || '').toLowerCase().includes(tableSearch.toLowerCase())
+                    )
+                    : statusFiltered;
 
-                    {eventAttendanceList.length > 0 ? (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator
-                        scrollEnabled
-                        style={{ borderColor: colors.border }}
-                        className="border rounded-lg"
-                        contentContainerStyle={{ minWidth: 550 }}
-                      >
-                        <View style={{ minWidth: 550 }}>
-                          {/* Grid Header */}
-                          <View
-                            className="flex-row py-2 px-2 border-b"
-                            style={{ backgroundColor: "#F3F4F6", borderColor: colors.border }}
-                          >
-                            <Text className="w-32 text-xs font-bold text-gray-500 uppercase">Student Name</Text>
-                            <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">PRN</Text>
-                            <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">Class</Text>
-                            <Text className="w-24 text-xs font-bold text-gray-500 uppercase text-center">Status</Text>
-                            <Text className="w-28 text-xs font-bold text-gray-500 uppercase text-right">Date</Text>
-                          </View>
-                          {/* Grid Rows */}
-                          {eventAttendanceList.map((record, index) => (
-                            <View
-                              key={index}
-                              className="flex-row py-3 px-2 border-b last:border-0"
+                  const STATUS_PILLS = [
+                    { label: 'All', color: colors.accent, count: eventAttendanceList.length },
+                    { label: 'Present', color: '#10b981', count: eventAttendanceList.filter(r => r.status === 'Present').length },
+                    { label: 'Absent', color: '#ef4444', count: eventAttendanceList.filter(r => r.status === 'Absent').length },
+                    { label: 'Registered', color: '#f59e0b', count: eventAttendanceList.filter(r => r.status === 'Registered').length },
+                  ];
+
+                  return (
+                    <>
+                      {/* --- Stat pills (tap to filter) + Download --- */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                        {STATUS_PILLS.map(pill => {
+                          const active = tableStatusFilter === pill.label;
+                          return (
+                            <TouchableOpacity
+                              key={pill.label}
+                              onPress={() => setTableStatusFilter(pill.label)}
                               style={{
-                                borderColor: colors.border,
-                                backgroundColor: colors.cardBg
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingHorizontal: 10,
+                                paddingVertical: 5,
+                                borderRadius: 20,
+                                borderWidth: 1.5,
+                                borderColor: pill.color,
+                                backgroundColor: active ? pill.color : 'transparent',
+                                gap: 5,
                               }}
                             >
-                              <Text className="w-32 text-xs font-medium" style={{ color: colors.textPrimary }} numberOfLines={1}>
-                                {record.studentName}
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#fff' : pill.color }}>
+                                {pill.label}
                               </Text>
-                              <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
-                                {record.prn}
-                              </Text>
-                              <Text className="w-24 text-xs text-center" style={{ color: colors.textSecondary }}>
-                                {record.className}
-                              </Text>
-                              <View className="w-24 items-center justify-center">
-                                <Text className="text-[10px] font-bold px-2 py-0.5 rounded text-white overflow-hidden"
-                                  style={{
-                                    backgroundColor: record.status === "Present" ? "#10b981" : (record.status === "Absent" ? "#ef4444" : "#f59e0b")
-                                  }}>
-                                  {record.status}
-                                </Text>
+                              <View style={{
+                                backgroundColor: active ? 'rgba(255,255,255,0.3)' : pill.color,
+                                borderRadius: 10,
+                                minWidth: 18,
+                                paddingHorizontal: 4,
+                                alignItems: 'center',
+                              }}>
+                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{pill.count}</Text>
                               </View>
-                              <Text className="w-28 text-xs text-right" style={{ color: colors.textSecondary }}>
-                                {record.attendanceDate}
-                              </Text>
-                            </View>
-                          ))}
+                            </TouchableOpacity>
+                          );
+                        })}
+
+                        {/* Spacer + Download button */}
+                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                          <TouchableOpacity
+                            onPress={exportEventAttendanceToExcel}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              paddingHorizontal: 10,
+                              paddingVertical: 5,
+                              borderRadius: 8,
+                              backgroundColor: colors.iconBg,
+                              borderWidth: 1,
+                              borderColor: colors.accent,
+                              gap: 4,
+                            }}
+                          >
+                            <Text style={{ fontSize: 12, color: colors.accent }}>⬇</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.accent }}>Report</Text>
+                          </TouchableOpacity>
                         </View>
-                      </ScrollView>
-                    ) : (
-                      <Text className="text-center py-4 text-xs italic" style={{ color: colors.textSecondary }}>
-                        No students registered for this event.
+                      </View>
+
+                      {/* --- Search bar --- */}
+                      <View style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingHorizontal: 10,
+                        paddingVertical: 7,
+                        borderRadius: 8,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        backgroundColor: colors.iconBg,
+                        marginBottom: 8,
+                      }}>
+                        <Text style={{ color: colors.textSecondary, marginRight: 6, fontSize: 14 }}>⌕</Text>
+                        <TextInput
+                          placeholder="Search by name, PRN or class..."
+                          placeholderTextColor={colors.textSecondary}
+                          value={tableSearch}
+                          onChangeText={setTableSearch}
+                          style={{ flex: 1, color: colors.textPrimary, fontSize: 12, outlineStyle: 'none', padding: 0 }}
+                        />
+                        {tableSearch.length > 0 && (
+                          <TouchableOpacity onPress={() => setTableSearch('')}>
+                            <Text style={{ color: colors.textSecondary, fontSize: 14, paddingLeft: 6 }}>✕</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      {/* --- Row count badge --- */}
+                      <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 6, paddingLeft: 2 }}>
+                        Showing {tableFiltered.length} of {eventAttendanceList.length} student{eventAttendanceList.length !== 1 ? 's' : ''}
+                        {tableStatusFilter !== 'All' ? ` · ${tableStatusFilter}` : ''}
                       </Text>
-                    )}
-                  </>
-                )}
+
+                      {/* --- Student Cards (no horizontal scroll needed) --- */}
+                      {tableFiltered.length === 0 ? (
+                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                          <Text style={{ fontSize: 24 }}>🔍</Text>
+                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8 }}>No students match your filter.</Text>
+                        </View>
+                      ) : (
+                        <FlatList
+                          data={tableFiltered}
+                          keyExtractor={(_, i) => i.toString()}
+                          scrollEnabled={false}
+                          ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
+                          renderItem={({ item: record, index }) => {
+                            const statusColor = record.status === 'Present' ? '#10b981' : record.status === 'Absent' ? '#ef4444' : '#f59e0b';
+                            const initials = (record.studentName || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+                            return (
+                              <View style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                padding: 10,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                borderColor: colors.border,
+                                backgroundColor: colors.cardBg,
+                              }}>
+                                {/* Avatar with index */}
+                                <View style={{ alignItems: 'center', marginRight: 10, width: 38 }}>
+                                  <View style={{
+                                    width: 36, height: 36, borderRadius: 18,
+                                    backgroundColor: colors.iconBg,
+                                    alignItems: 'center', justifyContent: 'center',
+                                    borderWidth: 1.5, borderColor: statusColor,
+                                  }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.accent }}>{initials}</Text>
+                                  </View>
+                                  <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 2 }}>#{index + 1}</Text>
+                                </View>
+
+                                {/* Main info */}
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textPrimary }} numberOfLines={1}>
+                                    {record.studentName}
+                                  </Text>
+                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
+                                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{record.prn}</Text>
+                                    {record.className ? (
+                                      <View style={{ backgroundColor: colors.iconBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                                        <Text style={{ fontSize: 10, color: colors.textSecondary }}>{record.className}</Text>
+                                      </View>
+                                    ) : null}
+                                    {record.attendanceDate && record.attendanceDate !== 'N/A' ? (
+                                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>📅 {record.attendanceDate}</Text>
+                                    ) : null}
+                                  </View>
+                                </View>
+
+                                {/* Status pill */}
+                                <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8 }}>
+                                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{record.status}</Text>
+                                </View>
+                              </View>
+                            );
+                          }}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
               </View>
             )}
+
           </View>
         </View>
 
