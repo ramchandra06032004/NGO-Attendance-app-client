@@ -1,22 +1,54 @@
-import React, { useContext, useState } from 'react';
-import { View, Text, TouchableOpacity, FlatList, TextInput } from 'react-native';
+import React, { useContext, useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, FlatList, TextInput, ActivityIndicator } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
+import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { getAllCollegeAPI } from '../../../apis/api';
 
 export default function ClassStudentsScreen({ college, className }) {
   const { navigate, goBack } = useContext(NavigationContext);
-  const { getStudentsByCollegeAndClass } = useContext(AttendanceContext);
+  const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
-  // Find the selected class
-  const selectedClass = college?.classes?.find((c) => c.className === className);
-  const students = selectedClass ? selectedClass.students : [];
-
   // State
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isGridLayout, setIsGridLayout] = useState(false); // <--- LAYOUT STATE
+  const [isGridLayout, setIsGridLayout] = useState(false);
+
+  // Fetch fresh students from API on mount
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(getAllCollegeAPI, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!response.ok) throw new Error('Failed to fetch college data');
+        const data = await response.json();
+        const colleges = data?.data?.colleges || [];
+        const fresh = colleges.find(c => c._id?.toString() === college._id?.toString());
+        if (fresh) {
+          const cls = fresh.classes?.find(c => c.className === className);
+          setStudents(cls?.students || []);
+        }
+      } catch (err) {
+        console.warn('Could not refresh student data:', err);
+        // Fallback to prop data
+        const cls = college?.classes?.find(c => c.className === className);
+        setStudents(cls?.students || []);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (accessToken && college?._id) fetchStudents();
+  }, [college._id, className, accessToken]);
 
   // Filter logic
   const filteredStudents = students.filter((student) =>
@@ -176,8 +208,11 @@ export default function ClassStudentsScreen({ college, className }) {
             >
               {className}
             </Text>
-            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-              {filteredStudents.length} / {students.length} Students
+            <Text
+              className="text-xs"
+              style={{ color: colors.textSecondary }}
+            >
+              {loading ? 'Loading...' : `${filteredStudents.length} / ${students.length} Students`}
             </Text>
           </View>
         </View>
@@ -245,34 +280,64 @@ export default function ClassStudentsScreen({ college, className }) {
       </View>
 
       {/* --- 3. DYNAMIC STUDENT LIST --- */}
-      <FlatList
-        // Key forces re-render when switching layouts to prevent style bugs
-        key={isGridLayout ? "grid-layout" : "list-layout"}
-
-        // Use filteredStudents so search works
-        data={filteredStudents}
-
-        // Dynamic Props
-        numColumns={isGridLayout ? 2 : 1}
-        columnWrapperStyle={isGridLayout ? { justifyContent: "space-between" } : undefined}
-        renderItem={isGridLayout ? renderGridItem : renderListItem}
-
-        // Container Styles
-        contentContainerStyle={{
-          paddingHorizontal: isGridLayout ? 20 : 0, // Grid needs padding, List is full width
-          paddingTop: 20,
-          paddingBottom: 120
-        }}
-        showsVerticalScrollIndicator={false}
-
-        ListEmptyComponent={
-          <View className="items-center justify-center py-12">
-            <Text className="text-gray-400 text-sm italic">
-              {searchQuery ? "No matching students." : "No students in this class."}
-            </Text>
-          </View>
-        }
-      />
+      {loading ? (
+        // Skeleton loader
+        <FlatList
+          data={[1, 2, 3, 4, 5, 6]}
+          keyExtractor={(item) => item.toString()}
+          contentContainerStyle={{ paddingTop: 20, paddingBottom: 120 }}
+          renderItem={() => (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingHorizontal: 20,
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
+                backgroundColor: colors.cardBg,
+              }}
+            >
+              {/* Avatar skeleton */}
+              <View
+                style={{
+                  width: 40, height: 40, borderRadius: 20,
+                  backgroundColor: colors.border,
+                  marginRight: 12,
+                }}
+              />
+              {/* Text skeletons */}
+              <View style={{ flex: 1, gap: 8 }}>
+                <View style={{ height: 13, width: '55%', borderRadius: 6, backgroundColor: colors.border }} />
+                <View style={{ height: 11, width: '35%', borderRadius: 6, backgroundColor: colors.border, opacity: 0.6 }} />
+              </View>
+              {/* Arrow skeleton */}
+              <View style={{ width: 18, height: 18, borderRadius: 4, backgroundColor: colors.border, opacity: 0.4 }} />
+            </View>
+          )}
+        />
+      ) : (
+        <FlatList
+          key={isGridLayout ? "grid-layout" : "list-layout"}
+          data={filteredStudents}
+          numColumns={isGridLayout ? 2 : 1}
+          columnWrapperStyle={isGridLayout ? { justifyContent: "space-between" } : undefined}
+          renderItem={isGridLayout ? renderGridItem : renderListItem}
+          contentContainerStyle={{
+            paddingHorizontal: isGridLayout ? 20 : 0,
+            paddingTop: 20,
+            paddingBottom: 120
+          }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View className="items-center justify-center py-12">
+              <Text className="text-gray-400 text-sm italic">
+                {searchQuery ? "No matching students." : "No students in this class."}
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       {/* --- 4. FLOATING ADD BUTTON --- */}
       <View

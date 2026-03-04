@@ -87,9 +87,12 @@ export default function CollegeLoginScreen() {
       }
 
       const data = await response.json();
-      const accessToken = data.accessToken || data.token;
-      const refreshToken = data.refreshToken;
-      const userData = data.user || selectedCollege;
+
+      // Backend wraps response in ApiResponse class, so token is in data.data
+      const responseData = data.data || data;
+      const accessToken = responseData.accessToken || responseData.token;
+      const refreshToken = responseData.refreshToken;
+      const userData = responseData.user || selectedCollege;
 
       await loginUser(userData, accessToken, refreshToken, "college");
 

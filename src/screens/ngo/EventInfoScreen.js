@@ -13,15 +13,15 @@ export default function EventInfoScreen({ route }) {
   const params = (route && route.params) || {};
   const event = params.event ||
     params.item || {
-      aim: "",
-      name: "",
-      location: "",
-      description: "",
-      eventDate: "",
-      date: "",
-      students: [],
-      _id: "",
-    };
+    aim: "",
+    name: "",
+    location: "",
+    description: "",
+    eventDate: "",
+    date: "",
+    students: [],
+    _id: "",
+  };
 
   const title = event.aim || event.name || event.title || "";
   const rawDate = event.eventDate || event.date || "";
@@ -63,13 +63,16 @@ export default function EventInfoScreen({ route }) {
           className="mt-4 p-3 rounded-lg items-center"
           style={{ backgroundColor: colors.accent }}
           onPress={() =>
-            navigate("SelectCollege", { eventId: event._id || event.id })
+            navigate("RegisteredStudents", {
+              eventId: event._id || event.id,
+              eventName: event.aim || event.name
+            })
           }
         >
           <Text className="text-white font-bold">Mark Attendance</Text>
         </TouchableOpacity>
 
-        {/* New button: View marked attendance records */}
+        {/* View marked attendance records */}
         <TouchableOpacity
           className="mt-3 p-3 rounded-lg items-center border"
           style={{

@@ -73,9 +73,10 @@ export default function AttendanceRecords({ route = {} }) {
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
   const { goBack } = useContext(NavigationContext);
-  const { user } = useContext(AuthContext);
+  const { user, accessToken } = useContext(AuthContext);
 
   const [attendanceData, setAttendanceData] = useState([]);
+  const [registeredStudents, setRegisteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [viewMode, setViewMode] = useState("table"); // "table" or "card"
@@ -85,6 +86,7 @@ export default function AttendanceRecords({ route = {} }) {
   useEffect(() => {
     if (event && event._id) {
       fetchAttendance();
+      fetchRegisteredStudents();
     } else {
       setLoading(false);
       setError("Event data not available");
@@ -101,6 +103,7 @@ export default function AttendanceRecords({ route = {} }) {
           headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
@@ -113,6 +116,36 @@ export default function AttendanceRecords({ route = {} }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRegisteredStudents = async () => {
+    try {
+      const response = await fetch(
+        `${ngo_host}/events/${event._id}/registered-students`,
+        {
+          method: "GET",
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        // Flatten registered students from all colleges
+        const allRegistered = data?.data?.registeredStudents?.flatMap(college =>
+          college.students.map(student => ({
+            ...student,
+            collegeName: college.college.name,
+          }))
+        ) || [];
+        setRegisteredStudents(allRegistered);
+      }
+    } catch (err) {
+      console.log("Could not fetch registered students:", err);
     }
   };
 
@@ -260,6 +293,7 @@ export default function AttendanceRecords({ route = {} }) {
         "College",
         "Department",
         "Class",
+        "Status",
         "Marked Date",
       ];
 
@@ -279,31 +313,72 @@ export default function AttendanceRecords({ route = {} }) {
         };
       });
 
-      // 5. Add Data Rows
-      attendanceData.attendance.forEach((student, index) => {
-        const collegeName =
-          attendanceData.colleges?.find((col) =>
-            col.classes.includes(student.classId._id)
-          )?.name || "";
+      // 5. Add Data Rows — include all merged students (Present + Absent/Registered)
+      const eventPastForExcel = (() => {
+        if (!attendanceData.event?.eventDate) return false;
+        const ed = new Date(attendanceData.event.eventDate);
+        ed.setHours(0, 0, 0, 0);
+        const td = new Date(); td.setHours(0, 0, 0, 0);
+        return ed < td;
+      })();
 
+      // Build attended set
+      const attendedIdsExcel = new Set(
+        (attendanceData.attendance || [])
+          .filter(s => s.attendanceMarkedAt)
+          .map(s => s._id)
+      );
+
+      // Present students
+      const presentRows = (attendanceData.attendance || [])
+        .filter(s => s.attendanceMarkedAt)
+        .map(s => ({
+          name: s.name || "",
+          collegeName: attendanceData.colleges?.find(col => col.classes.includes(s.classId._id))?.name || "",
+          department: s.department || "",
+          className: s.classId?.className || "",
+          status: "Present",
+          markedAt: new Date(s.attendanceMarkedAt).toLocaleDateString(),
+        }));
+
+      // Registered / Absent students
+      const registeredRows = registeredStudents
+        .filter(s => !attendedIdsExcel.has(s._id))
+        .map(s => ({
+          name: s.name || "",
+          collegeName: s.collegeName || "",
+          department: s.department || "",
+          className: s.class?.className || s.class?.name || "",
+          status: eventPastForExcel ? "Absent" : "Registered",
+          markedAt: "N/A",
+        }));
+
+      const allRows = [...presentRows, ...registeredRows];
+
+      allRows.forEach((student, index) => {
         const row = worksheet.addRow([
-          student.name || "",
-          collegeName,
-          student.department || "",
-          student.classId?.className || "",
-          student.attendanceMarkedAt
-            ? new Date(student.attendanceMarkedAt).toLocaleDateString()
-            : "N/A",
+          student.name,
+          student.collegeName,
+          student.department,
+          student.className,
+          student.status,
+          student.markedAt,
         ]);
 
         // Alternating Row Colors
         const bgColor = index % 2 === 0 ? "FFFFFFFF" : "FFF2F2F2";
-        row.eachCell((cell) => {
-          cell.fill = {
-            type: "pattern",
-            pattern: "solid",
-            fgColor: { argb: bgColor },
-          };
+        row.eachCell((cell, colNumber) => {
+          // Status column (col 5) gets color-coded
+          if (colNumber === 5) {
+            const statusArgb =
+              student.status === "Present" ? "FF10b981" :
+                student.status === "Absent" ? "FFef4444" :
+                  "FFf59e0b"; // Registered
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: statusArgb } };
+            cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+          } else {
+            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+          }
           cell.alignment = { horizontal: "center" };
           cell.border = {
             top: { style: "thin" },
@@ -320,6 +395,7 @@ export default function AttendanceRecords({ route = {} }) {
         { width: 30 }, // College
         { width: 20 }, // Dept
         { width: 15 }, // Class
+        { width: 15 }, // Status
         { width: 20 }, // Date
       ];
 
@@ -374,19 +450,72 @@ export default function AttendanceRecords({ route = {} }) {
     return college ? college.name : "Unknown College";
   };
 
-  // Filter attendance records based on search query
-  const filteredAttendance = attendanceData.attendance?.filter((item) => {
+  // Returns true if the event date has already passed
+  const isEventPast = () => {
+    if (!attendanceData.event?.eventDate) return false;
+    const eventDate = new Date(attendanceData.event.eventDate);
+    eventDate.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return eventDate < today;
+  };
+
+  // Color helper for status badges
+  const getStatusStyle = (status) => {
+    if (status === "Present") return { bg: "#10b981", text: "#fff" };
+    if (status === "Absent") return { bg: "#ef4444", text: "#fff" };
+    return { bg: "#f59e0b", text: "#fff" }; // Registered
+  };
+
+  // Merge registered students with attendance data
+  const mergedStudents = React.useMemo(() => {
+    const eventPast = isEventPast();
+
+    // Only students who were ACTUALLY marked present (have attendanceMarkedAt)
+    const attendedIds = new Set(
+      (attendanceData.attendance || [])
+        .filter(s => s.attendanceMarkedAt)
+        .map(s => s._id)
+    );
+
+    // Students who have been marked present (have attendanceMarkedAt)
+    const presentStudents = (attendanceData.attendance || [])
+      .filter(student => student.attendanceMarkedAt)
+      .map(student => ({
+        ...student,
+        status: "Present",
+        collegeName: getCollegeName(student.classId._id),
+      }));
+
+    // Students who registered but haven't been marked present
+    const registeredOnly = registeredStudents
+      .filter(student => !attendedIds.has(student._id))
+      .map(student => ({
+        ...student,
+        // If event is past and not marked present → Absent
+        status: eventPast ? "Absent" : "Registered",
+        classId: student.class || {},
+        attendanceMarkedAt: null,
+      }));
+
+    return [...presentStudents, ...registeredOnly];
+  }, [attendanceData, registeredStudents]);
+
+  // Filter merged students based on search query
+  const filteredStudents = mergedStudents.filter((item) => {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
-    const collegeName = getCollegeName(item.classId._id).toLowerCase();
+    const collegeName = (item.collegeName || "").toLowerCase();
 
     return (
       item.name?.toLowerCase().includes(query) ||
       collegeName.includes(query) ||
       item.department?.toLowerCase().includes(query) ||
-      item.classId?.className?.toLowerCase().includes(query)
+      item.classId?.className?.toLowerCase().includes(query) ||
+      item.classId?.name?.toLowerCase().includes(query) ||
+      item.status?.toLowerCase().includes(query)
     );
-  }) || [];
+  });
 
   if (loading) {
     return (
@@ -492,7 +621,12 @@ export default function AttendanceRecords({ route = {} }) {
         {/* Stats Card */}
         <View className="p-3 rounded-xl mb-3" style={{ backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '30' }}>
           <Text className="text-center font-bold text-lg" style={{ color: colors.accent }}>
-            {attendanceData.totalStudentsPresent} Students Present
+            {mergedStudents.filter(s => s.status === "Present").length} Present
+            {mergedStudents.filter(s => s.status === "Absent").length > 0
+              ? ` · ${mergedStudents.filter(s => s.status === "Absent").length} Absent`
+              : mergedStudents.filter(s => s.status === "Registered").length > 0
+                ? ` · ${mergedStudents.filter(s => s.status === "Registered").length} Registered`
+                : ""}
           </Text>
         </View>
 
@@ -544,11 +678,11 @@ export default function AttendanceRecords({ route = {} }) {
 
       {/* Content Area */}
       <View className="flex-1 px-5 pt-4">
-        {!attendanceData.attendance || attendanceData.attendance.length === 0 ? (
+        {mergedStudents.length === 0 ? (
           <View className="flex-1 justify-center items-center">
             <Text className="text-lg font-semibold mb-2" style={{ color: colors.textSecondary }}>No Records</Text>
             <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
-              No attendance records found for this event.
+              No students found for this event.
             </Text>
           </View>
         ) : viewMode === "table" ? (
@@ -572,6 +706,9 @@ export default function AttendanceRecords({ route = {} }) {
                 <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 120 }}>
                   Class
                 </Text>
+                <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 100 }}>
+                  Status
+                </Text>
                 <Text className="font-bold text-xs text-center px-2 text-white" style={{ width: 140 }}>
                   Marked Date
                 </Text>
@@ -579,7 +716,7 @@ export default function AttendanceRecords({ route = {} }) {
 
               {/* Table Data Rows */}
               <ScrollView showsVerticalScrollIndicator={false}>
-                {filteredAttendance.map((item, index) => (
+                {filteredStudents.map((item, index) => (
                   <View
                     key={item._id}
                     className="flex-row p-3 rounded-xl mb-2 border"
@@ -592,14 +729,21 @@ export default function AttendanceRecords({ route = {} }) {
                       {item.name}
                     </Text>
                     <Text className="text-xs text-center px-2" style={{ color: colors.textPrimary, width: 180 }}>
-                      {getCollegeName(item.classId._id)}
+                      {item.collegeName || "Unknown"}
                     </Text>
                     <Text className="text-xs text-center px-2" style={{ color: colors.textSecondary, width: 140 }}>
-                      {item.department}
+                      {item.department || "N/A"}
                     </Text>
                     <Text className="text-xs text-center px-2" style={{ color: colors.textSecondary, width: 120 }}>
-                      {item.classId.className}
+                      {item.classId?.className || item.classId?.name || "N/A"}
                     </Text>
+                    <View className="px-2" style={{ width: 100, alignItems: 'center', justifyContent: 'center' }}>
+                      <View className="px-2 py-1 rounded" style={{ backgroundColor: getStatusStyle(item.status).bg }}>
+                        <Text className="text-xs font-bold" style={{ color: getStatusStyle(item.status).text }}>
+                          {item.status}
+                        </Text>
+                      </View>
+                    </View>
                     <Text className="text-xs text-center px-2" style={{ color: colors.textSecondary, width: 140 }}>
                       {item.attendanceMarkedAt
                         ? new Date(item.attendanceMarkedAt).toLocaleDateString()
@@ -613,7 +757,7 @@ export default function AttendanceRecords({ route = {} }) {
         ) : (
           // CARD VIEW
           <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-            {filteredAttendance.map((item, index) => (
+            {filteredStudents.map((item, index) => (
               <View
                 key={item._id}
                 className="p-4 rounded-xl mb-3 border"
@@ -623,25 +767,32 @@ export default function AttendanceRecords({ route = {} }) {
                 }}
               >
                 {/* Student Name - Prominent */}
-                <Text className="text-base font-bold mb-3" style={{ color: colors.header }}>
-                  {item.name}
-                </Text>
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text className="text-base font-bold" style={{ color: colors.header }}>
+                    {item.name}
+                  </Text>
+                  <View className="px-3 py-1 rounded-lg" style={{ backgroundColor: getStatusStyle(item.status).bg }}>
+                    <Text className="text-xs font-bold" style={{ color: getStatusStyle(item.status).text }}>
+                      {item.status}
+                    </Text>
+                  </View>
+                </View>
 
                 {/* Details Grid */}
                 <View className="gap-2">
                   <View className="flex-row items-center">
                     <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>College:</Text>
-                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{getCollegeName(item.classId._id)}</Text>
+                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{item.collegeName || "Unknown"}</Text>
                   </View>
 
                   <View className="flex-row items-center">
                     <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>Department:</Text>
-                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{item.department}</Text>
+                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{item.department || "N/A"}</Text>
                   </View>
 
                   <View className="flex-row items-center">
                     <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>Class:</Text>
-                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{item.classId.className}</Text>
+                    <Text className="text-xs flex-1" style={{ color: colors.textPrimary }}>{item.classId?.className || item.classId?.name || "N/A"}</Text>
                   </View>
 
                   <View className="flex-row items-center">

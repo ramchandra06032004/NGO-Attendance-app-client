@@ -30,7 +30,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const [endDate, setEndDate] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
-  const { logout } = useContext(AuthContext);
+  const { logout, accessToken } = useContext(AuthContext);
 
   useEffect(() => {
     fetchEvents();
@@ -54,12 +54,14 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
 
   const fetchEvents = async () => {
     try {
+      console.log("Fetching events with token:", accessToken ? "Token present" : "No token");
       const response = await fetch(api.eventAllAPI, {
         method: "GET",
         credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
         },
       });
 

@@ -20,7 +20,11 @@ import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
 import AddNgoScreen from "./screens/admin/AddNgoScreen";
 import AddEventScreen from "./screens/ngo/AddEventScreen";
 import AttendanceRecords from "./screens/ngo/AttendanceRecords";
+import RegisteredStudentsScreen from "./screens/ngo/RegisteredStudentsScreen";
 import EntityDetailScreen from "./screens/admin/EntityDetailScreen";
+import StudentLoginScreen from "./screens/student/StudentLoginScreen";
+import StudentDashboardScreen from "./screens/student/StudentDashboardScreen";
+import StudentMyEventsScreen from "./screens/student/StudentMyEventsScreen";
 import { NavigationContext } from "./context/NavigationContext";
 import { AuthContext } from "./context/AuthContext";
 import Toast from "react-native-toast-message";
@@ -41,6 +45,8 @@ export default function AppContainer() {
         navigate("CollegeClasses", { college: user });
       } else if (userType === "admin") {
         navigate("AdminPanel");
+      } else if (userType === "student") {
+        navigate("StudentDashboard", { student: user });
       }
     }
   }, [loading]); // Only depend on loading, not on route changes
@@ -72,13 +78,15 @@ export default function AppContainer() {
   }
 
   // Block access to login screens if already authenticated
-  if (isAuthenticated && (route.name === "NgoLogin" || route.name === "CollegeLogin" || route.name === "AdminLogin")) {
+  if (isAuthenticated && (route.name === "NgoLogin" || route.name === "CollegeLogin" || route.name === "AdminLogin" || route.name === "StudentLogin")) {
     if (userType === "ngo") {
       return <NgoEventsScreen ngo={user} />;
     } else if (userType === "college") {
       return <CollegeClassesScreen college={user} />;
     } else if (userType === "admin") {
       return <AdminPanelScreen />;
+    } else if (userType === "student") {
+      return <StudentDashboardScreen student={user} />;
     }
   }
 
@@ -114,6 +122,7 @@ export default function AppContainer() {
           key={`${route.params?.eventId}-${route.params?.college?._id || route.params?.college?.id}`}
           eventId={route.params?.eventId}
           college={route.params?.college}
+          route={route}
         />
       );
       break;
@@ -165,8 +174,20 @@ export default function AppContainer() {
     case "AttendanceRecords":
       Screen = <AttendanceRecords route={route} />;
       break;
+    case "RegisteredStudents":
+      Screen = <RegisteredStudentsScreen route={route} />;
+      break;
     case "EntityDetail":
       Screen = <EntityDetailScreen entity={route.params?.entity} entityType={route.params?.entityType} />;
+      break;
+    case "StudentLogin":
+      Screen = <StudentLoginScreen />;
+      break;
+    case "StudentDashboard":
+      Screen = <StudentDashboardScreen student={route.params?.student || user} />;
+      break;
+    case "StudentMyEvents":
+      Screen = <StudentMyEventsScreen student={route.params?.student || user} />;
       break;
     default:
       Screen = <HomeScreen />;

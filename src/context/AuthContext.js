@@ -23,11 +23,20 @@ export function AuthProvider({ children }) {
       const savedRefreshToken = await AsyncStorage.getItem("refreshToken");
       const savedUser = await AsyncStorage.getItem("user");
 
+      console.log("[AuthContext] Validating token:", {
+        hasAccessToken: !!savedAccessToken,
+        hasUser: !!savedUser,
+        userType: savedUserType
+      });
+
       if (savedAccessToken && savedUser) {
         setAccessToken(savedAccessToken);
         setRefreshToken(savedRefreshToken);
         setUser(JSON.parse(savedUser));
         setUserType(savedUserType);
+        console.log("[AuthContext] Token restored successfully");
+      } else {
+        console.log("[AuthContext] No valid token found in storage");
       }
     } catch (error) {
       console.error("Error validating token:", error);
@@ -63,8 +72,16 @@ export function AuthProvider({ children }) {
   };
 
   const loginUser = async (userData, token, refreshTok, type) => {
+    console.log("[AuthContext] loginUser called:", {
+      hasToken: !!token,
+      hasRefreshToken: !!refreshTok,
+      userType: type,
+      userData: userData?.name || userData?.email
+    });
+
     if (token !== null && token !== undefined) {
       await AsyncStorage.setItem("accessToken", token);
+      console.log("[AuthContext] Access token saved to storage");
     }
     if (refreshTok !== null && refreshTok !== undefined) {
       await AsyncStorage.setItem("refreshToken", refreshTok);
@@ -75,6 +92,7 @@ export function AuthProvider({ children }) {
     setRefreshToken(refreshTok);
     setUser(userData);
     setUserType(type);
+    console.log("[AuthContext] Login complete, token set in state");
   };
 
   const switchUserType = async (newUserType) => {
