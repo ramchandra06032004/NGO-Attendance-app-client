@@ -11,6 +11,7 @@ export default function ClassStudentsScreen({ college, className }) {
   const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
+  const {user} = useContext(AuthContext);
 
   // State
   const [students, setStudents] = useState([]);
@@ -23,7 +24,7 @@ export default function ClassStudentsScreen({ college, className }) {
     const fetchStudents = async () => {
       try {
         setLoading(true);
-        const response = await fetch(getAllCollegeAPI, {
+        const response = await fetch(`${getAllCollegeAPI}/${user._id}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,

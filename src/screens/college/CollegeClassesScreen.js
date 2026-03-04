@@ -23,6 +23,7 @@ export default function CollegeClassesScreen({ college }) {
   const { route, navigate, goBack } = useContext(NavigationContext);
   const { addClass } = useContext(AttendanceContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
+  const {user} = useContext(AuthContext);
   const colors = darkMode ? darkTheme : lightTheme;
   const [newClass, setNewClass] = useState('');
   const [loading, setLoading] = useState(false);
@@ -108,9 +109,11 @@ export default function CollegeClassesScreen({ college }) {
   // Fetch fresh college data on mount to avoid stale cached data after refresh
   useEffect(() => {
     const fetchFreshCollegeData = async () => {
-      try {
+      try {        
+
+        
         setDataLoading(true);
-        const response = await fetch(getAllCollegeAPI, {
+        const response = await fetch(`${getAllCollegeAPI}/${user._id}`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${accessToken}`,

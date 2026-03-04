@@ -1,7 +1,8 @@
 import React, { useContext } from 'react';
 import {
-  View, Text, Pressable, SafeAreaView, ScrollView, useColorScheme, Image, Linking, Platform,
+  View, Text, Pressable, ScrollView, useColorScheme, Image, Linking, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Sun,
   Moon,
@@ -77,9 +78,9 @@ export default function HomeScreen() {
       colors={colors.backgroundColors}
       start={colors.backgroundStart}
       end={colors.backgroundEnd}
-      className="flex-1"
+      style={{ flex: 1 }}
     >
-      <SafeAreaView className="flex-1">
+      <SafeAreaView style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, paddingBottom: 32, alignItems: 'center' }} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View className="w-full flex-row justify-between items-center border-b pb-2 mb-8" style={{ borderBottomColor: colors.border }}>

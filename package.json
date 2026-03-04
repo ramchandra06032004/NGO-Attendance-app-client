@@ -16,7 +16,7 @@
     "axios": "^1.12.2",
     "buffer": "^6.0.3",
     "exceljs": "^4.4.0",
-    "expo": "~54.0.27",
+    "expo": "~54.0.33",
     "expo-document-picker": "~14.0.8",
     "expo-file-system": "~19.0.21",
     "expo-image-picker": "~17.0.10",
