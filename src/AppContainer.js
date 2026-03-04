@@ -1,5 +1,5 @@
 import React, { useContext, useEffect } from "react";
-import { View, StyleSheet, ActivityIndicator } from "react-native";
+import { View, StyleSheet, ActivityIndicator, BackHandler } from "react-native";
 import HomeScreen from "./screens/HomeScreen";
 import NgoEventsScreen from "./screens/ngo/NgoEventsScreen";
 import EventDetailScreen from "./screens/ngo/EventDetailScreen";
@@ -13,18 +13,21 @@ import NgoLoginScreen from "./screens/ngo/NgoLoginScreen";
 import CollegeLoginScreen from "./screens/college/CollegeLoginScreen";
 import AdminLoginScreen from "./screens/admin/AdminLoginScreen";
 import AdminPanelScreen from "./screens/admin/AdminPanelScreen";
+import RegisterAdminScreen from "./screens/admin/RegisterAdminScreen";
 import AddClassScreen from "./screens/college/AddClassScreen";
 import AddStudentScreen from "./screens/college/AddStudentScreen";
 import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
 import AddNgoScreen from "./screens/admin/AddNgoScreen";
 import AddEventScreen from "./screens/ngo/AddEventScreen";
 import AttendanceRecords from "./screens/ngo/AttendanceRecords";
+import EntityDetailScreen from "./screens/admin/EntityDetailScreen";
 import { NavigationContext } from "./context/NavigationContext";
 import { AuthContext } from "./context/AuthContext";
+import Toast from "react-native-toast-message";
 
 export default function AppContainer() {
-  
-  const { route, navigate } = useContext(NavigationContext);
+
+  const { route, navigate, goBack } = useContext(NavigationContext);
   console.log("AppContainer render, current route:", route.name);
   const { loading, isAuthenticated, userType, user } = useContext(AuthContext);
 
@@ -41,6 +44,23 @@ export default function AppContainer() {
       }
     }
   }, [loading]); // Only depend on loading, not on route changes
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // If we're on the Home screen, allow default behavior (exit app)
+      if (route.name === 'Home') {
+        return false; // Let the system handle it (exit app)
+      }
+
+      // Otherwise, navigate back within the app
+      goBack();
+      return true; // Prevent default behavior (don't exit app)
+    });
+
+    // Cleanup listener on unmount
+    return () => backHandler.remove();
+  }, [route.name, goBack]); // Re-register when route changes
 
   // Show loading screen while validating token
   if (loading) {
@@ -91,6 +111,7 @@ export default function AppContainer() {
     case "StudentsList":
       Screen = (
         <StudentsListScreen
+          key={`${route.params?.eventId}-${route.params?.college?._id || route.params?.college?.id}`}
           eventId={route.params?.eventId}
           college={route.params?.college}
         />
@@ -135,17 +156,28 @@ export default function AppContainer() {
     case "AdminPanel":
       Screen = <AdminPanelScreen />;
       break;
+    case "RegisterAdmin":
+      Screen = <RegisterAdminScreen />;
+      break;
     case "AddEvent":
       Screen = <AddEventScreen />;
       break;
     case "AttendanceRecords":
       Screen = <AttendanceRecords route={route} />;
       break;
+    case "EntityDetail":
+      Screen = <EntityDetailScreen entity={route.params?.entity} entityType={route.params?.entityType} />;
+      break;
     default:
       Screen = <HomeScreen />;
   }
 
-  return <View style={styles.container}>{Screen}</View>;
+  return (
+    <View style={styles.container}>
+      {Screen}
+      <Toast />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

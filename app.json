@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "NGOAttendanceApp",
+    "name": "MarkIn",
     "slug": "NGOAttendanceApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,11 +21,14 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.omdhavale15.NGOAttendanceApp"
+      "package": "com.omdhavale15.NGOAttendanceApp",
+      "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "static",
+      "hydrate": false
     },
     "extra": {
       "eas": {

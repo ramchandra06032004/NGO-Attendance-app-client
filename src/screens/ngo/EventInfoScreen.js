@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useContext } from "react";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -29,115 +29,67 @@ export default function EventInfoScreen({ route }) {
 
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: colors.backgroundColors
-            ? colors.backgroundColors[0]
-            : "#fff",
-        },
-      ]}
+      className="flex-1 p-5 justify-center items-center"
+      style={{
+        backgroundColor: colors.backgroundColors
+          ? colors.backgroundColors[0]
+          : "#fff",
+      }}
     >
       <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-        ]}
+        className="w-full max-w-md p-5 rounded-xl border"
+        style={{
+          backgroundColor: colors.cardBg,
+          borderColor: colors.border,
+        }}
       >
-        <Text style={[styles.title, { color: colors.header }]}>{title}</Text>
-        <Text style={[styles.info, { color: colors.textPrimary }]}>
+        <Text className="text-2xl font-bold mb-2" style={{ color: colors.header }}>{title}</Text>
+        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
           Location: {event.location || "N/A"}
         </Text>
-        <Text style={[styles.info, { color: colors.textPrimary }]}>
+        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
           Date: {formattedDate}
         </Text>
-        <Text style={[styles.desc, { color: colors.textSecondary }]}>
+        <Text className="mb-2.5 text-base" style={{ color: colors.textSecondary }}>
           About Event: {event.description}
         </Text>
         {event.students && (
-          <Text style={[styles.info, { color: colors.textPrimary }]}>
+          <Text className="mb-4 text-base" style={{ color: colors.textPrimary }}>
             {event.students.length} students registered
           </Text>
         )}
 
         <TouchableOpacity
-          style={[styles.action, { backgroundColor: colors.accent }]}
+          className="mt-4 p-3 rounded-lg items-center"
+          style={{ backgroundColor: colors.accent }}
           onPress={() =>
             navigate("SelectCollege", { eventId: event._id || event.id })
           }
         >
-          <Text style={styles.actionText}>Mark Attendance</Text>
+          <Text className="text-white font-bold">Mark Attendance</Text>
         </TouchableOpacity>
 
         {/* New button: View marked attendance records */}
         <TouchableOpacity
-          style={[
-            styles.actionSecondary,
-            {
-              borderColor: colors.border,
-              backgroundColor: colors.cardBg,
-            },
-          ]}
-          // onPress={() =>
-          //   { console.log(event),
-          //     navigate("AttendanceRecords", {  event  })
-          //   }
-          // }
-          onPress={() =>
-  { 
-    console.log("Event BEFORE Navigation:", event), // <--- CHECK THIS OUTPUT!
-    navigate("AttendanceRecords", { event: event })
-  }
-}
+          className="mt-3 p-3 rounded-lg items-center border"
+          style={{
+            borderColor: colors.border,
+            backgroundColor: colors.cardBg,
+          }}
+          onPress={() => {
+            console.log("Event BEFORE Navigation:", event),
+              navigate("AttendanceRecords", { event: event });
+          }}
         >
-          <Text style={[styles.actionTextSecondary, { color: colors.textPrimary }]}>
+          <Text className="font-bold" style={{ color: colors.textPrimary }}>
             View Attendance Records
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.link} onPress={() => goBack()}>
+        <TouchableOpacity className="mt-3 items-center" onPress={() => goBack()}>
           <Text style={[{ color: colors.textPrimary }]}>Back</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  card: {
-    width: "100%",
-    maxWidth: 520,
-    padding: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  title: { fontSize: 20, fontWeight: "700", marginBottom: 8 },
-  desc: { marginBottom: 10 },
-  info: { marginBottom: 8 },
-  action: {
-    marginTop: 16,
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  actionText: { color: "#fff", fontWeight: "700" },
-  link: { marginTop: 12, alignItems: "center" },
-
-  /* Secondary action (view records) */
-  actionSecondary: {
-    marginTop: 12,
-    padding: 12,
-    borderRadius: 10,
-    alignItems: "center",
-    borderWidth: 1,
-  },
-  actionTextSecondary: {
-    fontWeight: "700",
-  },
-});

@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { useTheme } from '../../context/ThemeContext';
 import * as api from '../../../apis/api';
@@ -42,36 +42,28 @@ export default function AddClassScreen({ college }) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }]}>
-      <View style={styles.card}>
-        <Text style={[styles.title, { color: colors.header }]}>Add Class</Text>
+    <View className="flex-1 p-5" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}>
+      <View className="flex-1">
+        <Text className="text-xl font-bold mb-3" style={{ color: colors.header }}>Add Class</Text>
 
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Class name</Text>
+        <Text className="text-base font-semibold mb-2" style={{ color: colors.textPrimary }}>Class name</Text>
         <TextInput
           placeholder="Class name (e.g. 2025-2026TY13)"
           placeholderTextColor={colors.textSecondary}
           value={className}
           onChangeText={setClassName}
-          style={[styles.input, { backgroundColor: colors.iconBg, borderColor: colors.border, color: colors.textPrimary }]}
+          className="p-3 rounded-lg border mb-3"
+          style={{ backgroundColor: colors.iconBg, borderColor: colors.border, color: colors.textPrimary }}
         />
 
-        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.accent }]} onPress={onSave}>
-          <Text style={{ color: '#fff' }}>Create Class</Text>
+        <TouchableOpacity className="p-3 rounded-lg items-center mt-3" style={{ backgroundColor: colors.accent }} onPress={onSave}>
+          <Text className="text-white font-bold">Create Class</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>
+        <TouchableOpacity className="mt-3" onPress={() => goBack()}>
           <Text style={{ color: colors.textPrimary }}>Back</Text>
         </TouchableOpacity>
       </View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  card: { flex: 1 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  input: { padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 12 },
-  saveBtn: { padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-});

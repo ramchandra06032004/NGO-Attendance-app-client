@@ -1,8 +1,17 @@
 //export const host = "http://localhost:3000"; //Development
-export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
+import { Platform } from "react-native";
+
+// ✅ Correct Syntax: Use a ternary operator
+// export const host = Platform.OS === "android" 
+//   ? "http://10.0.2.2:3000" 
+//   : "http://localhost:3000";
+//export const host = "http://10.0.2.2:3000"; //Production
+// export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
+export const host = "https://ngo-attendance-backend.el.r.appspot.com"; //Production
 
 //login auth apis
 export const auth_host = `${host}/api/v1/auth`;
+export const registerAdmin = `${auth_host}/register/admin`
 export const loginAPI = `${auth_host}/login`;
 export const logoutAPI = `${auth_host}/logout`;
 

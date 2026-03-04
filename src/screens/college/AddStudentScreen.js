@@ -1,12 +1,14 @@
 import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AttendanceContext } from '../../context/AttendanceContext';
 import { useTheme } from '../../context/ThemeContext';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
-import * as XLSX from 'xlsx';
+import * as FileSystem from 'expo-file-system/legacy';
+import { shareAsync } from 'expo-sharing';
+import * as ExcelJS from 'exceljs';
 import * as api from '../../../apis/api';
+import { Buffer } from 'buffer';
 
 export default function AddStudentScreen({ college, className }) {
   const { goBack } = useContext(NavigationContext);
@@ -29,17 +31,72 @@ export default function AddStudentScreen({ college, className }) {
 
   async function pickAndParseFile() {
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv', 'application/octet-stream'], copyToCacheDirectory: true });
-      if (res.type !== 'success') return;
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv', 'application/octet-stream'],
+        copyToCacheDirectory: true
+      });
 
-      const fileUri = res.uri;
-      const fileStr = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
+      // Check if user canceled the picker
+      if (res.canceled) return;
 
-      // parse base64 content into workbook
-      const workbook = XLSX.read(fileStr, { type: 'base64' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      // Get the file URI from the assets array
+      const fileUri = res.assets[0].uri;
+      const fileName = res.assets[0].name || '';
+
+      let rows = [];
+
+      // Check if it's a CSV file
+      if (fileName.toLowerCase().endsWith('.csv')) {
+        // Read as UTF-8 for CSV
+        const csvContent = await FileSystem.readAsStringAsync(fileUri, { encoding: 'utf8' });
+
+        // Parse CSV manually
+        const lines = csvContent.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+          Alert.alert('No data found in CSV file');
+          return;
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim());
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',').map(v => v.trim());
+          const rowData = {};
+          headers.forEach((header, index) => {
+            rowData[header] = values[index] || '';
+          });
+          rows.push(rowData);
+        }
+      } else {
+        // Handle Excel files (.xlsx, .xls)
+        const fileStr = await FileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
+
+        // parse base64 content into workbook using ExcelJS
+        const workbook = new ExcelJS.Workbook();
+        await workbook.xlsx.load(Buffer.from(fileStr, 'base64'));
+
+        const worksheet = workbook.worksheets[0];
+
+        // Get headers from first row
+        const headerRow = worksheet.getRow(1);
+        const headers = [];
+        headerRow.eachCell((cell, colNumber) => {
+          headers[colNumber] = cell.value;
+        });
+
+        // Parse data rows
+        worksheet.eachRow((row, rowNumber) => {
+          if (rowNumber === 1) return; // Skip header row
+          const rowData = {};
+          row.eachCell((cell, colNumber) => {
+            const header = headers[colNumber];
+            if (header) {
+              rowData[header] = cell.value || '';
+            }
+          });
+          rows.push(rowData);
+        });
+      }
 
       if (!rows || rows.length === 0) {
         Alert.alert('No rows found in the selected file');
@@ -60,14 +117,100 @@ export default function AddStudentScreen({ college, className }) {
         return;
       }
 
-      // merge into current students list
-      setStudents(prev => [...prev, ...mapped]);
+      // Filter out empty students from current list and merge with imported students
+      setStudents(prev => {
+        const nonEmptyStudents = prev.filter(s => s.name.trim());
+        return [...nonEmptyStudents, ...mapped];
+      });
       Alert.alert('Imported', `${mapped.length} students were parsed and added to the list.`);
     } catch (err) {
       console.warn('Failed to parse file', err);
       Alert.alert('Import failed', 'Could not parse the selected file.');
     }
   }
+
+  const downloadTemplate = async () => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Students');
+
+      // 1. Setup Headers & Columns
+      worksheet.columns = [
+        { header: 'Name', key: 'name', width: 20 },
+        { header: 'PRN', key: 'prn', width: 15 },
+        { header: 'Department', key: 'department', width: 20 },
+        { header: 'Email', key: 'email', width: 25 },
+      ];
+
+      // Add Sample Row
+      worksheet.addRow(['John Doe', '123456', 'Computer Science', 'john@example.com']);
+
+      // 2. Generate Excel Buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+      const base64String = Buffer.from(buffer).toString('base64');
+      const filename = 'Student_Template.xlsx';
+
+      // --- WEB DOWNLOAD ---
+      if (Platform.OS === 'web') {
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = filename;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
+        return;
+      }
+
+      // --- ANDROID "SAVE TO DEVICE" (SAF) ---
+      if (Platform.OS === 'android') {
+        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+
+        if (permissions.granted) {
+          // Creates a blank file in the user-selected directory
+          const uri = await FileSystem.StorageAccessFramework.createFileAsync(
+            permissions.directoryUri,
+            filename,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          );
+
+          // Writes the Excel data into that file
+          await FileSystem.writeAsStringAsync(uri, base64String, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+
+          Alert.alert('Success', 'Template saved to your device!');
+        } else {
+          // Fallback to sharing if they deny folder access
+          await shareFallback(base64String, filename);
+        }
+      }
+
+      // --- iOS "SAVE TO FILES" ---
+      else {
+        // iOS handles "Save to Files" natively within the Share Sheet
+        await shareFallback(base64String, filename);
+      }
+
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      Alert.alert('Error', 'Failed to generate template');
+    }
+  };
+
+  // Helper function for iOS or Android fallback
+  const shareFallback = async (base64String, filename) => {
+    const fileUri = FileSystem.cacheDirectory + filename;
+    await FileSystem.writeAsStringAsync(fileUri, base64String, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    await Sharing.shareAsync(fileUri, {
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      dialogTitle: 'Save Student Template',
+      UTI: 'com.microsoft.excel.xlsx', // Required for iOS to recognize Excel
+    });
+  };
 
   function removeStudent(idx) {
     setStudents(prev => prev.filter((_, i) => i !== idx));
@@ -98,7 +241,7 @@ export default function AddStudentScreen({ college, className }) {
       // Call the API
       const response = await fetch(api.addStudentAPI, {
         method: 'POST',
-        credentials:'include',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -120,60 +263,121 @@ export default function AddStudentScreen({ college, className }) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }]}>
-      <ScrollView contentContainerStyle={styles.card}>
-        <Text style={[styles.title, { color: colors.header }]}>Add Students to {className}</Text>
+    <View className="flex-1" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}>
+      {/* Header with Back Button and Save */}
+      <View className="px-4 pt-12 pb-3" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View className="flex-row items-center justify-between mb-3">
+          <TouchableOpacity onPress={() => goBack()} className="flex-row items-center">
+            <Text className="text-base" style={{ color: colors.textPrimary }}>← Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity className="p-2 px-4 rounded-lg" style={{ backgroundColor: colors.accent }} onPress={onSave}>
+            <Text className="text-white font-bold">Save ({students.filter(s => s.name.trim()).length})</Text>
+          </TouchableOpacity>
+        </View>
+        <Text className="text-xl font-bold" style={{ color: colors.header }}>Add Students to {className}</Text>
+      </View>
 
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 12 }]}>Add students</Text>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+        {/* Upload Section */}
+        <View className="p-4 rounded-lg mb-4" style={{ backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }}>
+          <Text className="text-base font-semibold mb-3" style={{ color: colors.textPrimary }}>Import from File</Text>
+
+          <TouchableOpacity onPress={downloadTemplate} className="p-3 rounded-lg items-center mb-3 border" style={{ borderColor: colors.accent, backgroundColor: 'transparent' }}>
+            <Text className="font-semibold" style={{ color: colors.accent }}>Download Excel Template</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={pickAndParseFile} className="p-3 rounded-lg items-center mb-2" style={{ backgroundColor: colors.accent }}>
+            <Text className="text-white font-semibold">Pick Excel/CSV File</Text>
+          </TouchableOpacity>
+          <Text className="text-xs text-center" style={{ color: colors.textSecondary }}>
+            Supported: .xlsx, .xls, .csv with columns: Name, PRN, Department, Email
+          </Text>
+        </View>
+
+        {/* Summary Card */}
+        <View className="p-4 rounded-lg mb-4" style={{ backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }}>
+          <View className="flex-row justify-between items-center">
+            <View>
+              <Text className="text-sm" style={{ color: colors.textSecondary }}>Total Students</Text>
+              <Text className="text-2xl font-bold" style={{ color: colors.accent }}>{students.filter(s => s.name.trim()).length}</Text>
+            </View>
+            <TouchableOpacity onPress={addEmptyStudent} className="p-2 px-4 rounded-lg" style={{ backgroundColor: colors.accent }}>
+              <Text className="text-white font-semibold">+ Add Manually</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Students List */}
+        <Text className="text-base font-semibold mb-2" style={{ color: colors.textPrimary }}>Student List</Text>
+
         {students.map((s, idx) => (
-          <View key={s.id} style={[styles.studentRow, { borderColor: colors.border, backgroundColor: colors.cardBg }]}>
-            <TextInput placeholder="Name" placeholderTextColor={colors.textSecondary} value={s.name} onChangeText={(v) => updateStudent(idx, 'name', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <TextInput placeholder="PRN" placeholderTextColor={colors.textSecondary} value={s.prn} onChangeText={(v) => updateStudent(idx, 'prn', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <TextInput placeholder="Department" placeholderTextColor={colors.textSecondary} value={s.department} onChangeText={(v) => updateStudent(idx, 'department', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <TextInput placeholder="Email" placeholderTextColor={colors.textSecondary} value={s.email} onChangeText={(v) => updateStudent(idx, 'email', v)} style={[styles.smallInput, { color: colors.textPrimary }]} />
-            <View style={styles.studentActions}>
-              <TouchableOpacity onPress={() => addEmptyStudent()} style={[styles.actionBtn, { backgroundColor: colors.accent }]}>
-                <Text style={{ color: '#fff' }}>Add student</Text>
+          <View key={s.id} className="mb-2 rounded-lg overflow-hidden" style={{ backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }}>
+            {/* Compact Header */}
+            <View className="flex-row items-center justify-between p-2 px-3" style={{ backgroundColor: colors.iconBg }}>
+              <Text className="font-semibold" style={{ color: colors.textPrimary }}>
+                {idx + 1}. {s.name || 'New Student'}
+              </Text>
+              <TouchableOpacity onPress={() => removeStudent(idx)} className="p-1 px-3 rounded" style={{ backgroundColor: '#ef4444' }}>
+                <Text className="text-white text-xs font-semibold">Remove</Text>
               </TouchableOpacity>
-              {students.length > 1 && (
-                <TouchableOpacity onPress={() => removeStudent(idx)} style={[styles.actionBtn, { backgroundColor: '#888' }]}>
-                  <Text style={{ color: '#fff' }}>Remove</Text>
-                </TouchableOpacity>
-              )}
+            </View>
+
+            {/* Editable Fields */}
+            <View className="p-3">
+              <View className="mb-2">
+                <Text className="text-xs mb-1" style={{ color: colors.textSecondary }}>Name</Text>
+                <TextInput
+                  placeholder="Student Name"
+                  placeholderTextColor={colors.textSecondary}
+                  value={s.name}
+                  onChangeText={(v) => updateStudent(idx, 'name', v)}
+                  className="p-2 rounded border"
+                  style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }}
+                />
+              </View>
+
+              <View className="flex-row gap-2 mb-2">
+                <View className="flex-1">
+                  <Text className="text-xs mb-1" style={{ color: colors.textSecondary }}>PRN</Text>
+                  <TextInput
+                    placeholder="PRN"
+                    placeholderTextColor={colors.textSecondary}
+                    value={s.prn}
+                    onChangeText={(v) => updateStudent(idx, 'prn', v)}
+                    className="p-2 rounded border"
+                    style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs mb-1" style={{ color: colors.textSecondary }}>Department</Text>
+                  <TextInput
+                    placeholder="Department"
+                    placeholderTextColor={colors.textSecondary}
+                    value={s.department}
+                    onChangeText={(v) => updateStudent(idx, 'department', v)}
+                    className="p-2 rounded border"
+                    style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }}
+                  />
+                </View>
+              </View>
+
+              <View>
+                <Text className="text-xs mb-1" style={{ color: colors.textSecondary }}>Email</Text>
+                <TextInput
+                  placeholder="Email"
+                  placeholderTextColor={colors.textSecondary}
+                  value={s.email}
+                  onChangeText={(v) => updateStudent(idx, 'email', v)}
+                  className="p-2 rounded border"
+                  style={{ color: colors.textPrimary, backgroundColor: colors.iconBg, borderColor: colors.border }}
+                />
+              </View>
             </View>
           </View>
         ))}
 
-        <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginTop: 12 }]}>Upload Excel sheet</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <TouchableOpacity onPress={pickAndParseFile} style={[styles.actionBtn, { backgroundColor: colors.accent, paddingHorizontal: 12 }] }>
-            <Text style={{ color: '#fff' }}>Pick Excel file</Text>
-          </TouchableOpacity>
-          <Text style={{ color: colors.textSecondary, flex: 1 }}>Pick an .xlsx/.xls/.csv with student rows (Name, PRN, Department, Email)</Text>
-        </View>
 
-        <TouchableOpacity style={[styles.saveBtn, { backgroundColor: colors.accent }]} onPress={onSave}>
-          <Text style={{ color: '#fff' }}>Save Students</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={{ marginTop: 12 }} onPress={() => goBack()}>
-          <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  card: { padding: 16 },
-  title: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: '600', marginBottom: 8 },
-  input: { padding: 12, borderRadius: 8, borderWidth: 1 },
-  studentRow: { padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 12 },
-  smallInput: { padding: 8, borderRadius: 6, borderWidth: 1, marginBottom: 8 },
-  studentActions: { flexDirection: 'row', justifyContent: 'space-between' },
-  actionBtn: { padding: 8, borderRadius: 8, alignItems: 'center', flex: 1, marginRight: 8 },
-  uploadBox: { padding: 20, borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
-  saveBtn: { padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
-});

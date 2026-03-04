@@ -2,11 +2,15 @@ import React, { useContext, useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  Image,
+  RefreshControl,
+  TextInput,
+  Platform,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { AuthContext } from "../../context/AuthContext";
 
 import { AttendanceContext } from "../../context/AttendanceContext";
@@ -20,34 +24,34 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const colors = darkMode ? darkTheme : lightTheme;
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
- const { logout } = useContext(AuthContext);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const { logout } = useContext(AuthContext);
 
   useEffect(() => {
     fetchEvents();
   }, []);
-  const handleLogout = async () => {
-    // try {
-    //   const response = await fetch(api.logoutAPI, {
-    //     method: "POST",
-    //     credentials: "include",
-    //     headers: {
-    //       Accept: "application/json",
-    //       "Content-Type": "application/json",
-    //     },
-    //   });
 
-    //   if (!response.ok) {
-    //     throw new Error(`HTTP error! status: ${response.status}`);
-    //   }
-
-    //   console.log("Logged out successfully");
-    // } catch (error) {
-    //   console.error("Error logging out:", error);
-    // }
-     await logout();
-    navigate("Home");
-
+  const getInitials = (name) => {
+    if (!name) return "";
+    return name
+      .split(" ")
+      .filter(Boolean)
+      .map((n) => n[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
   };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("Home");
+  };
+
   const fetchEvents = async () => {
     try {
       const response = await fetch(api.eventAllAPI, {
@@ -67,198 +71,404 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
       console.log("Fetched events:", data);
       setEvents(data.data);
       setLoading(false);
+      setRefreshing(false);
     } catch (error) {
       console.error("Error fetching events:", error);
       setLoading(false);
+      setRefreshing(false);
     }
   };
-  
-// ...existing code...
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchEvents();
+  };
+
+  // Filter events based on search query and date range
+  const filteredEvents = events.filter((event) => {
+    // Text search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      const eventDate = event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "";
+      const matchesSearch = (
+        event.aim?.toLowerCase().includes(query) ||
+        event.location?.toLowerCase().includes(query) ||
+        event.description?.toLowerCase().includes(query) ||
+        eventDate.toLowerCase().includes(query)
+      );
+      if (!matchesSearch) return false;
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      const eventDate = event.eventDate ? new Date(event.eventDate) : null;
+      if (!eventDate) return false;
+
+      // Reset time to compare only dates
+      eventDate.setHours(0, 0, 0, 0);
+
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        if (eventDate < start) return false;
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(0, 0, 0, 0);
+        if (eventDate > end) return false;
+      }
+    }
+
+    return true;
+  });
+
+  const clearDateRange = () => {
+    setStartDate(null);
+    setEndDate(null);
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "Select Date";
+    return new Date(date).toLocaleDateString();
+  };
+
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor:
-            (colors.backgroundColors && colors.backgroundColors[0]) ||
-            styles.container.backgroundColor,
-        },
-      ]}
+      className="flex-1 px-5 pt-8" // Increased top padding for safety
+      style={{
+        backgroundColor:
+          (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
+      }}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        {/* <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-          <Text style={{ color: colors.textPrimary }}>Back</Text>
-        </TouchableOpacity> */}
-
-        <Text style={[styles.title, { color: colors.header }]}>Events</Text>
-
-        {loggedNgo ? (
-          <View
-            style={{
-              marginLeft: "auto",
-              flexDirection: "row",
-              alignItems: "center",
-            }}
-          >
-            <Text
+      {/* --- HEADER CARD --- */}
+      <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+        <View className="flex-row items-center justify-between gap-1">
+          {/* Left: Logo + NGO Info */}
+          <View className="flex-row items-center flex-1 gap-3">
+            {/* Logo Box */}
+            <View
+              className="rounded-lg border overflow-hidden"
               style={{
-                marginRight: 10,
-                fontWeight: "700",
-                color: colors.textPrimary,
+                backgroundColor: colors.iconBg,
+                borderColor: colors.border,
+                width: 60,
+                height: 60,
+                flexShrink: 0,
               }}
             >
-              {loggedNgo.name}
-            </Text>
-            <TouchableOpacity
-              style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
-              onPress={() => { handleLogout()}}
-            >
-              <Text style={{ color: "#fff" }}>Logout</Text>
-            </TouchableOpacity>
+              {loggedNgo.profileImage ? (
+                <Image
+                  source={{ uri: loggedNgo.profileImage }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View className="flex-1 justify-center items-center" style={{ backgroundColor: colors.accent }}>
+                  <Text className="text-white font-bold text-xl">
+                    {loggedNgo.name?.[0]?.toUpperCase() || "N"}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* NGO Name & Address */}
+            <View className="flex-1">
+              <Text
+                className="font-bold text-sm leading-5"
+                style={{ color: colors.header }}
+                numberOfLines={1}
+              >
+                {loggedNgo.name.toUpperCase()}
+              </Text>
+              <Text
+                className="text-xs mt-0.5"
+                style={{ color: colors.textSecondary }}
+                numberOfLines={1}
+              >
+                {loggedNgo.address}
+              </Text>
+            </View>
           </View>
-        ) : null}
+
+          {/* Right: Logout Button */}
+          <TouchableOpacity
+            className="px-3 py-1.5 rounded-full border ml-1"
+            style={{ borderColor: colors.error || "#ef4444", borderWidth: 1 }}
+            onPress={handleLogout}
+          >
+            <Text
+              className="text-xs font-bold"
+              style={{ color: colors.error || "#ef4444" }}
+            >
+              Logout
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* --- TITLE & ADD BUTTON ROW --- */}
+      <View className="flex-row items-center justify-between mb-3">
+        <Text
+          className="text-2xl font-extrabold"
+          style={{ color: colors.header }}
+        >
+          Events
+        </Text>
+
+        {/* Add Event Button */}
+        <TouchableOpacity
+          className="px-4 py-2 rounded-xl flex-row items-center"
+          style={{
+            backgroundColor: colors.accent,
+          }}
+          onPress={() => navigate("AddEvent")}
+        >
+          <Text className="text-white text-lg font-bold mr-1">+</Text>
+          <Text className="text-white font-bold text-sm">New</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* --- SEARCH BAR --- */}
+      <View className="mb-3">
+        <TextInput
+          className="px-4 py-3 rounded-xl border"
+          style={{
+            backgroundColor: colors.cardBg,
+            borderColor: colors.border,
+            color: colors.textPrimary,
+          }}
+          placeholder="Search by name, location, or description..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+      </View>
+
+      {/* --- DATE RANGE PICKER --- */}
+      <View className="mb-4">
+        <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>
+          Filter by Date Range
+        </Text>
+        <View className="flex-row gap-2">
+          {/* Start Date */}
+          {Platform.OS === 'web' ? (
+            <View className="flex-1">
+              <input
+                type="date"
+                value={startDate ? startDate.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setStartDate(new Date(e.target.value));
+                  } else {
+                    setStartDate(null);
+                  }
+                }}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.cardBg,
+                  color: colors.textPrimary,
+                  fontSize: '14px',
+                  width: '100%',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+              }}
+              onPress={() => setShowStartPicker(true)}
+            >
+              <Text className="text-sm" style={{ color: startDate ? colors.textPrimary : colors.textSecondary }}>
+                {formatDate(startDate)}
+              </Text>
+              <Text style={{ color: colors.textSecondary }}>📅</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* End Date */}
+          {Platform.OS === 'web' ? (
+            <View className="flex-1">
+              <input
+                type="date"
+                value={endDate ? endDate.toISOString().split('T')[0] : ''}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setEndDate(new Date(e.target.value));
+                  } else {
+                    setEndDate(null);
+                  }
+                }}
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.cardBg,
+                  color: colors.textPrimary,
+                  fontSize: '14px',
+                  width: '100%',
+                  fontFamily: 'inherit',
+                }}
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+              }}
+              onPress={() => setShowEndPicker(true)}
+            >
+              <Text className="text-sm" style={{ color: endDate ? colors.textPrimary : colors.textSecondary }}>
+                {formatDate(endDate)}
+              </Text>
+              <Text style={{ color: colors.textSecondary }}>📅</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Clear Button */}
+          {(startDate || endDate) && (
+            <TouchableOpacity
+              className="px-3 py-2.5 rounded-xl border"
+              style={{
+                backgroundColor: colors.error || "#ef4444",
+                borderColor: colors.error || "#ef4444",
+              }}
+              onPress={clearDateRange}
+            >
+              <Text className="text-white font-bold text-sm">✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Date Pickers - Only for Mobile */}
+      {Platform.OS !== 'web' && showStartPicker && (
+        <DateTimePicker
+          value={startDate || new Date()}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={(event, selectedDate) => {
+            setShowStartPicker(Platform.OS === "ios");
+            if (selectedDate) {
+              setStartDate(selectedDate);
+            }
+          }}
+        />
+      )}
+
+      {Platform.OS !== 'web' && showEndPicker && (
+        <DateTimePicker
+          value={endDate || new Date()}
+          mode="date"
+          display={Platform.OS === "ios" ? "spinner" : "default"}
+          onChange={(event, selectedDate) => {
+            setShowEndPicker(Platform.OS === "ios");
+            if (selectedDate) {
+              setEndDate(selectedDate);
+            }
+          }}
+        />
+      )}
+
 
       {/* Event List */}
       {loading ? (
-        <ActivityIndicator
-          size="large"
-          color={colors.accent}
-          style={styles.loader}
-        />
+        <View className="flex-1 justify-center items-center">
+          <ActivityIndicator size="large" color={colors.accent} />
+        </View>
       ) : events.length === 0 ? (
-        <Text style={[styles.noEvents, { color: colors.textSecondary }]}>
-          No events found. Click the + button to add an event.
-        </Text>
+        <View className="flex-1 justify-center items-center opacity-60">
+          <Text className="text-base" style={{ color: colors.textSecondary }}>
+            No events found.
+          </Text>
+          <Text className="text-base" style={{ color: colors.textSecondary }}>
+            Click the + button to create your first event!
+          </Text>
+
+        </View>
       ) : (
         <FlatList
-          data={events}
+          data={filteredEvents}
           keyExtractor={(item, index) => item._id || index.toString()}
-          style={{ width: "100%" }}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={
+            <View className="flex-1 justify-center items-center py-10">
+              <Text className="text-base text-center" style={{ color: colors.textSecondary }}>
+                No events found matching "{searchQuery}"
+              </Text>
+            </View>
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={[
-                styles.eventCard,
-                { backgroundColor: colors.cardBg, borderColor: colors.border },
-              ]}
+              className="p-4 rounded-2xl mb-4 border shadow-sm"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+                elevation: 2,
+              }}
               onPress={() => {
                 navigate("EventInfo", { event: item });
               }}
+              activeOpacity={0.8}
             >
-              <Text style={[styles.eventTitle, { color: colors.textPrimary }]}>
+              {/* Event Title */}
+              <Text
+                className="text-lg font-bold mb-1"
+                style={{ color: colors.textPrimary }}
+              >
                 {item.aim}
               </Text>
-              <Text
-                style={[styles.eventLocation, { color: colors.textSecondary }]}
+
+              {/* Location */}
+              <View className="flex-row items-center mb-2 opacity-90">
+                <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
+                <Text
+                  className="text-sm font-medium"
+                  style={{ color: colors.textSecondary }}
+                >
+                  {item.location}
+                </Text>
+              </View>
+
+              {/* Date Badge */}
+              <View
+                className="self-start px-2 py-1 rounded-md mb-2"
+                style={{ backgroundColor: colors.iconBg }}
               >
-                📍 {item.location}
-              </Text>
+                <Text
+                  className="text-xs font-bold"
+                  style={{ color: colors.textPrimary }}
+                >
+                  📅 {new Date(item.eventDate).toLocaleDateString()}
+                </Text>
+              </View>
+
+              {/* Description Snippet */}
               <Text
-                style={[
-                  styles.eventDescription,
-                  { color: colors.textSecondary },
-                ]}
+                className="text-sm leading-5"
+                numberOfLines={2}
+                style={{ color: colors.textSecondary }}
               >
-                {item.description && item.description.length > 100
-                  ? `${item.description.substring(0, 100)}...`
-                  : item.description}
-              </Text>
-              <Text style={[styles.eventDate, { color: colors.textSecondary }]}>
-                📅 {new Date(item.eventDate).toLocaleDateString()}
+                {item.description}
               </Text>
             </TouchableOpacity>
           )}
         />
       )}
 
-      {/* Add Event Button */}
-      {loggedNgo && (
-        <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.accent }]}
-          onPress={() => navigate("AddEvent")}
-        >
-          <Text style={styles.fabText}>Add Event</Text>
-        </TouchableOpacity>
-      )}
+
     </View>
   );
 }
-
-// Styles
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    backgroundColor: "#eef2ff",
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  backBtn: {
-    paddingRight: 12,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#0f172a",
-  },
-  eventCard: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-  },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#0f172a",
-    marginBottom: 8,
-  },
-  eventLocation: {
-    fontSize: 14,
-    marginBottom: 8,
-  },
-  eventDescription: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  eventDate: {
-    fontSize: 14,
-    marginTop: 4,
-  },
-  loader: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  noEvents: {
-    textAlign: "center",
-    marginTop: 20,
-    fontSize: 16,
-  },
-  fab: {
-    position: "absolute",
-    right: 20,
-    bottom: 24,
-    backgroundColor: "#0ea5a4",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 30,
-    elevation: 4,
-  },
-  fabText: {
-    color: "#fff",
-    fontWeight: "700",
-  },
-  logoutBtn: {
-    backgroundColor: "#ef4444",
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-});

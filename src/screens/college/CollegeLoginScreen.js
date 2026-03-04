@@ -1,350 +1,20 @@
-// import React, { useState, useContext, useEffect } from "react";
-// import {
-//   View,
-//   Text,
-//   StyleSheet,
-//   TouchableOpacity,
-//   TextInput,
-//   ScrollView,
-//   Pressable,
-//   FlatList,
-// } from "react-native";
-// import { NavigationContext } from "../../context/NavigationContext";
-// import { AttendanceContext } from "../../context/AttendanceContext";
-// import { useTheme } from "../../context/ThemeContext";
-// import * as api from "../../../apis/api";
-// export default function CollegeLoginScreen() {
-//   const { darkMode, lightTheme, darkTheme } = useTheme();
-//   const colors = darkMode ? darkTheme : lightTheme;
-//   const [email, setEmail] = useState("");
-//   const [password, setPassword] = useState("");
-//   const { navigate, goBack } = useContext(NavigationContext);
-//   const { getColleges } = useContext(AttendanceContext);
-//   const colleges = getColleges();
-//   const [collegesList, setCollegesList] = useState([]);
-//   const [ngosList, setNgosList] = useState([]);
-//   const [loadingColleges, setLoadingColleges] = useState(false);
-//   const [selectedCollege, setSelectedCollege] = useState("");
-
-//   useEffect(() => {
-//     fetchColleges();
-//   }, []);
-//   const fetchColleges = async () => {
-//     try {
-//       const response = await fetch(api.getAllCollegeAPI, {
-//         method: "GET",
-//         credentials: "include",
-//         headers: {
-//           Accept: "application/json",
-
-//           "Content-Type": "application/json",
-//         },
-//       });
-
-//       if (!response.ok) {
-//         throw new Error(`HTTP error! status: ${response.status}`);
-//       }
-//       const data = await response.json();
-//       console.log("API Response:", data); // Debug log
-//       const collegesArray = data?.data?.colleges || [];
-//         if (!Array.isArray(collegesArray)) {
-//           console.error("Invalid colleges data:", collegesArray);
-//           throw new Error("Invalid response format");
-//         }
-
-//       setCollegesList(Array.isArray(collegesArray) ? collegesArray : []);
-//       setLoadingColleges(false);
-//     } catch (err) {
-//       console.error("Error fetching Colleges: ", err);
-
-//       setLoadingColleges(false);
-//     }
-//   };
-//   function onLogin() {
-//     // static auth: accept any input
-//     if (!selectedCollege) return; // require selection
-//     navigate("CollegeClasses", { college: selectedCollege });
-//   }
-
-//   return (
-//     <View
-//       style={[
-//         styles.container,
-//         {
-//           backgroundColor:
-//             (colors.backgroundColors && colors.backgroundColors[0]) ||
-//             "#ecfeff",
-//         },
-//       ]}
-//     >
-//       <View
-//         style={[
-//           styles.card,
-//           { backgroundColor: colors.cardBg, borderColor: colors.border },
-//         ]}
-//       >
-//         <Text style={[styles.cardTitle, { color: colors.header }]}>
-//           College Login
-//         </Text>
-
-//         <Text style={[styles.label, { color: colors.textPrimary }]}>
-//           Select college
-//         </Text>
-//         {/* <ScrollView
-//           style={[
-//             styles.picker,
-//             { backgroundColor: colors.iconBg, borderColor: colors.border },
-//           ]}
-//           contentContainerStyle={{ padding: 6 }}
-//         >
-//           {collegesList.map((college) => {
-//             const active = selectedCollege?.id === college.id;
-//             return (
-//               <Pressable
-//                 key={college.id}
-//                 onPress={() => setSelectedCollege(college)}
-//                 style={[
-//                   styles.pickerItem,
-//                   active && {
-//                     backgroundColor: active
-//                       ? darkMode
-//                         ? "#ffffff12"
-//                         : "#fcfbf7ff"
-//                       : undefined,
-//                     borderWidth: active ? 1 : 0,
-//                     borderColor: active ? colors.accent : colors.border,
-//                   },
-//                 ]}
-//               >
-//                 <Text
-//                   style={[
-//                     styles.pickerItemText,
-//                     active && styles.pickerItemTextActive,
-//                     { color: colors.textPrimary },
-//                   ]}
-//                 >
-//                   {college.name}
-//                 </Text>
-//                 {active ? (
-//                   <Text style={[styles.check, { color: colors.accent }]}>
-//                     ✓
-//                   </Text>
-//                 ) : null}
-//               </Pressable>
-//             );
-//           })}
-//         </ScrollView> */}
-//         {/*
-//          */}
-
-//         <View
-//           style={[
-//             styles.picker,
-//             { backgroundColor: colors.iconBg, borderColor: colors.border },
-//           ]}
-//         >
-//           <FlatList
-//             data={collegesList}
-//             keyExtractor={(item, index) =>
-//               String(item?.id ?? item?._id ?? item?.code ?? index)
-//             }
-//             renderItem={({ item, index }) => {
-//               const id = String(item?.id ?? item?._id ?? item?.code ?? index);
-//               const selectedId = String(
-//                 selectedCollege?.id ??
-//                   selectedCollege?._id ??
-//                   selectedCollege?.code ??
-//                   ""
-//               );
-//               const active = selectedId === id;
-//               const label =
-//                 item?.name ??
-//                 item?.collegeName ??
-//                 item?.title ??
-//                 item?.label ??
-//                 item?.instituteName ??
-//                 `College ${index + 1}`;
-
-//               return (
-//                 <Pressable
-//                   onPress={() => setSelectedCollege(item)}
-//                   style={[
-//                     styles.pickerItem,
-//                     active && {
-//                       backgroundColor: darkMode ? "#ffffff12" : "#fcfbf7ff",
-//                       borderWidth: 1,
-//                       borderColor: colors.accent,
-//                     },
-//                   ]}
-//                 >
-//                   <Text
-//                     style={[
-//                       styles.pickerItemText,
-//                       active && styles.pickerItemTextActive,
-//                       { color: colors.textPrimary },
-//                     ]}
-//                     numberOfLines={1}
-//                   >
-//                     {label}
-//                   </Text>
-//                   {active ? (
-//                     <Text style={[styles.check, { color: colors.accent }]}>
-//                       ✓
-//                     </Text>
-//                   ) : null}
-//                 </Pressable>
-//               );
-//             }}
-//             ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
-//             contentContainerStyle={{ padding: 6 }}
-//             keyboardShouldPersistTaps="handled"
-//             ListEmptyComponent={
-//               <Text style={[styles.hint, { color: colors.textSecondary }]}>
-//                 {loadingColleges ? "Loading colleges..." : "No colleges found"}
-//               </Text>
-//             }
-//             style={{ maxHeight: 240 }}
-//           />
-//         </View>
-
-//         {/*  */}
-//         {selectedCollege ? (
-//           <View style={styles.loginArea}>
-//             <Text style={[styles.logging, { color: colors.textPrimary }]}>
-//               Logging in as{" "}
-//               <Text style={{ fontWeight: "700", color: colors.header }}>
-//                 {selectedCollege.name}
-//               </Text>
-//             </Text>
-//             <TextInput
-//               placeholder="Email"
-//               value={selectedCollege.email}
-//               onChangeText={setEmail}
-//               style={[
-//                 styles.input,
-//                 {
-//                   backgroundColor: colors.iconBg,
-//                   borderColor: colors.border,
-//                   color: colors.textPrimary,
-//                 },
-//               ]}
-//               keyboardType="email-address"
-//               autoCapitalize="none"
-//               placeholderTextColor={colors.textSecondary}
-//             />
-//             <TextInput
-//               placeholder="Password"
-//               value={password}
-//               onChangeText={setPassword}
-//               style={[
-//                 styles.input,
-//                 {
-//                   backgroundColor: colors.iconBg,
-//                   borderColor: colors.border,
-//                   color: colors.textPrimary,
-//                 },
-//               ]}
-//               secureTextEntry
-//               placeholderTextColor={colors.textSecondary}
-//             />
-
-//             <TouchableOpacity
-//               style={[styles.loginBtn, { backgroundColor: colors.accent }]}
-//               onPress={onLogin}
-//             >
-//               <Text style={[styles.loginText, { color: "#fff" }]}>Login</Text>
-//             </TouchableOpacity>
-//           </View>
-//         ) : (
-//           <Text style={[styles.hint, { color: colors.textSecondary }]}>
-//             Please select a college to continue
-//           </Text>
-//         )}
-//       </View>
-
-//       <TouchableOpacity onPress={goBack} style={styles.cancel}>
-//         <Text style={{ color: colors.textPrimary }}>Cancel</Text>
-//       </TouchableOpacity>
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: "#ecfeff",
-//     alignItems: "center",
-//     justifyContent: "center",
-//     padding: 20,
-//   },
-//   card: {
-//     width: "100%",
-//     maxWidth: 480,
-//     backgroundColor: "#fff",
-//     borderRadius: 16,
-//     padding: 18,
-//     shadowColor: "#000",
-//     shadowOpacity: 0.06,
-//     shadowRadius: 18,
-//   },
-//   cardTitle: {
-//     fontSize: 20,
-//     fontWeight: "800",
-//     color: "#064e3b",
-//     marginBottom: 8,
-//     textAlign: "center",
-//   },
-//   label: { color: "#62ae33ff", marginBottom: 8 },
-//   picker: { backgroundColor: "#f8fafc", borderRadius: 12, marginBottom: 12 },
-//   pickerItem: {
-//     flexDirection: "row",
-//     alignItems: "center",
-//     justifyContent: "space-between",
-//     paddingVertical: 12,
-//     paddingHorizontal: 10,
-//     borderRadius: 10,
-//     marginBottom: 6,
-//   },
-//   pickerItemActive: { backgroundColor: "#ecfeff" },
-//   pickerItemText: { color: "#0f172a" },
-//   pickerItemTextActive: { color: "#0b5563", fontWeight: "700" },
-//   check: { color: "#059669", fontWeight: "700" },
-//   loginArea: { marginTop: 6 },
-//   logging: { color: "#b9bec4ff", marginBottom: 8 },
-//   input: {
-//     backgroundColor: "#fff",
-//     padding: 12,
-//     borderRadius: 10,
-//     marginBottom: 12,
-//     borderWidth: 1,
-//     borderColor: "#eef2ff",
-//   },
-//   loginBtn: {
-//     backgroundColor: "#059669",
-//     padding: 14,
-//     borderRadius: 10,
-//     alignItems: "center",
-//   },
-//   loginText: { color: "#fff", fontWeight: "700" },
-//   hint: { color: "#64748b", textAlign: "center", marginTop: 8 },
-//   cancel: { marginTop: 12 },
-// });
 import React, { useState, useContext, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   TextInput,
   ScrollView,
   Pressable,
-  FlatList,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
+import { Search, Mail, Lock, School, Check, ChevronLeft } from "lucide-react-native";
 
 export default function CollegeLoginScreen() {
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -357,6 +27,7 @@ export default function CollegeLoginScreen() {
   const [loadingColleges, setLoadingColleges] = useState(true);
   const [selectedCollege, setSelectedCollege] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     fetchColleges();
@@ -378,14 +49,7 @@ export default function CollegeLoginScreen() {
       }
 
       const data = await response.json();
-      console.log("API Response:", data);
       const collegesArray = data?.data?.colleges || [];
-
-      if (!Array.isArray(collegesArray)) {
-        console.error("Invalid colleges data:", collegesArray);
-        throw new Error("Invalid response format");
-      }
-
       setCollegesList(Array.isArray(collegesArray) ? collegesArray : []);
       setLoadingColleges(false);
     } catch (err) {
@@ -399,10 +63,8 @@ export default function CollegeLoginScreen() {
 
     setIsLoggingIn(true);
     const reqBody = { email: email, password: password, userType: "college" };
-    console.log(reqBody);
 
     try {
-      // Switch user type (logs out if different user was logged in)
       await switchUserType("college");
 
       const response = await fetch(api.loginAPI, {
@@ -420,267 +82,206 @@ export default function CollegeLoginScreen() {
         try {
           const errData = await response.json();
           if (errData && errData.message) errMsg = errData.message;
-        } catch {}
+        } catch { }
         throw new Error(errMsg);
       }
 
       const data = await response.json();
-      console.log("Login response:", data);
-
-      // Extract tokens and user data from response
       const accessToken = data.accessToken || data.token;
       const refreshToken = data.refreshToken;
       const userData = data.user || selectedCollege;
 
-      // Store in AuthContext
       await loginUser(userData, accessToken, refreshToken, "college");
 
       alert("Login successful");
       navigate("CollegeClasses", { college: selectedCollege });
     } catch (err) {
-      console.log("Error in sending login API", err);
       alert("Login failed: " + err.message);
     } finally {
       setIsLoggingIn(false);
     }
   }
 
+  const filteredColleges = collegesList.filter((college) => {
+    const name = college.name || college.collegeName || "";
+    return name.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
   return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor:
-            (colors.backgroundColors && colors.backgroundColors[0]) ||
-            "#ecfeff",
-        },
-      ]}
-    >
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-        ]}
+    <View className="flex-1" style={{ backgroundColor: colors.backgroundColors[0] }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1"
       >
-        <Text style={[styles.cardTitle, { color: colors.header }]}>
-          College Login
-        </Text>
-
-        <Text style={[styles.label, { color: colors.textPrimary }]}>
-          Select college
-        </Text>
-
-        <View
-          style={[
-            styles.picker,
-            { backgroundColor: colors.iconBg, borderColor: colors.border },
-          ]}
+        <ScrollView
+          contentContainerStyle={{ flexGrow: 1, padding: 20 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          {loadingColleges ? (
-            <ActivityIndicator size="small" color={colors.textPrimary} style={{ padding: 20 }} />
-          ) : (
-            <FlatList
-              data={collegesList}
-              keyExtractor={(item, index) =>
-                String(item?.id ?? item?._id ?? item?.code ?? index)
-              }
-              renderItem={({ item, index }) => {
-                const id = String(item?.id ?? item?._id ?? item?.code ?? index);
-                const selectedId = String(
-                  selectedCollege?.id ??
-                    selectedCollege?._id ??
-                    selectedCollege?.code ??
-                    ""
-                );
-                const active = selectedId === id;
-                const label =
-                  item?.name ??
-                  item?.collegeName ??
-                  item?.title ??
-                  item?.label ??
-                  item?.instituteName ??
-                  `College ${index + 1}`;
-
-                return (
-                  <Pressable
-                    onPress={() => {
-                      setSelectedCollege(item);
-                      setEmail(item.email || "");
-                    }}
-                    style={[
-                      styles.pickerItem,
-                      active && {
-                        backgroundColor: darkMode ? "#ffffff12" : "#fcfbf7ff",
-                        borderWidth: 1,
-                        borderColor: colors.accent,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.pickerItemText,
-                        active && styles.pickerItemTextActive,
-                        { color: colors.textPrimary },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {label}
-                    </Text>
-                    {active ? (
-                      <Text style={[styles.check, { color: colors.accent }]}>
-                        ✓
-                      </Text>
-                    ) : null}
-                  </Pressable>
-                );
-              }}
-              ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
-              contentContainerStyle={{ padding: 6 }}
-              keyboardShouldPersistTaps="handled"
-              ListEmptyComponent={
-                <Text style={[styles.hint, { color: colors.textSecondary }]}>
-                  No colleges found
-                </Text>
-              }
-              style={{ maxHeight: 240 }}
-            />
-          )}
-        </View>
-
-        {selectedCollege ? (
-          <View style={styles.loginArea}>
-            <Text style={[styles.logging, { color: colors.textPrimary }]}>
-              Logging in as{" "}
-              <Text style={{ fontWeight: "700", color: colors.header }}>
-                {selectedCollege.name}
-              </Text>
-            </Text>
-            <TextInput
-              placeholder="Email"
-              value={email}
-              onChangeText={setEmail}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.iconBg,
-                  borderColor: colors.border,
-                  color: colors.textPrimary,
-                },
-              ]}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor={colors.textSecondary}
-              editable={!isLoggingIn}
-            />
-            <TextInput
-              placeholder="Password"
-              value={password}
-              onChangeText={setPassword}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.iconBg,
-                  borderColor: colors.border,
-                  color: colors.textPrimary,
-                },
-              ]}
-              secureTextEntry
-              placeholderTextColor={colors.textSecondary}
-              editable={!isLoggingIn}
-            />
-
+          {/* Header Section */}
+          <View className="flex-row items-center mb-6 mt-4">
             <TouchableOpacity
-              style={[
-                styles.loginBtn,
-                { backgroundColor: colors.accent, opacity: isLoggingIn ? 0.6 : 1 },
-              ]}
-              onPress={onLogin}
-              disabled={isLoggingIn}
+              onPress={goBack}
+              className="p-2 rounded-full mr-4 border"
+              style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
             >
-              {isLoggingIn ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={[styles.loginText, { color: "#fff" }]}>
-                  Login
-                </Text>
-              )}
+              <ChevronLeft size={24} color={colors.textPrimary} />
             </TouchableOpacity>
+            <Text className="text-2xl font-black" style={{ color: colors.header }}>
+              College Portal
+            </Text>
           </View>
-        ) : (
-          <Text style={[styles.hint, { color: colors.textSecondary }]}>
-            Please select a college to continue
-          </Text>
-        )}
-      </View>
 
-      <TouchableOpacity
-        onPress={goBack}
-        style={styles.cancel}
-        disabled={isLoggingIn}
-      >
-        <Text style={{ color: colors.textPrimary }}>Cancel</Text>
-      </TouchableOpacity>
+          {/* Main Card */}
+          <View
+            className="w-full rounded-3xl p-6 shadow-sm border"
+            style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+          >
+            {/* College Selection Section */}
+            <View className="mb-6">
+              <View className="flex-row items-center mb-4">
+                <School size={20} color={colors.accent} style={{ marginRight: 8 }} />
+                <Text className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                  Select Your College
+                </Text>
+              </View>
+
+              {/* Search Bar */}
+              <View
+                className="flex-row items-center p-3 rounded-xl mb-4 border"
+                style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
+              >
+                <Search size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                <TextInput
+                  placeholder="Search college..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  className="flex-1 text-base"
+                  style={{ color: colors.textPrimary, outlineStyle: "none" }}
+                  placeholderTextColor={colors.textSecondary}
+                />
+              </View>
+
+              {/* College List */}
+              <View
+                className="rounded-xl border overflow-hidden"
+                style={{ height: 200, borderColor: colors.border }}
+              >
+                {loadingColleges ? (
+                  <View className="flex-1 justify-center items-center">
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  </View>
+                ) : (
+                  <ScrollView nestedScrollEnabled={true}>
+                    {filteredColleges.length === 0 ? (
+                      <View className="p-4 items-center">
+                        <Text style={{ color: colors.textSecondary }}>No colleges found</Text>
+                      </View>
+                    ) : (
+                      filteredColleges.map((item, index) => {
+                        const isSelected = selectedCollege._id === item._id;
+                        return (
+                          <Pressable
+                            key={item._id || index}
+                            onPress={() => {
+                              setSelectedCollege(item);
+                              setEmail(item.email || "");
+                            }}
+                            className={`flex-row items-center justify-between p-3 border-b`}
+                            style={{
+                              backgroundColor: isSelected ? (darkMode ? "rgba(45, 212, 191, 0.15)" : "#f0fdfa") : "transparent",
+                              borderBottomColor: colors.border,
+                              borderBottomWidth: index === filteredColleges.length - 1 ? 0 : 1
+                            }}
+                          >
+                            <Text
+                              className={`flex-1 text-sm ${isSelected ? "font-bold" : "font-medium"}`}
+                              style={{ color: isSelected ? colors.accent : colors.textPrimary }}
+                            >
+                              {item.name || item.collegeName}
+                            </Text>
+                            {isSelected && <Check size={16} color={colors.accent} />}
+                          </Pressable>
+                        );
+                      })
+                    )}
+                  </ScrollView>
+                )}
+              </View>
+            </View>
+
+            {/* Login Form Section */}
+            {selectedCollege && (
+              <View className="pt-4 border-t" style={{ borderColor: colors.border }}>
+                <Text className="text-sm font-medium mb-4 text-center" style={{ color: colors.textSecondary }}>
+                  Logging in as <Text style={{ color: colors.header, fontWeight: 'bold' }}>{selectedCollege.name}</Text>
+                </Text>
+
+                <View className="gap-4">
+                  <View
+                    className="flex-row items-center p-3.5 rounded-xl border"
+                    style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
+                  >
+                    <Mail size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                    <TextInput
+                      placeholder="Email Address"
+                      value={email}
+                      onChangeText={setEmail}
+                      className="flex-1 text-base"
+                      style={{ color: colors.textPrimary, outlineStyle: "none" }}
+                      placeholderTextColor={colors.textSecondary}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      editable={!isLoggingIn}
+                    />
+                  </View>
+
+                  <View
+                    className="flex-row items-center p-3.5 rounded-xl border"
+                    style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
+                  >
+                    <Lock size={18} color={colors.textSecondary} style={{ marginRight: 10 }} />
+                    <TextInput
+                      placeholder="Password"
+                      value={password}
+                      onChangeText={setPassword}
+                      className="flex-1 text-base"
+                      style={{ color: colors.textPrimary, outlineStyle: "none" }}
+                      placeholderTextColor={colors.textSecondary}
+                      secureTextEntry
+                      editable={!isLoggingIn}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={onLogin}
+                    disabled={isLoggingIn}
+                    className="py-4 rounded-xl items-center mt-2 shadow-sm"
+                    style={{
+                      backgroundColor: colors.accent,
+                      opacity: isLoggingIn ? 0.7 : 1
+                    }}
+                  >
+                    {isLoggingIn ? (
+                      <ActivityIndicator color="white" size="small" />
+                    ) : (
+                      <Text className="text-white font-bold text-base tracking-wide">
+                        Secure Login
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {!selectedCollege && (
+              <View className="items-center py-4 opacity-50">
+                <Text style={{ color: colors.textSecondary }}>Select a college to continue</Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#ecfeff",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-  },
-  card: {
-    width: "100%",
-    maxWidth: 480,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 18,
-    shadowColor: "#000",
-    shadowOpacity: 0.06,
-    shadowRadius: 18,
-  },
-  cardTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#064e3b",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  label: { color: "#62ae33ff", marginBottom: 8 },
-  picker: { backgroundColor: "#f8fafc", borderRadius: 12, marginBottom: 12 },
-  pickerItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    marginBottom: 6,
-  },
-  pickerItemActive: { backgroundColor: "#ecfeff" },
-  pickerItemText: { color: "#0f172a" },
-  pickerItemTextActive: { color: "#0b5563", fontWeight: "700" },
-  check: { color: "#059669", fontWeight: "700" },
-  loginArea: { marginTop: 6 },
-  logging: { color: "#b9bec4ff", marginBottom: 8 },
-  input: {
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#eef2ff",
-  },
-  loginBtn: {
-    backgroundColor: "#059669",
-    padding: 14,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  loginText: { color: "#fff", fontWeight: "700" },
-  hint: { color: "#64748b", textAlign: "center", marginTop: 8 },
-  cancel: { marginTop: 12 },
-});

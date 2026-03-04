@@ -2,10 +2,13 @@ import React, { useContext, useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   FlatList,
   ActivityIndicator,
+  ScrollView,
+  TextInput,
+  Image,
+  Platform,
 } from "react-native";
 import { AttendanceContext } from "../../context/AttendanceContext";
 import { NavigationContext } from "../../context/NavigationContext";
@@ -25,6 +28,10 @@ export default function AdminPanelScreen() {
   const [ngosList, setNgosList] = useState([]);
   const [loadingColleges, setLoadingColleges] = useState(false);
   const [loadingNgos, setLoadingNgos] = useState(false);
+  const [collegeSearch, setCollegeSearch] = useState("");
+  const [ngoSearch, setNgoSearch] = useState("");
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [entityType, setEntityType] = useState(null);
 
   useEffect(() => {
     fetchNgos();
@@ -86,6 +93,22 @@ export default function AdminPanelScreen() {
     navigate("Home");
   };
 
+  const handleEditComingSoon = (entityType) => {
+    const message = `Coming Soon! \n\nEdit ${entityType} feature will be available in the next update.`;
+
+    if (Platform.OS === "web") {
+      window.alert(message);
+    } else {
+      Toast.show({
+        type: "info",
+        text1: "Coming Soon! ",
+        text2: `Edit ${entityType} feature will be available in the next update`,
+        position: "top",
+        visibilityTime: 3000,
+      });
+    }
+  };
+
   const renderItemName = (item) => {
     if (!item) return null;
     if (typeof item === "string") return item;
@@ -95,159 +118,321 @@ export default function AdminPanelScreen() {
     return JSON.stringify(item);
   };
 
+  // Filter colleges based on search
+  const filteredColleges = collegesList.filter((college) => {
+    if (!collegeSearch.trim()) return true;
+    const name = renderItemName(college)?.toLowerCase() || "";
+    return name.includes(collegeSearch.toLowerCase());
+  });
+
+  // Filter NGOs based on search
+  const filteredNgos = ngosList.filter((ngo) => {
+    if (!ngoSearch.trim()) return true;
+    const name = renderItemName(ngo)?.toLowerCase() || "";
+    return name.includes(ngoSearch.toLowerCase());
+  });
+
+  // Get initials from name (first 2 letters)
+  const getInitials = (name) => {
+    if (!name) return "?";
+    const words = name.trim().split(/\s+/);
+    if (words.length >= 2) {
+      return (words[0][0] + words[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  // Handle entity click
+  const handleEntityClick = (entity, type) => {
+    setSelectedEntity(entity);
+    setEntityType(type);
+    navigate("EntityDetail", { entity, entityType: type });
+  };
+
+  // Show detail view if entity is selected
+  if (selectedEntity && entityType) {
+    const EntityDetailScreen = require("./EntityDetailScreen").default;
+    return <EntityDetailScreen entity={selectedEntity} entityType={entityType} />;
+  }
+
   return (
     <View
-      style={[
-        styles.container,
-        {
-          backgroundColor:
-            (colors.backgroundColors && colors.backgroundColors[0]) ||
-            styles.container.backgroundColor,
-        },
-      ]}
+      className="flex-1"
+      style={{
+        backgroundColor:
+          (colors.backgroundColors && colors.backgroundColors[0]) || "#f0fdf4",
+      }}
     >
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.header }]}>
-          Admin Panel
-        </Text>
-        <TouchableOpacity
-          style={[styles.logoutBtn, { backgroundColor: colors.accent }]}
-          onPress={handleLogout}
-        >
-          <Text style={{ color: "#fff", fontWeight: "700" }}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-        ]}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            Colleges
-          </Text>
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.accent }]}
-            onPress={() => navigate("AddCollege")}
-          >
-            <Text style={{ color: "#fff" }}>+ Add</Text>
-          </TouchableOpacity>
+      {/* Header */}
+      <View className="px-5 pt-8 pb-4" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View className="flex-row items-center justify-between mb-3">
+          <View>
+            <Text className="text-2xl font-extrabold mb-1" style={{ color: colors.header }}>
+              Admin Panel
+            </Text>
+            <Text className="text-sm" style={{ color: colors.textSecondary }}>
+              Manage Colleges and NGOs
+            </Text>
+          </View>
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              className="px-4 py-2 rounded-xl border"
+              style={{ borderColor: colors.border, backgroundColor: colors.accent }}
+              onPress={() => navigate("RegisterAdmin")}
+            >
+              <Text className="text-white font-bold text-sm">+ Admin</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-xl border"
+              style={{ borderColor: colors.border, backgroundColor: colors.error || '#ef4444' }}
+              onPress={handleLogout}
+            >
+              <Text className="text-white font-bold text-sm">Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {loadingColleges ? (
-          <ActivityIndicator style={{ marginTop: 8 }} />
-        ) : (
-          <FlatList
-            data={collegesList}
-            keyExtractor={(item, idx) =>
-              item && (item._id || item.id) ? item._id || item.id : String(idx)
-            }
-            renderItem={({ item }) => (
-              <Text style={{ paddingVertical: 6, color: colors.textPrimary }}>
-                {renderItemName(item)}
-              </Text>
-            )}
-            ListEmptyComponent={
-              <Text style={{ paddingVertical: 8, color: colors.textSecondary }}>
-                No colleges found
-              </Text>
-            }
-          />
-        )}
+        {/* Stats Badges */}
+        <View className="flex-row gap-3">
+          <View className="flex-1 px-3 py-2 rounded-xl" style={{ backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '30' }}>
+            <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>COLLEGES</Text>
+            <Text className="text-xl font-bold" style={{ color: colors.accent }}>{collegesList.length}</Text>
+          </View>
+          <View className="flex-1 px-3 py-2 rounded-xl" style={{ backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '30' }}>
+            <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>NGOs</Text>
+            <Text className="text-xl font-bold" style={{ color: colors.accent }}>{ngosList.length}</Text>
+          </View>
+        </View>
       </View>
 
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.cardBg, borderColor: colors.border },
-        ]}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>
-            NGOs
-          </Text>
-          <TouchableOpacity
-            style={[styles.addBtn, { backgroundColor: colors.accent }]}
-            onPress={() => navigate("AddNgo")}
+      {/* Main Content - Scrollable */}
+      <ScrollView className="flex-1 px-5 pt-4" showsVerticalScrollIndicator={true}>
+        {/* Colleges Section */}
+        <View className="mb-4">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-lg font-bold" style={{ color: colors.header }}>
+              Colleges ({filteredColleges.length})
+            </Text>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-xl"
+              style={{ backgroundColor: colors.accent }}
+              onPress={() => navigate("AddCollege")}
+            >
+              <Text className="text-white font-bold text-sm">+ Add College</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Bar */}
+          <View className="mb-3">
+            <TextInput
+              className="px-4 py-3 rounded-xl border"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+                color: colors.textPrimary,
+              }}
+              placeholder="Search colleges..."
+              placeholderTextColor={colors.textSecondary}
+              value={collegeSearch}
+              onChangeText={setCollegeSearch}
+            />
+          </View>
+
+          {/* Colleges List */}
+          <View
+            className="rounded-xl border"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              maxHeight: 300,
+            }}
           >
-            <Text style={{ color: "#fff" }}>+ Add</Text>
-          </TouchableOpacity>
+            {loadingColleges ? (
+              <View className="p-8 items-center">
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text className="mt-2" style={{ color: colors.textSecondary }}>Loading colleges...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredColleges}
+                keyExtractor={(item, idx) =>
+                  item && (item._id || item.id) ? item._id || item.id : String(idx)
+                }
+                renderItem={({ item, index }) => {
+                  const itemName = renderItemName(item);
+                  const logoUrl = item?.logo || item?.logoUrl;
+
+                  return (
+                    <View
+                      className="px-4 py-3 border-b flex-row items-center"
+                      style={{
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <TouchableOpacity
+                        onPress={() => handleEntityClick(item, 'college')}
+                        className="flex-1 flex-row items-center"
+                      >
+                        <View
+                          className="w-10 h-10 rounded-full items-center justify-center mr-3 overflow-hidden"
+                          style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '30' }}
+                        >
+                          {logoUrl ? (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              className="w-full h-full"
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text className="font-bold text-sm" style={{ color: colors.accent }}>
+                              {getInitials(itemName)}
+                            </Text>
+                          )}
+                        </View>
+                        <Text className="flex-1 font-semibold" style={{ color: colors.textPrimary }}>
+                          {itemName}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-3 py-1.5 rounded-lg mr-2"
+                        style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '40' }}
+                        onPress={() => handleEditComingSoon('College')}
+                      >
+                        <Text className="text-xs font-bold" style={{ color: colors.accent }}>Edit</Text>
+                      </TouchableOpacity>
+                      <Text style={{ color: colors.textSecondary }}>›</Text>
+                    </View>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View className="p-8 items-center">
+                    <Text className="text-lg font-semibold mb-1" style={{ color: colors.textSecondary }}>
+                      No Colleges Found
+                    </Text>
+                    <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
+                      {collegeSearch ? "Try a different search term" : "Add your first college to get started"}
+                    </Text>
+                  </View>
+                }
+                nestedScrollEnabled
+              />
+            )}
+          </View>
         </View>
 
-        {loadingNgos ? (
-          <ActivityIndicator style={{ marginTop: 8 }} />
-        ) : (
-          <FlatList
-            data={ngosList}
-            keyExtractor={(item, idx) =>
-              item && (item._id || item.id) ? item._id || item.id : String(idx)
-            }
-            renderItem={({ item }) => (
-              <Text style={{ paddingVertical: 6, color: colors.textPrimary }}>
-                {renderItemName(item)}
-              </Text>
+        {/* NGOs Section */}
+        <View className="mb-4">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-lg font-bold" style={{ color: colors.header }}>
+              NGOs ({filteredNgos.length})
+            </Text>
+            <TouchableOpacity
+              className="px-4 py-2 rounded-xl"
+              style={{ backgroundColor: colors.accent }}
+              onPress={() => navigate("AddNgo")}
+            >
+              <Text className="text-white font-bold text-sm">+ Add NGO</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Bar */}
+          <View className="mb-3">
+            <TextInput
+              className="px-4 py-3 rounded-xl border"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+                color: colors.textPrimary,
+              }}
+              placeholder="Search NGOs..."
+              placeholderTextColor={colors.textSecondary}
+              value={ngoSearch}
+              onChangeText={setNgoSearch}
+            />
+          </View>
+
+          {/* NGOs List */}
+          <View
+            className="rounded-xl border"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              maxHeight: 300,
+            }}
+          >
+            {loadingNgos ? (
+              <View className="p-8 items-center">
+                <ActivityIndicator size="large" color={colors.accent} />
+                <Text className="mt-2" style={{ color: colors.textSecondary }}>Loading NGOs...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredNgos}
+                keyExtractor={(item, idx) =>
+                  item && (item._id || item.id) ? item._id || item.id : String(idx)
+                }
+                renderItem={({ item, index }) => {
+                  const itemName = renderItemName(item);
+                  const logoUrl = item?.logo || item?.logoUrl || item?.profileImage;
+
+                  return (
+                    <View
+                      className="px-4 py-3 border-b flex-row items-center"
+                      style={{
+                        borderColor: colors.border,
+                      }}
+                    >
+                      <TouchableOpacity
+                        onPress={() => handleEntityClick(item, 'ngo')}
+                        className="flex-1 flex-row items-center"
+                      >
+                        <View
+                          className="w-10 h-10 rounded-full items-center justify-center mr-3 overflow-hidden"
+                          style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '30' }}
+                        >
+                          {logoUrl ? (
+                            <Image
+                              source={{ uri: logoUrl }}
+                              className="w-full h-full"
+                              resizeMode="cover"
+                            />
+                          ) : (
+                            <Text className="font-bold text-sm" style={{ color: colors.accent }}>
+                              {getInitials(itemName)}
+                            </Text>
+                          )}
+                        </View>
+                        <Text className="flex-1 font-semibold" style={{ color: colors.textPrimary }}>
+                          {itemName}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        className="px-3 py-1.5 rounded-lg mr-2"
+                        style={{ backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '40' }}
+                        onPress={() => handleEditComingSoon('NGO')}
+                      >
+                        <Text className="text-xs font-bold" style={{ color: colors.accent }}>Edit</Text>
+                      </TouchableOpacity>
+                      <Text style={{ color: colors.textSecondary }}>›</Text>
+                    </View>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View className="p-8 items-center">
+                    <Text className="text-lg font-semibold mb-1" style={{ color: colors.textSecondary }}>
+                      No NGOs Found
+                    </Text>
+                    <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
+                      {ngoSearch ? "Try a different search term" : "Add your first NGO to get started"}
+                    </Text>
+                  </View>
+                }
+                nestedScrollEnabled
+              />
             )}
-            ListEmptyComponent={
-              <Text style={{ paddingVertical: 8, color: colors.textSecondary }}>
-                No NGOs found
-              </Text>
-            }
-          />
-        )}
-      </View>
+          </View>
+        </View>
+      </ScrollView>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: "#f0fdf4" },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  title: { fontSize: 22, fontWeight: "800", color: "#065f46" },
-  logoutBtn: {
-    backgroundColor: "#10b981",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  card: {
-    backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  cardTitle: { fontWeight: "700", marginBottom: 8 },
-  input: {
-    flex: 1,
-    backgroundColor: "#fff",
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#ecfccb",
-  },
-  addBtn: {
-    backgroundColor: "#10b981",
-    padding: 10,
-    borderRadius: 8,
-    marginLeft: 8,
-    justifyContent: "center",
-  },
-});
