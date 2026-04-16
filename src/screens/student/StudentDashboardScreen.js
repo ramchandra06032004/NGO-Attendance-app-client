@@ -130,35 +130,36 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
         // Text search filter
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            const eventDate = event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "";
+            const eventDateRange = `${new Date(event.startDate).toLocaleDateString()} - ${new Date(event.endDate).toLocaleDateString()}`;
             const matchesSearch = (
                 event.aim?.toLowerCase().includes(query) ||
                 event.location?.toLowerCase().includes(query) ||
                 event.description?.toLowerCase().includes(query) ||
                 event.createdBy?.name?.toLowerCase().includes(query) ||
-                eventDate.toLowerCase().includes(query)
+                event.spocName?.toLowerCase().includes(query) ||
+                eventDateRange.toLowerCase().includes(query)
             );
             if (!matchesSearch) return false;
         }
 
-        // Date range filter
+        // Date range filter: Show events that OVERLAP with the selected filter range
         if (startDate || endDate) {
-            const eventDate = event.eventDate ? new Date(event.eventDate) : null;
-            if (!eventDate) return false;
+            const eventStart = event.startDate ? new Date(event.startDate) : new Date(event.eventDate);
+            const eventEnd = event.endDate ? new Date(event.endDate) : eventStart;
 
-            eventDate.setHours(0, 0, 0, 0);
+            // Reset time for comparison
+            eventStart.setHours(0, 0, 0, 0);
+            eventEnd.setHours(0, 0, 0, 0);
 
-            if (startDate) {
-                const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                if (eventDate < start) return false;
-            }
+            const filterStart = startDate ? new Date(startDate) : null;
+            if (filterStart) filterStart.setHours(0, 0, 0, 0);
 
-            if (endDate) {
-                const end = new Date(endDate);
-                end.setHours(0, 0, 0, 0);
-                if (eventDate > end) return false;
-            }
+            const filterEnd = endDate ? new Date(endDate) : null;
+            if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
+
+            // Overlap logic: (EventStart <= FilterEnd) && (EventEnd >= FilterStart)
+            if (filterStart && eventEnd < filterStart) return false;
+            if (filterEnd && eventStart > filterEnd) return false;
         }
 
         return true;
@@ -405,46 +406,70 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                                 elevation: 2,
                             }}
                         >
-                            {/* Event Title */}
-                            <Text
-                                className="text-lg font-bold mb-1"
-                                style={{ color: colors.textPrimary }}
-                            >
-                                {item.aim}
-                            </Text>
+                            <View className="flex-row justify-between items-start mb-2">
+                                <View className="flex-1 pr-3">
+                                    <Text
+                                        className="text-lg font-bold mb-1"
+                                        style={{ color: colors.header || colors.textPrimary }}
+                                    >
+                                        {item.aim}
+                                    </Text>
 
-                            {/* NGO Name */}
-                            {item.createdBy && (
-                                <Text
-                                    className="text-xs font-semibold mb-2"
-                                    style={{ color: colors.accent }}
-                                >
-                                    by {item.createdBy.name}
-                                </Text>
-                            )}
+                                    {item.createdBy && (
+                                        <Text
+                                            className="text-[11px] font-semibold mb-2"
+                                            style={{ color: colors.accent }}
+                                        >
+                                            by {item.createdBy.name}
+                                        </Text>
+                                    )}
 
-                            {/* Location */}
-                            <View className="flex-row items-center mb-2 opacity-90">
-                                <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
-                                <Text
-                                    className="text-sm font-medium"
-                                    style={{ color: colors.textSecondary }}
-                                >
-                                    {item.location}
-                                </Text>
-                            </View>
+                                    {/* Location */}
+                                    <View className="flex-row items-center mb-1 opacity-90">
+                                        <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
+                                        <Text
+                                            className="text-[13px] font-medium"
+                                            style={{ color: colors.textSecondary }}
+                                        >
+                                            {item.location}
+                                        </Text>
+                                    </View>
 
-                            {/* Date Badge */}
-                            <View
-                                className="self-start px-2 py-1 rounded-md mb-2"
-                                style={{ backgroundColor: colors.iconBg }}
-                            >
-                                <Text
-                                    className="text-xs font-bold"
-                                    style={{ color: colors.textPrimary }}
+                                    {/* SPOC Info (Left Column) */}
+                                    {item.spocName && (
+                                        <View className="mt-1">
+                                            <View className="flex-row items-center mb-0.5">
+                                                <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Manager:</Text>
+                                                <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocName}</Text>
+                                            </View>
+                                            {item.spocContact && (
+                                                <View className="flex-row items-center">
+                                                    <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Contact:</Text>
+                                                    <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocContact}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Date & Time Badge (Right Column) */}
+                                <View
+                                    className="items-end px-2.5 py-2 rounded-xl"
+                                    style={{ backgroundColor: colors.iconBg, minWidth: 100 }}
                                 >
-                                    📅 {new Date(item.eventDate).toLocaleDateString()}
-                                </Text>
+                                    <Text
+                                        className="text-[10px] font-bold mb-1 text-right"
+                                        style={{ color: colors.textPrimary }}
+                                    >
+                                        📅 {new Date(item.startDate || item.eventDate).toLocaleDateString()}{item.endDate && item.endDate !== item.startDate ? ` - ${new Date(item.endDate).toLocaleDateString()}` : ''}
+                                    </Text>
+                                    <Text
+                                        className="text-[10px] font-semibold opacity-80 text-right"
+                                        style={{ color: colors.textPrimary }}
+                                    >
+                                        ⏰ Daily: {item.startTime || "N/A"} - {item.endTime || "N/A"}
+                                    </Text>
+                                </View>
                             </View>
 
                             {/* Description Snippet */}
@@ -458,17 +483,19 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
                             {/* Register Button */}
                             <TouchableOpacity
-                                className="py-2 rounded-lg items-center"
-                                style={{ backgroundColor: colors.accent }}
+                                className="py-2 rounded-lg items-center flex-row justify-center"
+                                style={{ backgroundColor: item.isRegistered ? "#eab308" : colors.accent }}
                                 onPress={() => {
-                                    console.log("Register button pressed for event:", item._id);
-                                    // Direct registration without confirmation dialog for web compatibility
-                                    handleRegisterForEvent(item);
+                                    if (!item.isRegistered) {
+                                        console.log("Register button pressed for event:", item._id);
+                                        // Direct registration without confirmation dialog for web compatibility
+                                        handleRegisterForEvent(item);
+                                    }
                                 }}
-                                activeOpacity={0.7}
+                                activeOpacity={item.isRegistered ? 1 : 0.7}
                             >
                                 <Text className="text-white font-semibold text-xs">
-                                    Register
+                                    {item.isRegistered ? "✓ Registered" : "Register"}
                                 </Text>
                             </TouchableOpacity>
                         </View>

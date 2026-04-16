@@ -18,14 +18,32 @@ export default function EventInfoScreen({ route }) {
     location: "",
     description: "",
     eventDate: "",
+    startDate: "",
+    endDate: "",
+    startTime: "",
+    endTime: "",
+    spocName: "",
+    spocContact: "",
     date: "",
     students: [],
     _id: "",
   };
 
   const title = event.aim || event.name || event.title || "";
-  const rawDate = event.eventDate || event.date || "";
-  const formattedDate = rawDate ? new Date(rawDate).toLocaleString() : "N/A";
+  const startDate = event.startDate || event.eventDate || event.date || "";
+  const endDate = event.endDate || startDate;
+  
+  const dateRangeStr = startDate ? 
+    (new Date(startDate).toLocaleDateString() + (endDate && endDate !== startDate ? ` - ${new Date(endDate).toLocaleDateString()}` : "")) 
+    : "N/A";
+
+  const timeRangeStr = (event.startTime && event.endTime) ? `${event.startTime} - ${event.endTime}` : "N/A";
+
+  const handleCallSPOC = () => {
+    if (event.spocContact) {
+      require('react-native').Linking.openURL(`tel:${event.spocContact}`);
+    }
+  };
 
   return (
     <View
@@ -43,16 +61,40 @@ export default function EventInfoScreen({ route }) {
           borderColor: colors.border,
         }}
       >
-        <Text className="text-2xl font-bold mb-2" style={{ color: colors.header }}>{title}</Text>
-        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
-          Location: {event.location || "N/A"}
-        </Text>
-        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
-          Date: {formattedDate}
-        </Text>
-        <Text className="mb-2.5 text-base" style={{ color: colors.textSecondary }}>
-          About Event: {event.description}
-        </Text>
+        <Text className="text-2xl font-bold mb-3" style={{ color: colors.header }}>{title}</Text>
+        
+        <View className="mb-4">
+          <Text className="mb-1 text-sm font-bold" style={{ color: colors.accent }}>📍 Location</Text>
+          <Text className="text-base" style={{ color: colors.textPrimary }}>{event.location || "N/A"}</Text>
+        </View>
+
+        <View className="mb-4">
+          <Text className="mb-1 text-sm font-bold" style={{ color: colors.accent }}>📅 Date Range</Text>
+          <Text className="text-base" style={{ color: colors.textPrimary }}>{dateRangeStr}</Text>
+        </View>
+
+        <View className="mb-4">
+          <Text className="mb-1 text-sm font-bold" style={{ color: colors.accent }}>⏰ Daily Timing</Text>
+          <Text className="text-base" style={{ color: colors.textPrimary }}>{timeRangeStr}</Text>
+        </View>
+
+        {event.spocName && (
+          <View className="mb-4">
+            <Text className="mb-1 text-sm font-bold" style={{ color: colors.accent }}>👤 Event Manager (SPOC)</Text>
+            <Text className="text-base font-semibold" style={{ color: colors.textPrimary }}>{event.spocName}</Text>
+            {event.spocContact && (
+              <TouchableOpacity onPress={handleCallSPOC} className="mt-1 flex-row items-center">
+                <Text style={{ fontSize: 13, marginRight: 4 }}>📞</Text>
+                <Text className="text-sm font-medium" style={{ color: colors.accent }}>{event.spocContact}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        <View className="mb-4">
+          <Text className="mb-1 text-sm font-bold" style={{ color: colors.accent }}>📝 About Event</Text>
+          <Text className="text-base leading-5" style={{ color: colors.textSecondary }}>{event.description}</Text>
+        </View>
         {event.students && (
           <Text className="mb-4 text-base" style={{ color: colors.textPrimary }}>
             {event.students.length} students registered

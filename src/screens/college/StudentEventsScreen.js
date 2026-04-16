@@ -33,8 +33,9 @@ export default function StudentEventsScreen({ college, studentId }) {
   // Helper to determine Present / Absent / Registered status
   const getEventStatus = (eventObj, attendanceDateStr) => {
     if (attendanceDateStr && attendanceDateStr !== 'N/A') return 'Present';
-    if (!eventObj || !eventObj.eventDate) return 'Registered';
-    const eventDate = new Date(eventObj.eventDate);
+    const dateToCheck = eventObj.endDate || eventObj.startDate || eventObj.eventDate;
+    if (!dateToCheck) return 'Registered';
+    const eventDate = new Date(dateToCheck);
     eventDate.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -114,7 +115,13 @@ export default function StudentEventsScreen({ college, studentId }) {
             eventName: ev.aim || 'General Event',
             ngoName: ev.createdBy?.name || 'N/A',
             eventLocation: ev.location || 'Campus',
-            rawDate: ev.eventDate ? new Date(ev.eventDate) : null,
+            rawDate: ev.startDate ? new Date(ev.startDate) : (ev.eventDate ? new Date(ev.eventDate) : null),
+            startDate: ev.startDate || ev.eventDate,
+            endDate: ev.endDate || ev.startDate || ev.eventDate,
+            startTime: ev.startTime,
+            endTime: ev.endTime,
+            spocName: ev.spocName,
+            spocContact: ev.spocContact,
             eventDate: ev.eventDate ? new Date(ev.eventDate).toDateString() : 'N/A',
             attendedDate,
             status: getEventStatus(ev, attendedDate),
@@ -152,16 +159,24 @@ export default function StudentEventsScreen({ college, studentId }) {
       );
     }
 
-    // Date range filter
-    if (startDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      filtered = filtered.filter(ev => ev.rawDate && ev.rawDate >= start);
-    }
-    if (endDate) {
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      filtered = filtered.filter(ev => ev.rawDate && ev.rawDate <= end);
+    // Date range filter: Overlap logic
+    if (startDate || endDate) {
+      const eventStart = ev.startDate ? new Date(ev.startDate) : ev.rawDate;
+      const eventEnd = ev.endDate ? new Date(ev.endDate) : eventStart;
+
+      if (eventStart && eventEnd) {
+        eventStart.setHours(0, 0, 0, 0);
+        eventEnd.setHours(0, 0, 0, 0);
+
+        const filterStart = startDate ? new Date(startDate) : null;
+        if (filterStart) filterStart.setHours(0, 0, 0, 0);
+
+        const filterEnd = endDate ? new Date(endDate) : null;
+        if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
+
+        if (filterStart && eventEnd < filterStart) return false;
+        if (filterEnd && eventStart > filterEnd) return false;
+      }
     }
 
     return filtered;
@@ -421,14 +436,38 @@ export default function StudentEventsScreen({ college, studentId }) {
           </View>
         </View>
         <View className="h-[1px] w-full my-3 opacity-10" style={{ backgroundColor: colors.textSecondary }} />
-        <View className="flex-row justify-between items-center">
-          <View>
-            <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>Event Date</Text>
-            <Text className="text-xs font-semibold" style={{ color: colors.textPrimary }}>{item.eventDate}</Text>
+        
+        <View className="flex-row justify-between items-start">
+          {/* Left Column: NGO & Manager Info */}
+          <View className="flex-1 pr-3">
+            <View className="mb-2">
+              <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>Project NGO</Text>
+              <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>{item.ngoName}</Text>
+            </View>
+
+            {item.spocName && (
+              <View>
+                <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>Manager</Text>
+                <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>{item.spocName}</Text>
+                {item.spocContact && (
+                  <Text className="text-[11px] font-bold mt-0.5" style={{ color: colors.accent }}>📞 {item.spocContact}</Text>
+                )}
+              </View>
+            )}
           </View>
-          <View>
-            <Text className="text-[10px] uppercase font-bold opacity-50" style={{ color: colors.textSecondary }}>NGO</Text>
-            <Text className="text-xs font-semibold" style={{ color: colors.textSecondary }}>{item.ngoName}</Text>
+
+          {/* Right Column: Date & Time Badge */}
+          <View
+            className="items-end px-3 py-2 rounded-xl"
+            style={{ backgroundColor: colors.iconBg || colors.accent + '10', minWidth: 105 }}
+          >
+            <Text className="text-[10px] uppercase font-bold opacity-50 mb-1" style={{ color: colors.textSecondary }}>Schedule</Text>
+            <Text className="text-[10px] font-bold text-right" style={{ color: colors.textPrimary }}>
+              📅 {new Date(item.startDate || item.rawDate).toLocaleDateString()}{item.endDate && item.endDate !== item.startDate ? ` - ${new Date(item.endDate).toLocaleDateString()}` : ''}
+            </Text>
+            <Text className="text-[10px] font-semibold opacity-80 mt-1 text-right" style={{ color: colors.textPrimary }}>
+              ⏰ Daily: {item.startTime || "N/A"} - {item.endTime || "N/A"}
+            </Text>
           </View>
         </View>
       </View>

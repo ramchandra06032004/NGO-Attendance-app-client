@@ -151,7 +151,7 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
         // When coming from RegisteredStudentsScreen, use the registered students
         registeredStudents.forEach((student) => {
           const id = student._id || student.id || student.prn;
-          if (id) validStudentIds.add(id);
+          if (id) validStudentIds.add(id.toString());
         });
       } else {
         // Original logic: get students from college classes
@@ -160,7 +160,7 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
           const students = Array.isArray(cls.students) ? cls.students : [];
           students.forEach((student) => {
             const id = student._id || student.id || student.prn;
-            if (id) validStudentIds.add(id);
+            if (id) validStudentIds.add(id.toString());
           });
         });
       }
@@ -197,13 +197,13 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
           // College-specific endpoint format: attendance[0].students[{studentId, ...}]
           allAttendedStudentIds = data.data.attendance[0].students
             .filter(student => student.attendanceMarkedAt) // Only students who were actually marked
-            .map(student => student.studentId || student._id);
+            .map(student => (student.studentId || student._id).toString());
 
           console.log("Using college-specific attendance format");
         } else {
           // Event-wide endpoint format: attendance[{_id, ...}]
           allAttendedStudentIds = data?.data?.attendance?.map(
-            (record) => record._id || record.id
+            (record) => (record._id || record.id).toString()
           ) || [];
 
           console.log("Using event-wide attendance format");

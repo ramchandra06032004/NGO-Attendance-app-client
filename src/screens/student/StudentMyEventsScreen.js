@@ -66,13 +66,14 @@ export default function StudentMyEventsScreen({ student }) {
     const filteredEvents = events.filter((event) => {
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            const eventDate = event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "";
+            const eventDateRange = `${new Date(event.startDate).toLocaleDateString()} - ${new Date(event.endDate).toLocaleDateString()}`;
             const matchesSearch = (
                 event.aim?.toLowerCase().includes(query) ||
                 event.location?.toLowerCase().includes(query) ||
                 event.description?.toLowerCase().includes(query) ||
                 event.status?.toLowerCase().includes(query) ||
-                eventDate.toLowerCase().includes(query)
+                event.spocName?.toLowerCase().includes(query) ||
+                eventDateRange.toLowerCase().includes(query)
             );
             return matchesSearch;
         }
@@ -82,8 +83,9 @@ export default function StudentMyEventsScreen({ student }) {
     // Returns true when the student registered but the event date has already passed
     const isMissed = (event) => {
         if (event.status !== "Registered") return false;
-        if (!event.eventDate) return false;
-        const eventDate = new Date(event.eventDate);
+        const dateToCheck = event.endDate || event.startDate || event.eventDate;
+        if (!dateToCheck) return false;
+        const eventDate = new Date(dateToCheck);
         eventDate.setHours(0, 0, 0, 0);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -294,47 +296,71 @@ export default function StudentMyEventsScreen({ student }) {
                                     )}
                                 </View>
 
-                                {/* Event Title */}
-                                <Text
-                                    className="text-lg font-bold mb-1"
-                                    style={{ color: colors.textPrimary }}
-                                >
-                                    {item.aim}
-                                </Text>
-
-                                {/* NGO Name */}
-                                {item.createdBy && (
+                            <View className="flex-row justify-between items-start mb-2">
+                                <View className="flex-1 pr-3">
                                     <Text
-                                        className="text-xs font-semibold mb-2"
-                                        style={{ color: colors.accent }}
+                                        className="text-lg font-bold mb-1"
+                                        style={{ color: colors.header || colors.textPrimary }}
                                     >
-                                        by {item.createdBy.name}
+                                        {item.aim}
                                     </Text>
-                                )}
 
-                                {/* Location */}
-                                <View className="flex-row items-center mb-2 opacity-90">
-                                    <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
-                                    <Text
-                                        className="text-sm font-medium"
-                                        style={{ color: colors.textSecondary }}
-                                    >
-                                        {item.location}
-                                    </Text>
+                                    {item.createdBy && (
+                                        <Text
+                                            className="text-[11px] font-semibold mb-2"
+                                            style={{ color: colors.accent }}
+                                        >
+                                            by {item.createdBy.name}
+                                        </Text>
+                                    )}
+
+                                    {/* Location */}
+                                    <View className="flex-row items-center mb-1 opacity-90">
+                                        <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
+                                        <Text
+                                            className="text-[13px] font-medium"
+                                            style={{ color: colors.textSecondary }}
+                                        >
+                                            {item.location}
+                                        </Text>
+                                    </View>
+
+                                    {/* SPOC Info (Left Column) */}
+                                    {item.spocName && (
+                                        <View className="mt-1">
+                                            <View className="flex-row items-center mb-0.5">
+                                                <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Manager:</Text>
+                                                <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocName}</Text>
+                                            </View>
+                                            {item.spocContact && (
+                                                <View className="flex-row items-center">
+                                                    <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Contact:</Text>
+                                                    <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocContact}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    )}
                                 </View>
 
-                                {/* Date Badge */}
+                                {/* Date & Time Badge (Right Column) */}
                                 <View
-                                    className="self-start px-2 py-1 rounded-md mb-2"
-                                    style={{ backgroundColor: colors.iconBg }}
+                                    className="items-end px-2.5 py-2 rounded-xl"
+                                    style={{ backgroundColor: colors.iconBg, minWidth: 100 }}
                                 >
                                     <Text
-                                        className="text-xs font-bold"
+                                        className="text-[10px] font-bold mb-1 text-right"
                                         style={{ color: colors.textPrimary }}
                                     >
-                                        📅 {new Date(item.eventDate).toLocaleDateString()}
+                                        📅 {new Date(item.startDate || item.eventDate).toLocaleDateString()}{item.endDate && item.endDate !== item.startDate ? ` - ${new Date(item.endDate).toLocaleDateString()}` : ''}
+                                    </Text>
+                                    <Text
+                                        className="text-[10px] font-semibold opacity-80 text-right"
+                                        style={{ color: colors.textPrimary }}
+                                    >
+                                        ⏰ Daily: {item.startTime || "N/A"} - {item.endTime || "N/A"}
                                     </Text>
                                 </View>
+                            </View>
 
                                 {/* Description Snippet */}
                                 <Text

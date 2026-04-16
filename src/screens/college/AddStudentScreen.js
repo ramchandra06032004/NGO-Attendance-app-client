@@ -12,7 +12,7 @@ import * as api from '../../../apis/api';
 import { Buffer } from 'buffer';
 import Toast from 'react-native-toast-message';
 
-export default function AddStudentScreen({ college, className }) {
+export default function AddStudentScreen({ college, className, isNgoVolunteer, ngo }) {
   const { goBack, navigate } = useContext(NavigationContext);
   const { addStudent } = useContext(AttendanceContext);
   const { accessToken } = useContext(AuthContext);
@@ -267,14 +267,6 @@ export default function AddStudentScreen({ college, className }) {
 
   async function onSave() {
     try {
-      // Find the class ID from college.classes
-      const selectedClass = college.classes.find(c => c.className === className);
-      if (!selectedClass) {
-        Alert.alert('Error', 'Class not found');
-        return;
-      }
-
-      const classId = selectedClass._id;
       const validStudents = students.filter(s => s.name.trim());
 
       if (validStudents.length === 0) {
@@ -282,9 +274,19 @@ export default function AddStudentScreen({ college, className }) {
         return;
       }
 
+      let classId = null;
+      if (!isNgoVolunteer) {
+        // Find the class ID from college.classes for normal colleges
+        const selectedClass = college?.classes?.find(c => c.className === className);
+        if (!selectedClass) {
+          Alert.alert('Error', 'Class not found');
+          return;
+        }
+        classId = selectedClass._id;
+      }
+
       // Prepare the request body
-      const requestBody = {
-        classId: classId,
+      let requestBody = {
         students: validStudents.map(s => ({
           name: s.name.trim(),
           department: s.department.trim(),
@@ -294,8 +296,14 @@ export default function AddStudentScreen({ college, className }) {
         }))
       };
 
+      if (!isNgoVolunteer) {
+        requestBody.classId = classId;
+      }
+
+      const apiEndpoint = isNgoVolunteer ? api.addNgoVolunteerAPI : api.addStudentAPI;
+
       // Call the API
-      const response = await fetch(api.addStudentAPI, {
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -311,8 +319,8 @@ export default function AddStudentScreen({ college, className }) {
         // 1. Fire toast immediately (shows on both web & Android)
         Toast.show({
           type: 'success',
-          text1: '✅ Students Added!',
-          text2: `${validStudents.length} student${validStudents.length > 1 ? 's' : ''} added to ${className} successfully.`,
+          text1: isNgoVolunteer ? '✅ Volunteers Added!' : '✅ Students Added!',
+          text2: `${validStudents.length} ${isNgoVolunteer ? 'volunteer' : 'student'}${validStudents.length > 1 ? 's' : ''} added ${isNgoVolunteer ? 'successfully' : `to ${className}`}.`,
           visibilityTime: 3000,
         });
 
@@ -322,20 +330,23 @@ export default function AddStudentScreen({ college, className }) {
         // 3. Alert with navigate-back option
         Alert.alert(
           'Success',
-          `${validStudents.length} student${validStudents.length > 1 ? 's' : ''} added to ${className}!`,
+          `${validStudents.length} ${isNgoVolunteer ? 'volunteer' : 'student'}${validStudents.length > 1 ? 's' : ''} added ${isNgoVolunteer ? 'successfully' : `to ${className}`}!`,
           [
             { text: 'Add More', style: 'cancel' },
-            { text: 'View Class', onPress: () => navigate('CollegeClasses', { college }) },
+            {
+              text: isNgoVolunteer ? 'View Events' : 'View Class',
+              onPress: () => isNgoVolunteer ? navigate('NgoEvents', { ngo }) : navigate('CollegeClasses', { college })
+            },
           ]
         );
       } else {
-        Toast.show({ type: 'error', text1: 'Failed to add students', text2: result.message || 'Please try again.' });
-        Alert.alert('Error', result.message || 'Failed to add students');
+        Toast.show({ type: 'error', text1: 'Failed to add records', text2: result.message || 'Please try again.' });
+        Alert.alert('Error', result.message || 'Failed to add records');
       }
     } catch (error) {
-      console.error('Error adding students:', error);
-      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to add students. Please try again.' });
-      Alert.alert('Error', 'Failed to add students');
+      console.error('Error adding records:', error);
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to add records. Please try again.' });
+      Alert.alert('Error', 'Failed to add records');
     }
   }
 
@@ -351,7 +362,9 @@ export default function AddStudentScreen({ college, className }) {
             <Text className="text-white font-bold">Save ({students.filter(s => s.name.trim()).length})</Text>
           </TouchableOpacity>
         </View>
-        <Text className="text-xl font-bold" style={{ color: colors.header }}>Add Students to {className}</Text>
+        <Text className="text-xl font-bold" style={{ color: colors.header }}>
+          {isNgoVolunteer ? 'Add NGO Volunteers' : `Add Students to ${className}`}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>

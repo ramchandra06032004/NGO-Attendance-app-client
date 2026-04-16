@@ -71,12 +71,27 @@ export default function RegisteredStudentsScreen({ route }) {
     };
 
     const handleMarkAttendance = (college) => {
+        // Prevent marking attendance before start date
+        const currentDate = new Date();
+        currentDate.setHours(0, 0, 0, 0);
+
+        const eventData = data?.event || {};
+        const eventStartDate = new Date(eventData.startDate || eventData.eventDate);
+        eventStartDate.setHours(0, 0, 0, 0);
+
+        if (currentDate < eventStartDate) {
+            Alert.alert(
+                "Not Started",
+                `Attendance marking for this event has not started yet. You can begin marking from ${eventStartDate.toLocaleDateString()}.`,
+                [{ text: "OK" }]
+            );
+            return;
+        }
 
         // Navigate to StudentsListScreen with registered students
         navigate("StudentsList", {
             eventId: eventId,
-            collegeId: college.college._id,
-            collegeName: college.college.name,
+            college: college.college,
             registeredStudents: college.students,
         });
     };

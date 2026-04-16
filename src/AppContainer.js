@@ -137,6 +137,8 @@ export default function AppContainer() {
         <AddStudentScreen
           college={route.params?.college}
           className={route.params?.className}
+          isNgoVolunteer={route.params?.isNgoVolunteer}
+          ngo={route.params?.ngo}
         />
       );
       break;

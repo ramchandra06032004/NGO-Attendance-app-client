@@ -276,8 +276,12 @@ export default function AttendanceRecords({ route = {} }) {
       r7.alignment = centerStyle;
       worksheet.mergeCells("A7:E7");
 
+      const dateRangeStr = (attendanceData.event?.startDate ? 
+        (new Date(attendanceData.event.startDate).toLocaleDateString() + (attendanceData.event.endDate && attendanceData.event.endDate !== attendanceData.event.startDate ? ` - ${new Date(attendanceData.event.endDate).toLocaleDateString()}` : "")) 
+        : new Date(attendanceData.event?.eventDate).toLocaleDateString());
+
       const r8 = worksheet.getCell("A8");
-      r8.value = `Date: ${new Date(attendanceData.event?.eventDate).toLocaleDateString()}`;
+      r8.value = `Date: ${dateRangeStr}`;
       r8.alignment = centerStyle;
       worksheet.mergeCells("A8:E8");
 
@@ -450,10 +454,11 @@ export default function AttendanceRecords({ route = {} }) {
     return college ? college.name : "Unknown College";
   };
 
-  // Returns true if the event date has already passed
+  // Returns true if the event has already concluded
   const isEventPast = () => {
-    if (!attendanceData.event?.eventDate) return false;
-    const eventDate = new Date(attendanceData.event.eventDate);
+    const dateToCheck = attendanceData.event?.endDate || attendanceData.event?.startDate || attendanceData.event?.eventDate;
+    if (!dateToCheck) return false;
+    const eventDate = new Date(dateToCheck);
     eventDate.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -609,13 +614,34 @@ export default function AttendanceRecords({ route = {} }) {
         </Text>
 
         {/* Event Details */}
-        <View className="flex-row flex-wrap gap-3 mb-3">
-          <View className="flex-row items-center">
-            <Text className="text-sm" style={{ color: colors.textSecondary }}>Location: {attendanceData.event?.location}</Text>
+        <View className="mb-3">
+          <View className="flex-row items-center mb-1">
+            <Text className="text-sm font-bold" style={{ color: colors.accent }}>📍 Location: </Text>
+            <Text className="text-sm" style={{ color: colors.textPrimary }}>{attendanceData.event?.location || "N/A"}</Text>
+          </View>
+          <View className="flex-row items-center mb-1">
+            <Text className="text-sm font-bold" style={{ color: colors.accent }}>📅 Duration: </Text>
+            <Text className="text-sm" style={{ color: colors.textPrimary }}>
+              {new Date(attendanceData.event?.startDate || attendanceData.event?.eventDate).toLocaleDateString()}
+              {attendanceData.event?.endDate && attendanceData.event?.endDate !== attendanceData.event?.startDate && ` - ${new Date(attendanceData.event?.endDate).toLocaleDateString()}`}
+            </Text>
           </View>
           <View className="flex-row items-center">
-            <Text className="text-sm" style={{ color: colors.textSecondary }}>Date: {new Date(attendanceData.event?.eventDate).toLocaleDateString()}</Text>
+            <Text className="text-sm font-bold" style={{ color: colors.accent }}>⏰ Daily Timing: </Text>
+            <Text className="text-sm" style={{ color: colors.textPrimary }}>{attendanceData.event?.startTime || "N/A"} - {attendanceData.event?.endTime || "N/A"}</Text>
           </View>
+          {attendanceData.event?.spocName && (
+            <View className="flex-row items-center mt-1">
+              <Text className="text-sm font-bold" style={{ color: colors.accent }}>👤 Manager: </Text>
+              <Text className="text-sm mr-4" style={{ color: colors.textPrimary }}>{attendanceData.event?.spocName}</Text>
+              {attendanceData.event?.spocContact && (
+                <>
+                  <Text className="text-sm font-bold" style={{ color: colors.accent }}>📞 Contact: </Text>
+                  <Text className="text-sm" style={{ color: colors.textPrimary }}>{attendanceData.event?.spocContact}</Text>
+                </>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Stats Card */}
