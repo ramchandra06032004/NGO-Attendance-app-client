@@ -338,7 +338,7 @@ export default function AttendanceRecords({ route = {} }) {
         .filter(s => s.attendanceMarkedAt)
         .map(s => ({
           name: s.name || "",
-          collegeName: attendanceData.colleges?.find(col => col.classes.includes(s.classId._id))?.name || "",
+          collegeName: attendanceData.colleges?.find(col => col && col.classes && col.classes.includes(s.classId?._id))?.name || "",
           department: s.department || "",
           className: s.classId?.className || "",
           status: "Present",
@@ -448,8 +448,9 @@ export default function AttendanceRecords({ route = {} }) {
     }
   };
   const getCollegeName = (classId) => {
+    if (!classId) return "Unknown College";
     const college = attendanceData.colleges?.find((col) =>
-      col.classes.includes(classId)
+      col && col.classes && col.classes.includes(classId)
     );
     return college ? college.name : "Unknown College";
   };
