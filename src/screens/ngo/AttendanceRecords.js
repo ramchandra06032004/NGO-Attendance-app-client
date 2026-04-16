@@ -79,7 +79,7 @@ export default function AttendanceRecords({ route = {} }) {
   const [registeredStudents, setRegisteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState("table"); // "table" or "card"
+  const [viewMode, setViewMode] = useState("card"); // "table" or "card"
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
 
@@ -276,8 +276,8 @@ export default function AttendanceRecords({ route = {} }) {
       r7.alignment = centerStyle;
       worksheet.mergeCells("A7:E7");
 
-      const dateRangeStr = (attendanceData.event?.startDate ? 
-        (new Date(attendanceData.event.startDate).toLocaleDateString() + (attendanceData.event.endDate && attendanceData.event.endDate !== attendanceData.event.startDate ? ` - ${new Date(attendanceData.event.endDate).toLocaleDateString()}` : "")) 
+      const dateRangeStr = (attendanceData.event?.startDate ?
+        (new Date(attendanceData.event.startDate).toLocaleDateString() + (attendanceData.event.endDate && attendanceData.event.endDate !== attendanceData.event.startDate ? ` - ${new Date(attendanceData.event.endDate).toLocaleDateString()}` : ""))
         : new Date(attendanceData.event?.eventDate).toLocaleDateString());
 
       const r8 = worksheet.getCell("A8");
