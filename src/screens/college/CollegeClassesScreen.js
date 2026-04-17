@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList, Image, Modal } from 'react-native';
+import AnimatedSearch from '../../components/AnimatedSearch';
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -1656,33 +1657,22 @@ export default function CollegeClassesScreen({ college }) {
 
         {/* --- 4. CLASS MANAGEMENT --- */}
         <View>
-          <View className="flex-row justify-between items-center mb-3">
+          {/* --- 4. CLASS MANAGEMENT HEADER --- */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <Text
-              className="text-base font-bold"
-              style={{ color: colors.header }}
+              style={{ fontSize: 15, fontWeight: '700', color: colors.header }}
             >
               Classes
             </Text>
-          </View>
 
-          {/* Class Search Bar */}
-          <View
-            className="flex-row items-center p-2.5 rounded-lg border mb-4"
-            style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
-          >
-            <Text style={{ color: colors.textSecondary, marginRight: 8, fontSize: 14 }}>⌕</Text>
-            <TextInput
+            {/* AnimatedSearch replaces the full-width bar */}
+            <AnimatedSearch
               placeholder="Search classes..."
               value={classSearch}
               onChangeText={setClassSearch}
-              style={{ flex: 1, color: colors.textPrimary, fontSize: 13, outlineStyle: 'none' }}
-              placeholderTextColor={colors.textSecondary}
+              colors={colors}
+              containerStyle={{ marginBottom: 0 }}
             />
-            {classSearch.length > 0 && (
-              <TouchableOpacity onPress={() => setClassSearch('')}>
-                <Text style={{ color: colors.textSecondary, fontSize: 16, paddingHorizontal: 4 }}>✕</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {/* Classes Grid — skeleton while loading */}

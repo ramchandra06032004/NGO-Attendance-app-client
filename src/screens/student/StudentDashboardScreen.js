@@ -16,6 +16,8 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
 import { Calendar, LogOut } from "lucide-react-native";
+import AnimatedSearch from "../../components/AnimatedSearch";
+import CollapsibleFilter from "../../components/CollapsibleFilter";
 
 export default function StudentDashboardScreen({ student: loggedStudent }) {
     const { navigate } = useContext(NavigationContext);
@@ -206,46 +208,61 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                 </View>
             </View>
 
-            {/* Title & My Events Button */}
-            <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-2xl font-extrabold" style={{ color: colors.header }}>
+            {/* Title + Search Row */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: colors.header, flex: 1 }}>
                     Upcoming Events
                 </Text>
-                <TouchableOpacity
-                    className="px-4 py-2 rounded-xl flex-row items-center"
-                    style={{ backgroundColor: colors.accent }}
-                    onPress={() => navigate("StudentMyEvents", { student: loggedStudent })}
-                >
-                    <Calendar size={16} color="white" style={{ marginRight: 6 }} />
-                    <Text className="text-white font-bold text-sm">My Events</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Search Bar */}
-            <View className="mb-3">
-                <TextInput
-                    className="px-4 py-3 rounded-xl border"
-                    style={{
-                        backgroundColor: colors.cardBg,
-                        borderColor: colors.border,
-                        color: colors.textPrimary,
-                    }}
-                    placeholder="Search by name, location, NGO..."
-                    placeholderTextColor={colors.textSecondary}
+                <AnimatedSearch
+                    placeholder="Search events..."
                     value={searchQuery}
                     onChangeText={setSearchQuery}
+                    colors={colors}
+                    containerStyle={{ marginBottom: 0 }}
                 />
             </View>
 
-            {/* Date Range Picker */}
-            <View className="mb-4">
-                <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>
-                    Filter by Date Range
-                </Text>
-                <View className="flex-row gap-2">
+            {/* Action Buttons — equal width, solid, prominent */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                <TouchableOpacity
+                    style={{
+                        flex: 1,
+                        backgroundColor: '#7c3aed',
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                    onPress={() => navigate("StudentInternships", { student: loggedStudent })}
+                    activeOpacity={0.8}
+                >
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>🎓 Internships</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={{
+                        flex: 1,
+                        backgroundColor: colors.accent,
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexDirection: 'row',
+                    }}
+                    onPress={() => navigate("StudentMyEvents", { student: loggedStudent })}
+                    activeOpacity={0.8}
+                >
+                    <Calendar size={14} color="white" style={{ marginRight: 6 }} />
+                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>My Events</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Collapsible Date Filter */}
+            <CollapsibleFilter colors={colors} title="Filter by Date" containerStyle={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                     {/* Start Date */}
                     {Platform.OS === 'web' ? (
-                        <View className="flex-1">
+                        <View style={{ flex: 1 }}>
                             <input
                                 type="date"
                                 value={startDate ? startDate.toISOString().split('T')[0] : ''}
@@ -257,12 +274,12 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                                     }
                                 }}
                                 style={{
-                                    padding: '10px 12px',
-                                    borderRadius: '12px',
+                                    padding: '8px 12px',
+                                    borderRadius: '10px',
                                     border: `1px solid ${colors.border}`,
                                     backgroundColor: colors.cardBg,
                                     color: colors.textPrimary,
-                                    fontSize: '14px',
+                                    fontSize: '13px',
                                     width: '100%',
                                     fontFamily: 'inherit',
                                 }}
@@ -270,14 +287,21 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                         </View>
                     ) : (
                         <TouchableOpacity
-                            className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
                             style={{
+                                flex: 1,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
                                 backgroundColor: colors.cardBg,
                                 borderColor: colors.border,
                             }}
                             onPress={() => setShowStartPicker(true)}
                         >
-                            <Text className="text-sm" style={{ color: startDate ? colors.textPrimary : colors.textSecondary }}>
+                            <Text style={{ fontSize: 12, color: startDate ? colors.textPrimary : colors.textSecondary }}>
                                 {formatDate(startDate)}
                             </Text>
                             <Text style={{ color: colors.textSecondary }}>📅</Text>
@@ -286,7 +310,7 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
                     {/* End Date */}
                     {Platform.OS === 'web' ? (
-                        <View className="flex-1">
+                        <View style={{ flex: 1 }}>
                             <input
                                 type="date"
                                 value={endDate ? endDate.toISOString().split('T')[0] : ''}
@@ -298,12 +322,12 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                                     }
                                 }}
                                 style={{
-                                    padding: '10px 12px',
-                                    borderRadius: '12px',
+                                    padding: '8px 12px',
+                                    borderRadius: '10px',
                                     border: `1px solid ${colors.border}`,
                                     backgroundColor: colors.cardBg,
                                     color: colors.textPrimary,
-                                    fontSize: '14px',
+                                    fontSize: '13px',
                                     width: '100%',
                                     fontFamily: 'inherit',
                                 }}
@@ -311,14 +335,21 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                         </View>
                     ) : (
                         <TouchableOpacity
-                            className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
                             style={{
+                                flex: 1,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
                                 backgroundColor: colors.cardBg,
                                 borderColor: colors.border,
                             }}
                             onPress={() => setShowEndPicker(true)}
                         >
-                            <Text className="text-sm" style={{ color: endDate ? colors.textPrimary : colors.textSecondary }}>
+                            <Text style={{ fontSize: 12, color: endDate ? colors.textPrimary : colors.textSecondary }}>
                                 {formatDate(endDate)}
                             </Text>
                             <Text style={{ color: colors.textSecondary }}>📅</Text>
@@ -328,20 +359,21 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                     {/* Clear Button */}
                     {(startDate || endDate) && (
                         <TouchableOpacity
-                            className="px-3 py-2.5 rounded-xl border"
                             style={{
-                                backgroundColor: colors.error || "#ef4444",
-                                borderColor: colors.error || "#ef4444",
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                backgroundColor: '#ef4444',
                             }}
                             onPress={clearDateRange}
                         >
-                            <Text className="text-white font-bold text-sm">✕</Text>
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>✕</Text>
                         </TouchableOpacity>
                     )}
                 </View>
-            </View>
+            </CollapsibleFilter>
 
-            {/* Date Pickers - Only for Mobile */}
+            {/* Mobile Date Pickers */}
             {Platform.OS !== 'web' && showStartPicker && (
                 <DateTimePicker
                     value={startDate || new Date()}

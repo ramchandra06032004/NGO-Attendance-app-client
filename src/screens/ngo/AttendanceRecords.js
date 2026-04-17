@@ -15,6 +15,7 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
+import AnimatedSearch from "../../components/AnimatedSearch";
 // Platform-specific imports
 let RealFileSystem, RealSharing;
 if (RNPlatform.OS !== "web") {
@@ -588,6 +589,7 @@ export default function AttendanceRecords({ route = {} }) {
               className="px-4 py-2 rounded-xl flex-row items-center"
               style={{
                 backgroundColor: colors.accent,
+                height: 44,
               }}
             >
               <Text className="text-white font-bold text-sm">Export Excel</Text>
@@ -596,16 +598,13 @@ export default function AttendanceRecords({ route = {} }) {
 
           {/* Search Button */}
           {attendanceData.attendance && attendanceData.attendance.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setShowSearch(!showSearch)}
-              className="px-4 py-2 rounded-xl border"
-              style={{
-                backgroundColor: showSearch ? colors.accent : colors.cardBg,
-                borderColor: showSearch ? colors.accent : colors.border,
-              }}
-            >
-              <Text className="font-bold text-sm" style={{ color: showSearch ? '#fff' : colors.textPrimary }}>Search</Text>
-            </TouchableOpacity>
+            <AnimatedSearch
+              placeholder="Search..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              colors={colors}
+              containerStyle={{ marginBottom: 0, marginLeft: 8 }}
+            />
           )}
         </View>
 
@@ -657,23 +656,6 @@ export default function AttendanceRecords({ route = {} }) {
           </Text>
         </View>
 
-        {/* Search Bar - Collapsible */}
-        {showSearch && (
-          <View className="mb-3">
-            <TextInput
-              className="px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.cardBg,
-                borderColor: colors.border,
-                color: colors.textPrimary,
-              }}
-              placeholder="Search by name, college, department, or class..."
-              placeholderTextColor={colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-        )}
 
         {/* View Toggle */}
         <View className="flex-row items-center justify-between">

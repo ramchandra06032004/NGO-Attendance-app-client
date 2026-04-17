@@ -6,6 +6,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { Ionicons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import { studentEventsAPI } from '../../../apis/api';
+import AnimatedSearch from '../../components/AnimatedSearch';
+import CollapsibleFilter from '../../components/CollapsibleFilter';
 
 export default function StudentEventsScreen({ college, studentId }) {
   const { goBack } = useContext(NavigationContext);
@@ -13,17 +15,14 @@ export default function StudentEventsScreen({ college, studentId }) {
   const colors = darkMode ? darkTheme : lightTheme;
 
   const [allEvents, setAllEvents] = useState([]);
-  const [filteredEvents, setFilteredEvents] = useState([]);
   const [student, setStudent] = useState({ name: 'Student', id: studentId, attendedEvents: [] });
   const [className, setClassName] = useState('');
   const [viewMode, setViewMode] = useState('card');
   const [loading, setLoading] = useState(false);
   const { accessToken } = useContext(AuthContext);
 
-  // Filter States
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Mobile Picker Visibility
@@ -140,13 +139,8 @@ export default function StudentEventsScreen({ college, studentId }) {
     fetchStudentAndEvents();
   }, [studentId, accessToken, college]);
 
-  // Use useMemo to compute filtered events - prevents infinite loop
+  // Correctly compute filtered events via useMemo
   const computedFilteredEvents = useMemo(() => {
-    // Only filter if there are active filters, otherwise show all events
-    if (!searchQuery.trim() && !startDate && !endDate) {
-      return allEvents;
-    }
-
     let filtered = allEvents;
 
     // Text search filter
@@ -159,33 +153,34 @@ export default function StudentEventsScreen({ college, studentId }) {
       );
     }
 
-    // Date range filter: Overlap logic
+    // Date range filter — properly inside .filter(ev => ...)
     if (startDate || endDate) {
-      const eventStart = ev.startDate ? new Date(ev.startDate) : ev.rawDate;
-      const eventEnd = ev.endDate ? new Date(ev.endDate) : eventStart;
+      const filterStart = startDate ? new Date(startDate) : null;
+      if (filterStart) filterStart.setHours(0, 0, 0, 0);
 
-      if (eventStart && eventEnd) {
-        eventStart.setHours(0, 0, 0, 0);
-        eventEnd.setHours(0, 0, 0, 0);
+      const filterEnd = endDate ? new Date(endDate) : null;
+      if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
 
-        const filterStart = startDate ? new Date(startDate) : null;
-        if (filterStart) filterStart.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(ev => {
+        const eventStart = ev.startDate ? new Date(ev.startDate) : ev.rawDate;
+        const eventEnd = ev.endDate ? new Date(ev.endDate) : eventStart;
 
-        const filterEnd = endDate ? new Date(endDate) : null;
-        if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
+        if (!eventStart) return true; // can't filter, keep it
 
-        if (filterStart && eventEnd < filterStart) return false;
-        if (filterEnd && eventStart > filterEnd) return false;
-      }
+        const es = new Date(eventStart); es.setHours(0, 0, 0, 0);
+        const ee = eventEnd ? new Date(eventEnd) : es; ee.setHours(0, 0, 0, 0);
+
+        // Overlap: event [es, ee] overlaps filter [filterStart, filterEnd]
+        if (filterStart && ee < filterStart) return false;
+        if (filterEnd && es > filterEnd) return false;
+        return true;
+      });
     }
 
     return filtered;
   }, [searchQuery, startDate, endDate, allEvents]);
 
-  // Update filteredEvents when computed value changes
-  useEffect(() => {
-    setFilteredEvents(computedFilteredEvents);
-  }, [computedFilteredEvents]);
+  // NO useEffect here — using computedFilteredEvents directly prevents infinite loop
 
 
   const clearFilter = () => {
@@ -321,59 +316,40 @@ export default function StudentEventsScreen({ college, studentId }) {
   );
 
   const renderFilterSection = () => (
-    <View className="mb-6 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-      <View className="flex-row justify-between items-center mb-3">
-        <Text className="font-bold" style={{ color: colors.textPrimary }}>Search & Filter</Text>
-        <TouchableOpacity onPress={() => setIsFilterVisible(!isFilterVisible)}>
-          <Ionicons name={isFilterVisible ? "chevron-up" : "funnel-outline"} size={20} color={colors.accent} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Search Bar - Always Visible */}
-      <View className="mb-3">
-        <TextInput
-          className="px-4 py-3 rounded-xl border"
-          style={{
-            backgroundColor: colors.backgroundColors?.[0] || '#fff',
-            borderColor: colors.border,
-            color: colors.textPrimary,
-          }}
-          placeholder="Search by event, location, or NGO..."
-          placeholderTextColor={colors.textSecondary}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+    <CollapsibleFilter colors={colors} title="Filter by Date" containerStyle={{ marginBottom: 16 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+        <DateInputBox
+          label="From Date"
+          dateValue={startDate}
+          showPicker={showStartPicker}
+          setShowPicker={setShowStartPicker}
+          onChangeType="start"
         />
-      </View>
-
-      {isFilterVisible && (
-        <View>
-          <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>DATE RANGE</Text>
-          <View className="flex-row justify-between mb-4">
-            <DateInputBox
-              label="From Date"
-              dateValue={startDate}
-              showPicker={showStartPicker}
-              setShowPicker={setShowStartPicker}
-              onChangeType="start"
-            />
-            <DateInputBox
-              label="To Date"
-              dateValue={endDate}
-              showPicker={showEndPicker}
-              setShowPicker={setShowEndPicker}
-              onChangeType="end"
-            />
-          </View>
+        <DateInputBox
+          label="To Date"
+          dateValue={endDate}
+          showPicker={showEndPicker}
+          setShowPicker={setShowEndPicker}
+          onChangeType="end"
+        />
+        {(startDate || endDate) && (
           <TouchableOpacity
             onPress={clearFilter}
-            className="py-2 rounded-lg items-center border"
-            style={{ borderColor: colors.border }}
+            style={{
+              alignSelf: 'flex-end',
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderRadius: 8,
+              borderWidth: 1,
+              borderColor: colors.border,
+              marginBottom: 4,
+            }}
           >
-            <Text className="font-bold text-xs" style={{ color: colors.textSecondary }}>Clear All Filters</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600' }}>Clear</Text>
           </TouchableOpacity>
-        </View>
-      )}
-    </View>
+        )}
+      </View>
+    </CollapsibleFilter>
   );
 
   const renderViewToggle = () => (
@@ -476,16 +452,45 @@ export default function StudentEventsScreen({ college, studentId }) {
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#F8FAFC' }}>
-      {/* Fixed Header with Back Button */}
-      <View className="px-5 pt-8 pb-3" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+      {/* Fixed Header with Back Button + Search */}
+      <View style={{
+        paddingHorizontal: 20,
+        paddingTop: 32,
+        paddingBottom: 12,
+        backgroundColor: colors.cardBg,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}>
         <TouchableOpacity
-          className="flex-row items-center py-2 px-4 rounded-xl border self-start"
           onPress={() => goBack()}
-          style={{ borderColor: colors.border, backgroundColor: colors.backgroundColors?.[0] || '#fff' }}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            borderRadius: 10,
+            borderWidth: 1,
+            borderColor: colors.border,
+            backgroundColor: colors.backgroundColors?.[0] || '#fff',
+            marginRight: 12,
+          }}
         >
-          <Ionicons name="arrow-back" size={18} color={colors.textPrimary} />
-          <Text className="ml-2 font-semibold" style={{ color: colors.textPrimary }}>Back</Text>
+          <Ionicons name="arrow-back" size={16} color={colors.textPrimary} />
+          <Text style={{ marginLeft: 6, fontWeight: '600', color: colors.textPrimary, fontSize: 13 }}>Back</Text>
         </TouchableOpacity>
+
+        <View style={{ flex: 1 }} />
+
+        {/* Animated Search */}
+        <AnimatedSearch
+          placeholder="Search events..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          colors={colors}
+          containerStyle={{ marginBottom: 0 }}
+        />
       </View>
 
       <ScrollView className="flex-1 px-5" contentContainerStyle={{ paddingBottom: 40, paddingTop: 20 }} showsVerticalScrollIndicator={false}>
@@ -493,26 +498,26 @@ export default function StudentEventsScreen({ college, studentId }) {
         {renderFilterSection()}
 
         {/* --- ATTENDANCE ANALYTICS --- */}
-        {!loading && filteredEvents.length > 0 && (
+        {!loading && computedFilteredEvents.length > 0 && (
           <View className="flex-row justify-between p-4 rounded-xl mb-6 border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
             <View className="items-center flex-1">
               <Text className="text-[10px] uppercase font-bold" style={{ color: '#10b981' }}>Present</Text>
               <Text className="text-xl font-bold" style={{ color: '#10b981' }}>
-                {filteredEvents.filter(e => e.status === 'Present').length}
+                {computedFilteredEvents.filter(e => e.status === 'Present').length}
               </Text>
             </View>
             <View style={{ width: 1, backgroundColor: colors.border, height: '100%', marginHorizontal: 10 }} />
             <View className="items-center flex-1">
               <Text className="text-[10px] uppercase font-bold" style={{ color: '#ef4444' }}>Absent</Text>
               <Text className="text-xl font-bold" style={{ color: '#ef4444' }}>
-                {filteredEvents.filter(e => e.status === 'Absent').length}
+                {computedFilteredEvents.filter(e => e.status === 'Absent').length}
               </Text>
             </View>
             <View style={{ width: 1, backgroundColor: colors.border, height: '100%', marginHorizontal: 10 }} />
             <View className="items-center flex-1">
               <Text className="text-[10px] uppercase font-bold" style={{ color: '#f59e0b' }}>Registered</Text>
               <Text className="text-xl font-bold" style={{ color: '#f59e0b' }}>
-                {filteredEvents.filter(e => e.status === 'Registered').length}
+                {computedFilteredEvents.filter(e => e.status === 'Registered').length}
               </Text>
             </View>
           </View>
@@ -520,7 +525,7 @@ export default function StudentEventsScreen({ college, studentId }) {
 
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-bold" style={{ color: colors.textPrimary }}>Activity History</Text>
-          <Text className="text-xs font-medium opacity-60" style={{ color: colors.textSecondary }}>{filteredEvents.length} Events Found</Text>
+          <Text className="text-xs font-medium opacity-60" style={{ color: colors.textSecondary }}>{computedFilteredEvents.length} Events Found</Text>
         </View>
         {renderViewToggle()}
 
@@ -529,7 +534,7 @@ export default function StudentEventsScreen({ college, studentId }) {
             <ActivityIndicator size="large" color={colors.accent} />
             <Text className="mt-4 text-xs" style={{ color: colors.textSecondary }}>Loading event history...</Text>
           </View>
-        ) : filteredEvents.length === 0 ? (
+        ) : computedFilteredEvents.length === 0 ? (
           <View className="items-center justify-center py-10 opacity-60">
             <Text className="text-lg font-medium" style={{ color: colors.textSecondary }}>No events found for this student.</Text>
           </View>
@@ -538,10 +543,10 @@ export default function StudentEventsScreen({ college, studentId }) {
             {viewMode === 'table' ? (
               <View className="w-full">
                 {renderTableHeader()}
-                {filteredEvents.map((event, index) => renderTableRow(event, index))}
+                {computedFilteredEvents.map((event, index) => renderTableRow(event, index))}
               </View>
             ) : (
-              filteredEvents.map((event, index) => renderEventCard(event, index))
+              computedFilteredEvents.map((event, index) => renderEventCard(event, index))
             )}
           </View>
         )}

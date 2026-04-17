@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AuthContext } from "../../context/AuthContext";
+import AnimatedSearch from "../../components/AnimatedSearch";
+import CollapsibleFilter from "../../components/CollapsibleFilter";
 
 import { AttendanceContext } from "../../context/AttendanceContext";
 import { NavigationContext } from "../../context/NavigationContext";
@@ -209,7 +211,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
         </View>
       </View>
 
-      {/* --- TITLE & ADD BUTTON ROW --- */}
+      {/* --- TITLE ROW --- */}
       <View className="flex-row items-center justify-between mb-3">
         <Text
           className="text-2xl font-extrabold"
@@ -218,56 +220,68 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
           Events
         </Text>
 
-        {/* Action Buttons */}
-        <View className="flex-row gap-2">
-          <TouchableOpacity
-            className="px-3 py-2 rounded-xl flex-row items-center border"
-            style={{
-              borderColor: colors.accent,
-              backgroundColor: 'transparent'
-            }}
-            onPress={() => navigate("AddStudent", { isNgoVolunteer: true, ngo: loggedNgo })}
-          >
-            <Text className="font-bold text-xs" style={{ color: colors.accent }}>+ Volunteers</Text>
-          </TouchableOpacity>
-
-          {/* Add Event Button */}
-          <TouchableOpacity
-            className="px-4 py-2 rounded-xl flex-row items-center"
-            style={{
-              backgroundColor: colors.accent,
-            }}
-            onPress={() => navigate("AddEvent")}
-          >
-            <Text className="text-white text-lg font-bold mr-1">+</Text>
-            <Text className="text-white font-bold text-sm">New</Text>
-          </TouchableOpacity>
-        </View>
-
-      </View>
-
-      {/* --- SEARCH BAR --- */}
-      <View className="mb-3">
-        <TextInput
-          className="px-4 py-3 rounded-xl border"
-          style={{
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-            color: colors.textPrimary,
-          }}
-          placeholder="Search by name, location, or description..."
-          placeholderTextColor={colors.textSecondary}
+        {/* Search icon — compact, doesn't push anything */}
+        <AnimatedSearch
+          placeholder="Search events..."
           value={searchQuery}
           onChangeText={setSearchQuery}
+          colors={colors}
+          containerStyle={{ marginBottom: 0 }}
         />
       </View>
 
-      {/* --- DATE RANGE PICKER --- */}
-      <View className="mb-4">
-        <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>
-          Filter by Date Range
-        </Text>
-        <View className="flex-row gap-2">
+      {/* --- ACTION BUTTONS (equal width, prominent) --- */}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: colors.accent,
+            borderRadius: 10,
+            paddingVertical: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row',
+          }}
+          onPress={() => navigate("AddEvent")}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>+ New Event</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: '#7c3aed',
+            borderRadius: 10,
+            paddingVertical: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onPress={() => navigate("NgoInternships", { ngo: loggedNgo })}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>🎓 Internships</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            backgroundColor: colors.accent + 'dd',
+            borderRadius: 10,
+            paddingVertical: 10,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onPress={() => navigate("AddStudent", { isNgoVolunteer: true, ngo: loggedNgo })}
+          activeOpacity={0.8}
+        >
+          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>+ Volunteer</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* --- FILTERS --- */}
+      <CollapsibleFilter colors={colors} title="Filter by Date">
+        <View className="flex-row gap-2 mt-2">
           {/* Start Date */}
           {Platform.OS === 'web' ? (
             <View className="flex-1">
@@ -364,7 +378,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </CollapsibleFilter>
 
       {/* Date Pickers - Only for Mobile */}
       {Platform.OS !== 'web' && showStartPicker && (

@@ -13,7 +13,8 @@ import { AuthContext } from "../../context/AuthContext";
 import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
-import { ChevronLeft, Users } from "lucide-react-native";
+import { ChevronLeft, Users, Search } from "lucide-react-native";
+import AnimatedSearch from "../../components/AnimatedSearch";
 
 export default function RegisteredStudentsScreen({ route }) {
     const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -28,6 +29,7 @@ export default function RegisteredStudentsScreen({ route }) {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [data, setData] = useState(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     useEffect(() => {
         if (eventId) {
@@ -69,6 +71,30 @@ export default function RegisteredStudentsScreen({ route }) {
         setRefreshing(true);
         fetchRegisteredStudents();
     };
+
+    const filteredRegisteredStudents = React.useMemo(() => {
+        if (!data) return [];
+        if (!searchQuery.trim()) return data.registeredStudents;
+
+        const q = searchQuery.toLowerCase();
+        return data.registeredStudents.map(collegeInfo => {
+            // Filter students within this college
+            const filteredStudents = collegeInfo.students.filter(student => 
+                student.name?.toLowerCase().includes(q) ||
+                student.department?.toLowerCase().includes(q)
+            );
+
+            // If college name matches OR any students match, include the college
+            if (collegeInfo.college.name?.toLowerCase().includes(q) || filteredStudents.length > 0) {
+                return {
+                    ...collegeInfo,
+                    students: filteredStudents,
+                    studentCount: filteredStudents.length
+                };
+            }
+            return null;
+        }).filter(Boolean);
+    }, [data, searchQuery]);
 
     const handleMarkAttendance = (college) => {
         // Prevent marking attendance before start date
@@ -140,22 +166,32 @@ export default function RegisteredStudentsScreen({ route }) {
             style={{ backgroundColor: colors.backgroundColors[0] }}
         >
             {/* Header */}
-            <View className="flex-row items-center mb-4 mt-4">
-                <TouchableOpacity
-                    onPress={goBack}
-                    className="p-2 rounded-full mr-4 border"
-                    style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
-                >
-                    <ChevronLeft size={24} color={colors.textPrimary} />
-                </TouchableOpacity>
-                <View className="flex-1">
-                    <Text className="text-2xl font-black" style={{ color: colors.header }}>
-                        Registered Students
-                    </Text>
-                    <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                        {eventName}
-                    </Text>
+            <View className="flex-row items-center justify-between mb-4 mt-4" style={{ zIndex: 10 }}>
+                <View className="flex-row items-center flex-1">
+                    <TouchableOpacity
+                        onPress={goBack}
+                        className="p-2 rounded-full mr-4 border"
+                        style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+                    >
+                        <ChevronLeft size={24} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <View className="flex-1">
+                        <Text className="text-xl font-black" style={{ color: colors.header }}>
+                            Registered
+                        </Text>
+                        <Text className="text-[10px]" style={{ color: colors.textSecondary }} numberOfLines={1}>
+                            {eventName}
+                        </Text>
+                    </View>
                 </View>
+
+                <AnimatedSearch
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    colors={colors}
+                    containerStyle={{ marginBottom: 0 }}
+                />
             </View>
 
             {/* Summary Card */}
@@ -185,7 +221,7 @@ export default function RegisteredStudentsScreen({ route }) {
 
             {/* College List */}
             <FlatList
-                data={data.registeredStudents}
+                data={filteredRegisteredStudents}
                 keyExtractor={(item) => item.college._id}
                 showsVerticalScrollIndicator={false}
                 refreshControl={

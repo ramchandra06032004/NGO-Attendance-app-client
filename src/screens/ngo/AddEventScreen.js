@@ -14,6 +14,161 @@ import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import Toast from "react-native-toast-message";
 const api = require("../../../apis/api");
+// --- DATE INPUT BOX COMPONENT ---
+const DateInputBox = ({ label, dateValue, showPicker, setShowPicker, setDateValue, colors }) => {
+  // 1. WEB VERSION: Uses standard HTML <input type="date">
+  if (Platform.OS === 'web') {
+    const dateString = dateValue ? dateValue.toISOString().split('T')[0] : '';
+
+    return (
+      <View className="mb-4">
+        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
+          {label}
+        </Text>
+        <View style={{
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingVertical: 4,
+          height: 40,
+          justifyContent: 'center'
+        }}>
+          {React.createElement('input', {
+            type: 'date',
+            value: dateString,
+            onChange: (e) => {
+              const newDate = e.target.value ? new Date(e.target.value) : null;
+              if (newDate) setDateValue(newDate);
+            },
+            style: {
+              border: 'none',
+              outline: 'none',
+              backgroundColor: colors.iconBg,
+              color: colors.textPrimary,
+              fontSize: '16px',
+              padding: '8px',
+              fontFamily: 'System',
+              width: '100%'
+            }
+          })}
+        </View>
+      </View>
+    );
+  }
+
+  // 2. MOBILE VERSION: Uses TouchableOpacity + Native Modal
+  const formattedDate = dateValue ? dateValue.toLocaleDateString() : 'Select Date';
+  return (
+    <View className="mb-4">
+      <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
+        {label}
+      </Text>
+      <TouchableOpacity
+        onPress={() => setShowPicker(true)}
+        style={{
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingVertical: 12,
+          backgroundColor: colors.iconBg,
+          paddingLeft: 12
+        }}
+      >
+        <Text style={{ color: dateValue ? colors.textPrimary : colors.textSecondary, fontSize: 16 }}>
+          {formattedDate}
+        </Text>
+      </TouchableOpacity>
+
+      {showPicker && (
+        <DateTimePicker
+          value={dateValue || new Date()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(e, d) => {
+            if (Platform.OS === 'android') setShowPicker(false);
+            if (d) setDateValue(d);
+          }}
+        />
+      )}
+    </View>
+  );
+};
+
+// --- TIME INPUT BOX COMPONENT ---
+const TimeInputBox = ({ label, timeValue, showPicker, setShowPicker, setTimeValue, colors }) => {
+  if (Platform.OS === 'web') {
+    const timeString = timeValue ? timeValue.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+
+    return (
+      <View className="mb-4">
+        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
+          {label}
+        </Text>
+        <View style={{
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingVertical: 4,
+          height: 40,
+          justifyContent: 'center'
+        }}>
+          {React.createElement('input', {
+            type: 'time',
+            value: timeString,
+            onChange: (e) => {
+              const [hours, minutes] = e.target.value.split(':');
+              const newTime = new Date();
+              newTime.setHours(parseInt(hours), parseInt(minutes));
+              setTimeValue(newTime);
+            },
+            style: {
+              border: 'none',
+              outline: 'none',
+              backgroundColor: colors.iconBg,
+              color: colors.textPrimary,
+              fontSize: '16px',
+              padding: '8px',
+              fontFamily: 'System',
+              width: '100%'
+            }
+          })}
+        </View>
+      </View>
+    );
+  }
+
+  const formattedTime = timeValue ? timeValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Select Time';
+  return (
+    <View className="mb-4">
+      <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
+        {label}
+      </Text>
+      <TouchableOpacity
+        onPress={() => setShowPicker(true)}
+        style={{
+          borderBottomWidth: 1,
+          borderColor: colors.border,
+          paddingVertical: 12,
+          backgroundColor: colors.iconBg,
+          paddingLeft: 12
+        }}
+      >
+        <Text style={{ color: timeValue ? colors.textPrimary : colors.textSecondary, fontSize: 16 }}>
+          {formattedTime}
+        </Text>
+      </TouchableOpacity>
+
+      {showPicker && (
+        <DateTimePicker
+          value={timeValue || new Date()}
+          mode="time"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          onChange={(e, t) => {
+            if (Platform.OS === 'android') setShowPicker(false);
+            if (t) setTimeValue(t);
+          }}
+        />
+      )}
+    </View>
+  );
+};
 
 export default function AddEventScreen() {
   const { goBack } = useContext(NavigationContext);
@@ -73,161 +228,6 @@ export default function AddEventScreen() {
     }
   };
 
-  // --- DATE INPUT BOX COMPONENT ---
-  const DateInputBox = ({ label, dateValue, showPicker, setShowPicker, setDateValue }) => {
-    // 1. WEB VERSION: Uses standard HTML <input type="date">
-    if (Platform.OS === 'web') {
-      const dateString = dateValue ? dateValue.toISOString().split('T')[0] : '';
-
-      return (
-        <View className="mb-4">
-          <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
-            {label}
-          </Text>
-          <View style={{
-            borderBottomWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 4,
-            height: 40,
-            justifyContent: 'center'
-          }}>
-            {createElement('input', {
-              type: 'date',
-              value: dateString,
-              onChange: (e) => {
-                const newDate = e.target.value ? new Date(e.target.value) : null;
-                if (newDate) setDateValue(newDate);
-              },
-              style: {
-                border: 'none',
-                outline: 'none',
-                backgroundColor: colors.iconBg,
-                color: colors.textPrimary,
-                fontSize: '16px',
-                padding: '8px',
-                fontFamily: 'System',
-                width: '100%'
-              }
-            })}
-          </View>
-        </View>
-      );
-    }
-
-    // 2. MOBILE VERSION: Uses TouchableOpacity + Native Modal
-    const formattedDate = dateValue ? dateValue.toLocaleDateString() : 'Select Date';
-    return (
-      <View className="mb-4">
-        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
-          {label}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setShowPicker(true)}
-          style={{
-            borderBottomWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 12,
-            backgroundColor: colors.iconBg,
-            paddingLeft: 12
-          }}
-        >
-          <Text style={{ color: dateValue ? colors.textPrimary : colors.textSecondary, fontSize: 16 }}>
-            {formattedDate}
-          </Text>
-        </TouchableOpacity>
-
-        {showPicker && (
-          <DateTimePicker
-            value={dateValue || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(e, d) => {
-              if (Platform.OS === 'android') setShowPicker(false);
-              if (d) setDateValue(d);
-            }}
-          />
-        )}
-      </View>
-    );
-  };
-
-  // --- TIME INPUT BOX COMPONENT ---
-  const TimeInputBox = ({ label, timeValue, showPicker, setShowPicker, setTimeValue }) => {
-    if (Platform.OS === 'web') {
-      const timeString = timeValue ? timeValue.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
-
-      return (
-        <View className="mb-4">
-          <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
-            {label}
-          </Text>
-          <View style={{
-            borderBottomWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 4,
-            height: 40,
-            justifyContent: 'center'
-          }}>
-            {createElement('input', {
-              type: 'time',
-              value: timeString,
-              onChange: (e) => {
-                const [hours, minutes] = e.target.value.split(':');
-                const newTime = new Date();
-                newTime.setHours(parseInt(hours), parseInt(minutes));
-                setTimeValue(newTime);
-              },
-              style: {
-                border: 'none',
-                outline: 'none',
-                backgroundColor: colors.iconBg,
-                color: colors.textPrimary,
-                fontSize: '16px',
-                padding: '8px',
-                fontFamily: 'System',
-                width: '100%'
-              }
-            })}
-          </View>
-        </View>
-      );
-    }
-
-    const formattedTime = timeValue ? timeValue.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Select Time';
-    return (
-      <View className="mb-4">
-        <Text className="mb-2 text-base" style={{ color: colors.textPrimary }}>
-          {label}
-        </Text>
-        <TouchableOpacity
-          onPress={() => setShowPicker(true)}
-          style={{
-            borderBottomWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 12,
-            backgroundColor: colors.iconBg,
-            paddingLeft: 12
-          }}
-        >
-          <Text style={{ color: timeValue ? colors.textPrimary : colors.textSecondary, fontSize: 16 }}>
-            {formattedTime}
-          </Text>
-        </TouchableOpacity>
-
-        {showPicker && (
-          <DateTimePicker
-            value={timeValue || new Date()}
-            mode="time"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={(e, t) => {
-              if (Platform.OS === 'android') setShowPicker(false);
-              if (t) setTimeValue(t);
-            }}
-          />
-        )}
-      </View>
-    );
-  };
 
   const handleSubmit = async () => {
     try {
@@ -384,6 +384,7 @@ export default function AddEventScreen() {
               showPicker={showStartDatePicker}
               setShowPicker={setShowStartDatePicker}
               setDateValue={setStartDate}
+              colors={colors}
             />
           </View>
           <View style={{ width: '48%' }}>
@@ -393,6 +394,7 @@ export default function AddEventScreen() {
               showPicker={showEndDatePicker}
               setShowPicker={setShowEndDatePicker}
               setDateValue={setEndDate}
+              colors={colors}
             />
           </View>
         </View>
@@ -405,6 +407,7 @@ export default function AddEventScreen() {
               showPicker={showStartTimePicker}
               setShowPicker={setShowStartTimePicker}
               setTimeValue={setStartTime}
+              colors={colors}
             />
           </View>
           <View style={{ width: '48%' }}>
@@ -414,6 +417,7 @@ export default function AddEventScreen() {
               showPicker={showEndTimePicker}
               setShowPicker={setShowEndTimePicker}
               setTimeValue={setEndTime}
+              colors={colors}
             />
           </View>
         </View>

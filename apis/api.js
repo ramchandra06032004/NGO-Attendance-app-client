@@ -47,3 +47,25 @@ export const studentMyEventsAPI = `${host}/api/v1/student/my-events`; //get stud
 
 //ngo registered students api
 export const ngoRegisteredStudentsAPI = (eventId) => `${ngo_host}/events/${eventId}/registered-students`; //get student's registered events with status
+
+// ─── Internship APIs ─────────────────────────────────────────────────────────
+// NGO side
+export const ngoInternshipsAPI = `${ngo_host}/internships`;
+export const ngoInternshipApplicantsAPI = (internshipId) =>
+  `${ngo_host}/internships/${internshipId}/applicants`;
+export const ngoUpdateApplicantStatusAPI = (internshipId, studentId) =>
+  `${ngo_host}/internships/${internshipId}/applicants/${studentId}`;
+export const ngoInternshipWorkLogsAPI = (internshipId, studentId) =>
+  `${ngo_host}/internships/${internshipId}/applicants/${studentId}/work-logs`;
+
+// Student side
+export const studentInternshipsAPI = `${student_host}/internships`;
+export const studentApplyInternshipAPI = (internshipId) =>
+  `${student_host}/internships/${internshipId}/apply`;
+export const studentMyInternshipsAPI = `${student_host}/my-internships`;
+export const studentSubmitWorkLogAPI = (internshipId) =>
+  `${student_host}/internships/${internshipId}/work-log`;
+export const studentWorkLogsAPI = (internshipId) =>
+  `${student_host}/internships/${internshipId}/work-logs`;
+// ─────────────────────────────────────────────────────────────────────────────
+

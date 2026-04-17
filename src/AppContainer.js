@@ -25,6 +25,14 @@ import EntityDetailScreen from "./screens/admin/EntityDetailScreen";
 import StudentLoginScreen from "./screens/student/StudentLoginScreen";
 import StudentDashboardScreen from "./screens/student/StudentDashboardScreen";
 import StudentMyEventsScreen from "./screens/student/StudentMyEventsScreen";
+// Internship screens
+import NgoInternshipsScreen from "./screens/ngo/internship/NgoInternshipsScreen";
+import CreateInternshipScreen from "./screens/ngo/internship/CreateInternshipScreen";
+import InternshipApplicantsScreen from "./screens/ngo/internship/InternshipApplicantsScreen";
+import StudentWorkLogsScreen from "./screens/ngo/internship/StudentWorkLogsScreen";
+import StudentInternshipsScreen from "./screens/student/internship/StudentInternshipsScreen";
+import StudentMyInternshipsScreen from "./screens/student/internship/StudentMyInternshipsScreen";
+import SubmitWorkLogScreen from "./screens/student/internship/SubmitWorkLogScreen";
 import { NavigationContext } from "./context/NavigationContext";
 import { AuthContext } from "./context/AuthContext";
 import Toast from "react-native-toast-message";
@@ -191,6 +199,44 @@ export default function AppContainer() {
     case "StudentMyEvents":
       Screen = <StudentMyEventsScreen student={route.params?.student || user} />;
       break;
+    // ─── Internship screens ───────────────────────────────────────────────────
+    case "NgoInternships":
+      Screen = <NgoInternshipsScreen ngo={route.params?.ngo || user} />;
+      break;
+    case "CreateInternship":
+      Screen = <CreateInternshipScreen />;
+      break;
+    case "InternshipApplicants":
+      Screen = <InternshipApplicantsScreen internship={route.params?.internship} />;
+      break;
+    case "StudentWorkLogs":
+      Screen = (
+        <StudentWorkLogsScreen
+          internshipId={route.params?.internshipId}
+          studentId={route.params?.studentId}
+          studentName={route.params?.studentName}
+          startDate={route.params?.startDate}
+          endDate={route.params?.endDate}
+        />
+      );
+      break;
+    case "StudentInternships":
+      Screen = <StudentInternshipsScreen student={route.params?.student || user} />;
+      break;
+    case "StudentMyInternships":
+      Screen = <StudentMyInternshipsScreen student={route.params?.student || user} />;
+      break;
+    case "SubmitWorkLog":
+      Screen = (
+        <SubmitWorkLogScreen
+          internshipId={route.params?.internshipId}
+          internshipTitle={route.params?.internshipTitle}
+          startDate={route.params?.startDate}
+          endDate={route.params?.endDate}
+        />
+      );
+      break;
+    // ─────────────────────────────────────────────────────────────────────────
     default:
       Screen = <HomeScreen />;
   }

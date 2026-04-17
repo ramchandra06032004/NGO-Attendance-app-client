@@ -13,7 +13,8 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
-import { ChevronLeft, CheckCircle, Clock, XCircle } from "lucide-react-native";
+import { ChevronLeft, CheckCircle, Clock, XCircle, Search } from "lucide-react-native";
+import AnimatedSearch from "../../components/AnimatedSearch";
 
 export default function StudentMyEventsScreen({ student }) {
     const { goBack } = useContext(NavigationContext);
@@ -141,17 +142,27 @@ export default function StudentMyEventsScreen({ student }) {
             }}
         >
             {/* Header */}
-            <View className="flex-row items-center mb-4">
-                <TouchableOpacity
-                    onPress={goBack}
-                    className="p-2 rounded-full mr-3 border"
-                    style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
-                >
-                    <ChevronLeft size={24} color={colors.textPrimary} />
-                </TouchableOpacity>
-                <Text className="text-2xl font-extrabold" style={{ color: colors.header }}>
-                    My Events
-                </Text>
+            <View className="flex-row items-center justify-between mb-4" style={{ zIndex: 10 }}>
+                <View className="flex-row items-center flex-1">
+                    <TouchableOpacity
+                        onPress={goBack}
+                        className="p-2 rounded-full mr-3 border"
+                        style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+                    >
+                        <ChevronLeft size={24} color={colors.textPrimary} />
+                    </TouchableOpacity>
+                    <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
+                        My Events
+                    </Text>
+                </View>
+
+                <AnimatedSearch
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    colors={colors}
+                    containerStyle={{ marginBottom: 0 }}
+                />
             </View>
 
             {/* Stats Card */}
@@ -215,21 +226,6 @@ export default function StudentMyEventsScreen({ student }) {
                 </View>
             )}
 
-            {/* Search Bar */}
-            <View className="mb-4">
-                <TextInput
-                    className="px-4 py-3 rounded-xl border"
-                    style={{
-                        backgroundColor: colors.cardBg,
-                        borderColor: colors.border,
-                        color: colors.textPrimary,
-                    }}
-                    placeholder="Search events..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                />
-            </View>
 
             {/* Event List */}
             {loading ? (
