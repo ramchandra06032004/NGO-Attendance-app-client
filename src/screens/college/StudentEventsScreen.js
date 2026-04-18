@@ -528,10 +528,30 @@ export default function StudentEventsScreen({ college, studentId }) {
   };
 
   const renderEventCard = (item, index) => {
-    const statusColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
-    const isExpanded = expandedEvents.has(item._id);
     const daysList = getEventDates(item.startDate, item.endDate);
     const isMultiDay = daysList.length > 1;
+    
+    // Calculate progress
+    const attendedCount = daysList.filter(d => item.attendanceRecords?.some(r => r.attendanceDate === d)).length;
+    
+    // Status Logic
+    let statusLabel = item.status;
+    let statusColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
+
+    if (isMultiDay) {
+        statusLabel = `${attendedCount}/${daysList.length} Days`;
+        if (attendedCount === daysList.length) {
+            statusColor = '#10b981'; // Green
+        } else if (attendedCount > 0) {
+            statusColor = '#f59e0b'; // Orange
+        } else if (isDatePast(daysList[0])) {
+            statusColor = '#ef4444'; // Red (Started but 0 attendance)
+        } else {
+            statusColor = colors.textSecondary; // Grey (Upcoming)
+        }
+    }
+    
+    const isExpanded = expandedEvents.has(item._id);
 
     return (
       <TouchableOpacity 
@@ -555,7 +575,7 @@ export default function StudentEventsScreen({ college, studentId }) {
           </View>
           <View style={{ alignItems: 'flex-end' }}>
             <View style={{ backgroundColor: statusColor + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
-              <Text style={{ fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', color: statusColor }}>{item.status}</Text>
+              <Text style={{ fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', color: statusColor }}>{statusLabel}</Text>
             </View>
             {isMultiDay && (
               <View style={{ backgroundColor: colors.accent + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4 }}>

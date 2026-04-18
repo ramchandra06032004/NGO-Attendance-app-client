@@ -363,12 +363,42 @@ export default function StudentMyEventsScreen({ student }) {
                         </View>
                     }
                     renderItem={({ item }) => {
-                        const missed = isMissed(item);
-                        const StatusIcon = getStatusIcon(item.status, missed);
-                        const statusColor = getStatusColor(item.status, missed);
-                        const isExpanded = expandedEvents.has(item._id);
                         const daysList = getEventDates(item.startDate || item.eventDate, item.endDate || item.startDate || item.eventDate);
                         const isMultiDay = daysList.length > 1;
+                        
+                        // Calculate per-event stats
+                        const attendedCount = daysList.filter(d => item.attendanceRecords?.some(r => r.attendanceDate === d)).length;
+                        const isPast = daysList.every(d => isDatePast(d));
+                        const isFuture = daysList.every(d => !isDatePast(d));
+                        
+                        // Determine status label and color
+                        let statusLabel = item.status;
+                        let statusColor = "#f59e0b"; // default orange
+                        
+                        if (isMultiDay) {
+                            statusLabel = `${attendedCount}/${daysList.length} Days`;
+                            if (attendedCount === daysList.length) {
+                                statusColor = "#10b981"; // Green
+                            } else if (attendedCount > 0) {
+                                statusColor = "#f59e0b"; // Orange
+                            } else if (isDatePast(daysList[0])) {
+                                statusColor = "#ef4444"; // Red (started but 0 attendance)
+                            } else {
+                                statusColor = colors.textSecondary; // Grey (Upcoming)
+                            }
+                        } else {
+                           // Single day fallback
+                           const missed = isMissed(item);
+                           if (missed) {
+                               statusLabel = "Absent";
+                               statusColor = "#ef4444";
+                           } else if (item.status === "Attended") {
+                               statusColor = "#10b981";
+                           }
+                        }
+
+                        const StatusIcon = item.status === "Attended" || (isMultiDay && attendedCount > 0) ? CheckCircle : (statusColor === "#ef4444" ? XCircle : Clock);
+                        const isExpanded = expandedEvents.has(item._id);
 
                         return (
                             <TouchableOpacity
@@ -392,7 +422,7 @@ export default function StudentMyEventsScreen({ student }) {
                                             className="text-xs font-bold"
                                             style={{ color: statusColor }}
                                         >
-                                            {missed ? "Absent" : item.status}
+                                            {statusLabel}
                                         </Text>
                                     </View>
                                     {isMultiDay && (
