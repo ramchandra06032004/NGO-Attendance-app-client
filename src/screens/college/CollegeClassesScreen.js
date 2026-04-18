@@ -13,12 +13,35 @@ import { AuthContext } from "../../context/AuthContext";
 import { college_host, getAllCollegeAPI } from "../../../apis/api";
 
 // And ensure FileSystem/Sharing are required for mobile (as in your previous code)
-// Platform-specific imports
-let RealFileSystem, RealSharing;
-if (RNPlatform.OS !== "web") {
-  RealFileSystem = require("expo-file-system/legacy");
-  RealSharing = require("expo-sharing");
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function toDateString(date) {
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function getEventDates(startDate, endDate) {
+  const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate || startDate); end.setHours(0, 0, 0, 0);
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) { dates.push(toDateString(cur)); cur.setDate(cur.getDate() + 1); }
+  return dates;
+}
+const isDatePast = (dateStr) => {
+  if (!dateStr) return false;
+  const targetDate = new Date(dateStr);
+  targetDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return targetDate < today;
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function CollegeClassesScreen({ college }) {
   const { route, navigate, goBack } = useContext(NavigationContext);
@@ -41,25 +64,47 @@ export default function CollegeClassesScreen({ college }) {
   const [classSearch, setClassSearch] = useState('');
   const [tableSearch, setTableSearch] = useState('');
   const [tableStatusFilter, setTableStatusFilter] = useState('All');
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const eventDates = React.useMemo(() => {
+    const start = selectedEvent?.startDate || selectedEvent?.eventDate;
+    const end = selectedEvent?.endDate || start;
+    if (!start) return [];
+    return getEventDates(start, end);
+  }, [selectedEvent]);
+
+  const isMultiDay = eventDates.length > 1;
+
+  // Default to today (or first day) when event dates are computed
+  useEffect(() => {
+    if (eventDates.length > 0 && selectedDate === null) {
+      const today = toDateString(new Date());
+      setSelectedDate(eventDates.includes(today) ? today : eventDates[0]);
+    }
+  }, [eventDates]);
+
+  // Refetch when selectedDate changes and modal is open
+  useEffect(() => {
+    if (showAttendanceTable && selectedEvent && selectedDate) {
+      handleEventSelect(selectedEvent, selectedDate);
+    }
+  }, [selectedDate, showAttendanceTable]);
   const classes = collegeData.classes || [];
   const filteredClasses = classes.filter(c =>
     c.className?.toLowerCase().includes(classSearch.toLowerCase())
   );
 
   // Helper to determine status based on attendance mark and date
-  const getEventStatus = (eventObj, attendanceDateStr) => {
+  const getEventStatus = (eventObj, attendanceDateStr, checkingDate) => {
     // 1. If marked present, it's "Present"
     if (attendanceDateStr && attendanceDateStr !== "N/A") return "Present";
 
     // 2. If not marked, check if date is past
-    if (!eventObj || !eventObj.eventDate) return "Registered"; // Default fallback
+    const dateToCheck = checkingDate || eventObj?.eventDate;
+    if (!dateToCheck) return "Registered";
 
-    const eventDate = new Date(eventObj.eventDate);
-    eventDate.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return eventDate < today ? "Absent" : "Registered";
+    return isDatePast(dateToCheck) ? "Absent" : "Registered";
   };
 
   // Helper function to save file to local storage
@@ -165,33 +210,28 @@ export default function CollegeClassesScreen({ college }) {
     navigate("Home");
   };
 
-  const handleEventSelect = async (event) => {
+  const handleEventSelect = async (event, dateOverride = null) => {
+    const dateToFetch = dateOverride || selectedDate;
     setSelectedEvent(event);
     setShowEventModal(false);
     setShowAttendanceTable(true);
-    setEventAttendanceList([]);
     setEventLoading(true);
 
     try {
-      // Fetch fresh data from the API — returns ALL registered students
-      // (both those who marked attendance and those who didn't)
-      const response = await fetch(
-        `${college_host}/event/${event._id}/attendance`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const url = `${college_host}/event/${event._id}/attendance${dateToFetch ? `?date=${dateToFetch}` : ""}`;
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
       if (!response.ok) throw new Error("Failed to fetch attendance");
 
       const data = await response.json();
-      // data.data.attendance is an array of college objects, each with a students array
       const students = data?.data?.attendance?.[0]?.students || [];
 
       const attendanceList = students.map((student) => {
@@ -204,7 +244,7 @@ export default function CollegeClassesScreen({ college }) {
           department: student.department || "N/A",
           className: student.className || "N/A",
           attendanceDate: attDate,
-          status: getEventStatus(event, attDate),
+          status: getEventStatus(event, attDate, dateToFetch),
         };
       });
 
@@ -504,12 +544,12 @@ export default function CollegeClassesScreen({ college }) {
   //Exports specific event attendance data to excel file
   const exportEventAttendanceToExcel = async () => {
     try {
-      if (!selectedEvent || eventAttendanceList.length === 0) {
-        alert("No attendance records to export");
+      if (!selectedEvent) {
+        alert("No event selected to export");
         return;
       }
 
-      setLoading(true);
+      setIsExporting(true);
 
       const workbook = new ExcelJS.Workbook();
       const collegeName = collegeData.name?.toUpperCase() || "College";
@@ -522,13 +562,9 @@ export default function CollegeClassesScreen({ college }) {
         try {
           let base64Data = "";
           let extension = "png";
-
-          if (logoUrl.toLowerCase().includes("jpg") || logoUrl.toLowerCase().includes("jpeg")) {
-            extension = "jpeg";
-          }
+          if (logoUrl.toLowerCase().includes("jpg") || logoUrl.toLowerCase().includes("jpeg")) extension = "jpeg";
 
           if (RNPlatform.OS === "web") {
-            // 🌍 WEB
             const response = await fetch(logoUrl);
             const blob = await response.blob();
             const reader = new FileReader();
@@ -540,193 +576,144 @@ export default function CollegeClassesScreen({ college }) {
               };
             });
           } else {
-            // 📱 MOBILE
             const fileUri = `${FileSystem.cacheDirectory}college_logo_temp.${extension}`;
             await FileSystem.downloadAsync(logoUrl, fileUri);
-            base64Data = await FileSystem.readAsStringAsync(fileUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
+            base64Data = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
           }
 
           if (base64Data) {
-            logoImageId = workbook.addImage({
-              base64: base64Data,
-              extension: extension,
-            });
+            logoImageId = workbook.addImage({ base64: base64Data, extension: extension });
           }
         } catch (err) {
           console.warn("Could not load logo:", err);
         }
       }
 
-      // --- 2. CREATE SHEET ---
-      const eventName = selectedEvent.aim || "Event";
-      const safeSheetName = (eventName.replace(/[\\/?*[\]]/g, "")).slice(0, 30);
-      const worksheet = workbook.addWorksheet(safeSheetName);
+      // Helper to fetch attendance without updating state
+      const fetchAttendanceForSheet = async (date) => {
+        try {
+          const url = `${college_host}/event/${selectedEvent._id}/attendance${date ? `?date=${date}` : ""}`;
+          const res = await fetch(url, {
+            method: "GET",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          });
+          if (!res.ok) return [];
+          const json = await res.json();
+          const students = json?.data?.attendance?.[0]?.students || [];
+          return students.map(s => ({
+            studentName: s.name,
+            prn: s.prn,
+            department: s.department || "N/A",
+            className: s.className || "N/A",
+            attendanceDate: s.attendanceMarkedAt ? new Date(s.attendanceMarkedAt).toLocaleDateString() : "N/A",
+            status: getEventStatus(selectedEvent, s.attendanceMarkedAt ? new Date(s.attendanceMarkedAt).toDateString() : null, date),
+          }));
+        } catch (e) { return []; }
+      };
 
-      // --- A. INSERT IMAGE ---
-      if (logoImageId !== null) {
-        worksheet.addImage(logoImageId, {
-          tl: { col: 0, row: 0 }, // A1
-          br: { col: 1, row: 4 }, // B5 (Covers A1:A4 approx)
-          editAs: "oneCell",
+      // 2. Loop through all dates to create sheets
+      const datesToExport = eventDates.length > 0 ? eventDates : [null];
+      let hasData = false;
+
+      for (const date of datesToExport) {
+        const sheetData = await fetchAttendanceForSheet(date);
+        if (sheetData.length === 0) continue;
+        hasData = true;
+
+        const sheetName = date ? formatDateLabel(date).replace(/,/g, "").replace(/\s+/g, "_") : "Attendance";
+        const worksheet = workbook.addWorksheet(sheetName.slice(0, 31));
+
+        // Insert Logo
+        if (logoImageId !== null) {
+          worksheet.addImage(logoImageId, { tl: { col: 0, row: 0 }, br: { col: 1, row: 4 }, editAs: "oneCell" });
+        }
+
+        // Header
+        worksheet.mergeCells("B2:E2");
+        const nc = worksheet.getCell("B2");
+        nc.value = collegeName;
+        nc.font = { bold: true, size: 18 };
+        nc.alignment = { vertical: "middle", horizontal: "center" };
+
+        worksheet.mergeCells("B3:E3");
+        const ac = worksheet.getCell("B3");
+        ac.value = collegeAddress;
+        ac.font = { color: { argb: "FF666666" }, size: 12 };
+        ac.alignment = { vertical: "top", horizontal: "center" };
+
+        // Event Details Card
+        worksheet.mergeCells("A6:E6");
+        const tr = worksheet.getCell("A6");
+        tr.value = "EVENT ATTENDANCE LOG";
+        tr.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
+        tr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+        tr.alignment = { horizontal: "center", vertical: "middle" };
+
+        const addInfo = (lbl, val, idx, isB = false) => {
+          worksheet.mergeCells(`A${idx}:E${idx}`);
+          const cell = worksheet.getCell(`A${idx}`);
+          cell.value = `${lbl}: ${val}`;
+          cell.alignment = { horizontal: "center" };
+          cell.font = { size: 12, bold: isB };
+        };
+
+        addInfo("Event", selectedEvent.aim || "Event", 7, true);
+        addInfo("Date", date ? new Date(date).toLocaleDateString() : "N/A", 8);
+        addInfo("Status", `Present: ${sheetData.filter(s => s.status === "Present").length} / Registered: ${sheetData.length}`, 9);
+
+        // Table Headers
+        const hr = worksheet.getRow(11);
+        hr.values = ["Student Name", "PRN", "Department", "Class", "Status", "Attended Time"];
+        hr.eachCell(c => {
+          c.font = { bold: true, color: { argb: "FFFFFFFF" } };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+          c.alignment = { horizontal: "center" };
         });
-      } else {
-        worksheet.getCell("A2").value = "No Logo";
+
+        // Data Rows
+        sheetData.forEach((rec, idx) => {
+          const row = worksheet.addRow([rec.studentName, rec.prn, rec.department, rec.className, rec.status, rec.attendanceDate]);
+          const isEven = idx % 2 === 0;
+          row.eachCell((c, col) => {
+            if (col === 5) {
+              const color = rec.status === "Present" ? "FF10b981" : (rec.status === "Absent" ? "FFef4444" : "FFf59e0b");
+              c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+              c.font = { color: { argb: "FFFFFFFF" }, bold: true };
+            } else {
+              c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" } };
+            }
+            c.alignment = { horizontal: "center" };
+            c.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+          });
+        });
+
+        worksheet.columns = [{ width: 25 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 20 }];
       }
 
-      // --- B. HEADER INFORMATION ---
-      // College Name (Merged B2:E2)
-      worksheet.mergeCells("B2:E2");
-      const nameCell = worksheet.getCell("B2");
-      nameCell.value = collegeName;
-      nameCell.font = { bold: true, size: 18 };
-      nameCell.alignment = { vertical: "middle", horizontal: "center" };
+      if (!hasData) {
+        alert("No attendance records found for any date.");
+        setIsExporting(false);
+        return;
+      }
 
-      // College Address (Merged B3:E3)
-      worksheet.mergeCells("B3:E3");
-      const addrCell = worksheet.getCell("B3");
-      addrCell.value = collegeAddress;
-      addrCell.font = { color: { argb: "FF666666" }, size: 12 };
-      addrCell.alignment = { vertical: "top", horizontal: "center" };
-
-      // EVENT DETAILS Header (Merged A6:E6)
-      worksheet.mergeCells("A6:E6");
-      const titleRow = worksheet.getCell("A6");
-      titleRow.value = "EVENT DETAILS";
-      titleRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
-      titleRow.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF4472C4" }, // Blue
-      };
-      titleRow.alignment = { horizontal: "center", vertical: "middle" };
-
-      // Event Metadata Rows (Centered)
-      const addInfoRow = (label, value, rowIndex, isBold = false) => {
-        const row = worksheet.getRow(rowIndex);
-        row.values = [`${label}: ${value}`];
-        worksheet.mergeCells(`A${rowIndex}:E${rowIndex}`);
-        const cell = row.getCell(1);
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.font = { size: 12, bold: isBold };
-        if (isBold) cell.font.size = 14;
-      };
-
-      addInfoRow("Event", eventName, 7, true);
-      addInfoRow("NGO", selectedEvent.createdBy?.name || selectedEvent.createdBy || "N/A", 8);
-      addInfoRow("Location", selectedEvent.location || "N/A", 9);
-      addInfoRow("Date", new Date(selectedEvent.eventDate).toLocaleDateString(), 10);
-      addInfoRow("Total Registered", eventAttendanceList.length, 11);
-      addInfoRow("Total Present", eventAttendanceList.filter(r => r.status === "Present").length, 12);
-
-      // --- C. TABLE HEADERS (Row 14) ---
-      const headerRow = worksheet.getRow(14);
-      headerRow.values = ["Student Name", "PRN", "Department", "Class", "Status", "Attendance Date"];
-
-      headerRow.eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FF4472C4" }, // Blue
-        };
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.border = {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
-      headerRow.height = 25;
-
-      // --- D. DATA ROWS ---
-      eventAttendanceList.forEach((record, idx) => {
-        const row = worksheet.addRow([
-          record.studentName || record.name || "",
-          record.prn || "",
-          record.department || "",
-          record.className || record.classId?.className || "",
-          record.status || "Registered",
-          record.attendanceDate || new Date().toLocaleDateString(),
-        ]);
-
-        // Alternating Row Colors
-        const isEven = idx % 2 === 0;
-        row.eachCell((cell, colNumber) => {
-          if (colNumber === 5) {
-            // Status Color
-            const s = record.status || "Registered";
-            const color = s === "Present" ? "FF10b981" : (s === "Absent" ? "FFef4444" : "FFf59e0b");
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
-            cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-          } else {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
-            };
-          }
-          cell.alignment = { horizontal: "center", vertical: "middle" };
-          cell.border = {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          };
-        });
-      });
-
-      // Set Column Widths
-      worksheet.columns = [
-        { width: 25 }, // Name
-        { width: 15 }, // PRN
-        { width: 20 }, // Dept
-        { width: 20 }, // Class
-        { width: 15 }, // Status
-        { width: 20 }, // Date
-      ];
-
-      // --- 3. WRITE & SAVE FILE ---
-      const filename = `event_attendance_${selectedEvent.aim?.replace(/\s+/g, "_")}.xlsx`;
+      const filename = `attendance_${selectedEvent.aim?.replace(/\s+/g, "_")}.xlsx`;
       const buffer = await workbook.xlsx.writeBuffer();
 
       if (RNPlatform.OS === "web") {
         const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
         const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        anchor.click();
+        const a = document.createElement("a");
+        a.href = url; a.download = filename; a.click();
         window.URL.revokeObjectURL(url);
-        alert("Event attendance exported successfully!");
       } else {
-        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
-
-        if (RNPlatform.OS === "android") {
-          // Android: Let user choose where to save
-          await saveFile(filename, base64);
-        } else {
-          // iOS: Use share sheet
-          const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
-          await RealFileSystem.writeAsStringAsync(fileUri, base64, {
-            encoding: RealFileSystem.EncodingType.Base64
-          });
-          await RealSharing.shareAsync(fileUri, {
-            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            dialogTitle: "Export Event Attendance",
-            UTI: "com.microsoft.excel.xlsx",
-          });
-        }
+        await saveFile(filename, base64);
       }
-
-      setLoading(false);
+      setIsExporting(false);
     } catch (error) {
-      setLoading(false);
-      console.error("Error exporting to Excel:", error);
-      alert("Failed to export event attendance: " + error.message);
+      setIsExporting(false);
+      console.error("Export Error:", error);
+      alert("Failed to export: " + error.message);
     }
   };
 
@@ -1459,6 +1446,38 @@ export default function CollegeClassesScreen({ college }) {
             {/* Selected Event Data */}
             {showAttendanceTable && selectedEvent && (
               <View>
+                {/* --- Multi-day Date Selector --- */}
+                {isMultiDay && (
+                  <View style={{ marginBottom: 12 }}>
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', marginBottom: 6, marginLeft: 2 }}>
+                      Select Date
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                      {eventDates.map((date) => {
+                        const isSelected = selectedDate === date;
+                        return (
+                          <TouchableOpacity
+                            key={date}
+                            onPress={() => setSelectedDate(date)}
+                            style={{
+                              paddingHorizontal: 12,
+                              paddingVertical: 6,
+                              borderRadius: 10,
+                              borderWidth: 1,
+                              borderColor: isSelected ? colors.accent : colors.border,
+                              backgroundColor: isSelected ? colors.accent : colors.cardBg,
+                            }}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#fff' : colors.textPrimary }}>
+                              {formatDateLabel(date)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                )}
+
                 {eventLoading ? (
                   <View style={{ alignItems: 'center', paddingVertical: 24 }}>
                     <ActivityIndicator size="small" color={colors.accent} />
@@ -1530,20 +1549,25 @@ export default function CollegeClassesScreen({ college }) {
                         <View style={{ flex: 1, alignItems: 'flex-end' }}>
                           <TouchableOpacity
                             onPress={exportEventAttendanceToExcel}
+                            disabled={isExporting}
                             style={{
                               flexDirection: 'row',
                               alignItems: 'center',
                               paddingHorizontal: 10,
                               paddingVertical: 5,
                               borderRadius: 8,
-                              backgroundColor: colors.iconBg,
+                              backgroundColor: isExporting ? colors.border : colors.iconBg,
                               borderWidth: 1,
-                              borderColor: colors.accent,
+                              borderColor: isExporting ? colors.border : colors.accent,
                               gap: 4,
                             }}
                           >
-                            <Text style={{ fontSize: 12, color: colors.accent }}>⬇</Text>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.accent }}>Report</Text>
+                            <Text style={{ fontSize: 12, color: isExporting ? colors.textSecondary : colors.accent }}>
+                              {isExporting ? "⏳" : "⬇"}
+                            </Text>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: isExporting ? colors.textSecondary : colors.accent }}>
+                              {isExporting ? "Wait..." : "Report"}
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       </View>

@@ -12,7 +12,7 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
 
-export default function SelectCollegeScreen({ eventId }) {
+export default function SelectCollegeScreen({ eventId, event }) {
   const { getColleges } = useContext(AttendanceContext);
   const { navigate, goBack } = useContext(NavigationContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -149,7 +149,8 @@ export default function SelectCollegeScreen({ eventId }) {
           onPress={() =>
             navigate("StudentsList", {
               college: selectedCollege, // pass whole object
-              eventId: eventId
+              eventId: eventId,
+              event: event
             })
           }
           disabled={!selectedCollege}

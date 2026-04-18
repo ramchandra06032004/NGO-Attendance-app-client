@@ -119,6 +119,7 @@ export default function RegisteredStudentsScreen({ route }) {
             eventId: eventId,
             college: college.college,
             registeredStudents: college.students,
+            event: data?.event // pass event object from API response
         });
     };
 

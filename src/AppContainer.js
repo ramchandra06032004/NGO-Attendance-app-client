@@ -122,7 +122,7 @@ export default function AppContainer() {
       Screen = <EventInfoScreen event={route.params?.event} route={route} />;
       break;
     case "SelectCollege":
-      Screen = <SelectCollegeScreen eventId={route.params?.eventId} />;
+      Screen = <SelectCollegeScreen eventId={route.params?.eventId} event={route.params?.event} />;
       break;
     case "StudentsList":
       Screen = (
@@ -130,6 +130,8 @@ export default function AppContainer() {
           key={`${route.params?.eventId}-${route.params?.college?._id || route.params?.college?.id}`}
           eventId={route.params?.eventId}
           college={route.params?.college}
+          event={route.params?.event}
+          registeredStudents={route.params?.registeredStudents}
           route={route}
         />
       );

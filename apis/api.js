@@ -2,10 +2,10 @@
 import { Platform } from "react-native";
 
 // ✅ Correct Syntax: Use a ternary operator
-// export const host = Platform.OS === "android"
-//     ? "http://10.0.2.2:3000"
-//     : "http://localhost:3000";
-export const host = "http://172.16.30.42:3000";
+export const host = Platform.OS === "android"
+    ? "http://10.0.2.2:3000"
+    : "http://localhost:3000";
+//export const host = "http://172.16.30.42:3000";
 //export const host = "http://10.0.2.2:3000"; //Production
 //FOR WEB-VERSION:-
 //export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
@@ -52,20 +52,20 @@ export const ngoRegisteredStudentsAPI = (eventId) => `${ngo_host}/events/${event
 // NGO side
 export const ngoInternshipsAPI = `${ngo_host}/internships`;
 export const ngoInternshipApplicantsAPI = (internshipId) =>
-  `${ngo_host}/internships/${internshipId}/applicants`;
+    `${ngo_host}/internships/${internshipId}/applicants`;
 export const ngoUpdateApplicantStatusAPI = (internshipId, studentId) =>
-  `${ngo_host}/internships/${internshipId}/applicants/${studentId}`;
+    `${ngo_host}/internships/${internshipId}/applicants/${studentId}`;
 export const ngoInternshipWorkLogsAPI = (internshipId, studentId) =>
-  `${ngo_host}/internships/${internshipId}/applicants/${studentId}/work-logs`;
+    `${ngo_host}/internships/${internshipId}/applicants/${studentId}/work-logs`;
 
 // Student side
 export const studentInternshipsAPI = `${student_host}/internships`;
 export const studentApplyInternshipAPI = (internshipId) =>
-  `${student_host}/internships/${internshipId}/apply`;
+    `${student_host}/internships/${internshipId}/apply`;
 export const studentMyInternshipsAPI = `${student_host}/my-internships`;
 export const studentSubmitWorkLogAPI = (internshipId) =>
-  `${student_host}/internships/${internshipId}/work-log`;
+    `${student_host}/internships/${internshipId}/work-log`;
 export const studentWorkLogsAPI = (internshipId) =>
-  `${student_host}/internships/${internshipId}/work-logs`;
+    `${student_host}/internships/${internshipId}/work-logs`;
 // ─────────────────────────────────────────────────────────────────────────────
 

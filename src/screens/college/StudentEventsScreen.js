@@ -9,6 +9,41 @@ import { studentEventsAPI } from '../../../apis/api';
 import AnimatedSearch from '../../components/AnimatedSearch';
 import CollapsibleFilter from '../../components/CollapsibleFilter';
 
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function toDateString(date) {
+  if (!date) return null;
+  // If it's already a ISO-like date string (YYYY-MM-DD), just return the date part
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    return date.split('T')[0];
+  }
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function getEventDates(startDate, endDate) {
+  const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate || startDate); end.setHours(0, 0, 0, 0);
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) { dates.push(toDateString(cur)); cur.setDate(cur.getDate() + 1); }
+  return dates;
+}
+const isDatePast = (dateStr) => {
+  if (!dateStr) return false;
+  const targetDate = new Date(dateStr);
+  targetDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return targetDate < today;
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function StudentEventsScreen({ college, studentId }) {
   const { goBack } = useContext(NavigationContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -28,37 +63,14 @@ export default function StudentEventsScreen({ college, studentId }) {
   // Mobile Picker Visibility
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [expandedEvents, setExpandedEvents] = useState(new Set());
 
-  // Helper to determine Present / Absent / Registered status
-  const getEventStatus = (eventObj, attendanceDateStr) => {
-    if (attendanceDateStr && attendanceDateStr !== 'N/A') return 'Present';
-    const dateToCheck = eventObj.endDate || eventObj.startDate || eventObj.eventDate;
-    if (!dateToCheck) return 'Registered';
-    const eventDate = new Date(dateToCheck);
-    eventDate.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return eventDate < today ? 'Absent' : 'Registered';
+  const toggleExpand = (eventId) => {
+    const newSet = new Set(expandedEvents);
+    if (newSet.has(eventId)) newSet.delete(eventId);
+    else newSet.add(eventId);
+    setExpandedEvents(newSet);
   };
-
-  // Score calculation (based on all-time events, not filtered view)
-  const score = useMemo(() => {
-    const present = allEvents.filter(e => e.status === 'Present').length;
-    return present * 10;
-  }, [allEvents]);
-
-  const maxScore = useMemo(() => {
-    const past = allEvents.filter(e => e.status !== 'Registered').length;
-    return past > 0 ? past * 10 : 10;
-  }, [allEvents]);
-
-  // Grade is based on attendance ratio: present / (present + absent)
-  const attendanceRatio = useMemo(() => {
-    const present = allEvents.filter(e => e.status === 'Present').length;
-    const absent = allEvents.filter(e => e.status === 'Absent').length;
-    const total = present + absent;
-    return total > 0 ? (present / total) * 100 : null; // null = no past events yet
-  }, [allEvents]);
 
   const getGrade = (ratio) => {
     if (ratio === null) return { label: 'No Data', color: '#94a3b8', icon: '➖' };
@@ -68,8 +80,94 @@ export default function StudentEventsScreen({ college, studentId }) {
     return { label: 'Poor', color: '#ef4444', icon: '❌' };
   };
 
-  const grade = getGrade(attendanceRatio);
-  const scorePct = Math.min(100, maxScore > 0 ? (score / maxScore) * 100 : 0);
+  // Helper to determine Present / Absent / Registered status
+  const getDailyStatus = (eventObj, attendanceRecords, checkingDate) => {
+    const record = attendanceRecords?.find(r => r.attendanceDate === checkingDate);
+    if (record) return 'Present';
+    return isDatePast(checkingDate) ? 'Absent' : 'Registered';
+  };
+
+  // Attendance Stats Calculation (Strictly Day-Based)
+  const attendanceStats = useMemo(() => {
+     let totalDays = 0;
+     let presentDays = 0;
+     let absentDays = 0;
+     let upcomingDays = 0;
+     let pastDaysCount = 0;
+
+     allEvents.forEach(ev => {
+         const days = getEventDates(ev.startDate, ev.endDate);
+         
+         days.forEach(day => {
+             totalDays++;
+             const wasPresent = ev.attendanceRecords?.some(r => r.attendanceDate === day);
+             const isPast = isDatePast(day);
+
+             if (wasPresent) {
+                 presentDays++;
+                 pastDaysCount++;
+             } else if (isPast) {
+                 absentDays++;
+                 pastDaysCount++;
+             } else {
+                 upcomingDays++;
+             }
+         });
+
+         // Legacy Fallback
+         const daysFoundPresent = days.filter(d => ev.attendanceRecords?.some(r => r.attendanceDate === d)).length;
+         if (ev.status === 'Present' && daysFoundPresent === 0 && days.length > 0) {
+             presentDays++;
+             if (days.length === 1) {
+                 if (isDatePast(days[0])) {
+                     absentDays = Math.max(0, absentDays - 1);
+                 } else {
+                     upcomingDays = Math.max(0, upcomingDays - 1);
+                 }
+                 pastDaysCount++;
+             }
+         }
+     });
+
+     const ratio = pastDaysCount > 0 ? (presentDays / pastDaysCount) * 100 : null;
+     return { totalDays, presentDays, absentDays, upcomingDays, pastDaysCount, ratio };
+  }, [allEvents]);
+
+  const grade = getGrade(attendanceStats.ratio);
+  const scorePct = Math.round(attendanceStats.ratio || 0);
+
+  const renderBreakdown = (event) => {
+    const days = getEventDates(event.startDate, event.endDate);
+    return (
+      <View style={{ marginTop: 12, padding: 12, backgroundColor: colors.iconBg, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+        <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+          Attendance Breakdown
+        </Text>
+        {days.map((day, idx) => {
+          const record = event.attendanceRecords?.find(r => r.attendanceDate === day);
+          const isPast = isDatePast(day);
+          const status = record ? "Present" : (isPast ? "Absent" : "Upcoming");
+          const color = record ? "#10b981" : (isPast ? "#ef4444" : colors.textSecondary);
+          
+          return (
+            <View key={day} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: colors.border + '50' }}>
+              <View>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>{formatDateLabel(day)}</Text>
+                {record && (
+                  <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 1 }}>
+                    🕒 {new Date(record.attendanceMarkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                )}
+              </View>
+              <View style={{ backgroundColor: color + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: color + '30' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: color, textTransform: 'uppercase' }}>{status}</Text>
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
 
   useEffect(() => {
     const fetchStudentAndEvents = async () => {
@@ -106,11 +204,24 @@ export default function StudentEventsScreen({ college, studentId }) {
 
         // 4. Map to display objects with status
         const processedEvents = studentRegistrations.map(ev => {
-          // Check if student actually attended (from their own attendedEvents record)
-          const attendanceRecord = foundStudent.attendedEvents?.find(att => att.eventId?._id?.toString() === ev._id?.toString());
-          const attendedDate = attendanceRecord?.attendanceMarkedAt ? new Date(attendanceRecord.attendanceMarkedAt).toDateString() : 'N/A';
+          // Find ALL attendance records for this event
+          const myAttendance = foundStudent.attendedEvents?.filter(att => att.eventId?._id?.toString() === ev._id?.toString() || att.eventId?.toString() === ev._id?.toString());
+          
+          const eventDays = getEventDates(ev.startDate || ev.eventDate, ev.endDate || ev.startDate || ev.eventDate);
+          const isAttendedAtAll = myAttendance && myAttendance.length > 0;
+          
+          // Overall status logic: if any day attended -> 'Present' (simplified label for card view)
+          // For multi-day, users can click to see breakdown
+          let overallStatus = 'Registered';
+          if (isAttendedAtAll) {
+              overallStatus = 'Present';
+          } else {
+              const lastDay = eventDays[eventDays.length - 1];
+              if (isDatePast(lastDay)) overallStatus = 'Absent';
+          }
 
           return {
+            _id: ev._id,
             eventName: ev.aim || 'General Event',
             ngoName: ev.createdBy?.name || 'N/A',
             eventLocation: ev.location || 'Campus',
@@ -122,8 +233,8 @@ export default function StudentEventsScreen({ college, studentId }) {
             spocName: ev.spocName,
             spocContact: ev.spocContact,
             eventDate: ev.eventDate ? new Date(ev.eventDate).toDateString() : 'N/A',
-            attendedDate,
-            status: getEventStatus(ev, attendedDate),
+            attendanceRecords: myAttendance || [],
+            status: overallStatus,
           };
         });
 
@@ -294,22 +405,42 @@ export default function StudentEventsScreen({ college, studentId }) {
       {/* Score Card */}
       {allEvents.length > 0 && (
         <View style={{ backgroundColor: grade.color + '12', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: grade.color + '40' }}>
-          <View className="flex-row justify-between items-center mb-2">
-            <Text className="text-[10px] uppercase font-bold" style={{ color: colors.textSecondary }}>Attendance Score</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: colors.textSecondary }}>Attendance Records (Days)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 }}>
               <Text style={{ fontSize: 11, marginRight: 3 }}>{grade.icon}</Text>
               <Text style={{ fontSize: 11, fontWeight: 'bold', color: grade.color }}>{grade.label}</Text>
             </View>
           </View>
-          <View className="flex-row items-end mb-2">
-            <Text style={{ fontSize: 28, fontWeight: '900', color: grade.color, lineHeight: 32 }}>{score}</Text>
-            <Text style={{ fontSize: 13, color: colors.textSecondary, marginLeft: 4, marginBottom: 2 }}>/ {maxScore} pts</Text>
+
+          {/* Quick Summary Row */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+            <View>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.textPrimary }}>{attendanceStats.totalDays}</Text>
+                <Text style={{ fontSize: 8, uppercase: true, fontWeight: 'bold', color: colors.textSecondary, opacity: 0.6 }}>Total</Text>
+            </View>
+            <View>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#10b981' }}>{attendanceStats.presentDays}</Text>
+                <Text style={{ fontSize: 8, uppercase: true, fontWeight: 'bold', color: colors.textSecondary, opacity: 0.6 }}>Attended</Text>
+            </View>
+            <View>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#ef4444' }}>{attendanceStats.absentDays}</Text>
+                <Text style={{ fontSize: 8, uppercase: true, fontWeight: 'bold', color: colors.textSecondary, opacity: 0.6 }}>Absent</Text>
+            </View>
+            <View>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#f59e0b' }}>{attendanceStats.upcomingDays}</Text>
+                <Text style={{ fontSize: 8, uppercase: true, fontWeight: 'bold', color: colors.textSecondary, opacity: 0.6 }}>Upcoming</Text>
+            </View>
+          </View>
+          <View className="flex-row items-baseline mb-2">
+            <Text style={{ fontSize: 28, fontWeight: '900', color: grade.color, lineHeight: 32 }}>{scorePct}%</Text>
+            <Text style={{ fontSize: 11, color: colors.textSecondary, marginLeft: 6 }}>({attendanceStats.presentDays} attended / {attendanceStats.pastDaysCount} past days)</Text>
           </View>
           {/* Progress bar */}
           <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
             <View style={{ height: '100%', width: `${scorePct}%`, backgroundColor: grade.color, borderRadius: 3 }} />
           </View>
-          <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Grade based on attendance ratio (present ÷ past events)</Text>
+          <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Percentage based on present vs absent states for past days</Text>
         </View>
       )}
     </View>
@@ -398,19 +529,42 @@ export default function StudentEventsScreen({ college, studentId }) {
 
   const renderEventCard = (item, index) => {
     const statusColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
-    const borderColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
+    const isExpanded = expandedEvents.has(item._id);
+    const daysList = getEventDates(item.startDate, item.endDate);
+    const isMultiDay = daysList.length > 1;
+
     return (
-      <View key={index} className="mb-4 p-5 rounded-2xl border-l-4 border shadow-sm" style={{ backgroundColor: colors.cardBg, borderLeftColor: borderColor, borderColor: colors.border, elevation: 2 }}>
+      <TouchableOpacity 
+        key={index} 
+        activeOpacity={0.9}
+        onPress={() => isMultiDay && toggleExpand(item._id)}
+        className="mb-4 p-5 rounded-2xl border shadow-sm" 
+        style={{ 
+          backgroundColor: colors.cardBg, 
+          // borderLeftColor: statusColor, 
+          borderLeftWidth: 4,
+          borderLeftColor: statusColor,
+          borderColor: isExpanded ? colors.accent : colors.border, 
+          elevation: isExpanded ? 4 : 2 
+        }}
+      >
         <View className="flex-row justify-between items-start mb-2">
           <View className="flex-1 mr-2">
             <Text className="text-lg font-bold" style={{ color: colors.textPrimary }}>{item.eventName}</Text>
             <Text className="text-sm font-medium mt-1" style={{ color: colors.textSecondary }}>{item.eventLocation}</Text>
           </View>
-          {/* Status Badge */}
-          <View style={{ backgroundColor: statusColor, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 11 }}>{item.status}</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <View style={{ backgroundColor: statusColor + '20', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+              <Text style={{ fontSize: 11, fontStyle: 'normal', fontWeight: 'bold', color: statusColor }}>{item.status}</Text>
+            </View>
+            {isMultiDay && (
+              <View style={{ backgroundColor: colors.accent + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, marginTop: 4 }}>
+                <Text style={{ fontSize: 8, fontWeight: '800', color: colors.accent }}>MULTI-DAY</Text>
+              </View>
+            )}
           </View>
         </View>
+
         <View className="h-[1px] w-full my-3 opacity-10" style={{ backgroundColor: colors.textSecondary }} />
         
         <View className="flex-row justify-between items-start">
@@ -446,7 +600,31 @@ export default function StudentEventsScreen({ college, studentId }) {
             </Text>
           </View>
         </View>
-      </View>
+
+        {isMultiDay && (
+            <TouchableOpacity 
+                onPress={() => toggleExpand(item._id)}
+                style={{ 
+                    flexDirection: 'row', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    backgroundColor: colors.accent + '08', 
+                    paddingVertical: 10, 
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: colors.accent + '20',
+                    marginTop: 12
+                }}
+            >
+                <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accent, letterSpacing: 1 }}>
+                    {isExpanded ? "HIDE DAILY ACTIVITY" : "VIEW DAILY ACTIVITY"}
+                </Text>
+                <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={12} color={colors.accent} style={{ marginLeft: 6 }} />
+            </TouchableOpacity>
+        )}
+
+        {isExpanded && isMultiDay && renderBreakdown(item)}
+      </TouchableOpacity>
     );
   };
 

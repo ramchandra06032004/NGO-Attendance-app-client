@@ -107,7 +107,8 @@ export default function EventInfoScreen({ route }) {
           onPress={() =>
             navigate("RegisteredStudents", {
               eventId: event._id || event.id,
-              eventName: event.aim || event.name
+              eventName: event.aim || event.name,
+              event: event
             })
           }
         >
