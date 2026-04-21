@@ -72,6 +72,46 @@ export default function StudentEventsScreen({ college, studentId }) {
     setExpandedEvents(newSet);
   };
 
+  // 1. First define filtered events so other stats can depend on it
+  const computedFilteredEvents = useMemo(() => {
+    let filtered = allEvents;
+
+    // Text search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(ev =>
+        ev.eventName?.toLowerCase().includes(query) ||
+        ev.eventLocation?.toLowerCase().includes(query) ||
+        ev.ngoName?.toLowerCase().includes(query)
+      );
+    }
+
+    // Date range filter
+    if (startDate || endDate) {
+      const filterStart = startDate ? new Date(startDate) : null;
+      if (filterStart) filterStart.setHours(0, 0, 0, 0);
+
+      const filterEnd = endDate ? new Date(endDate) : null;
+      if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
+
+      filtered = filtered.filter(ev => {
+        const eventStart = ev.startDate ? new Date(ev.startDate) : ev.rawDate;
+        const eventEnd = ev.endDate ? new Date(ev.endDate) : eventStart;
+
+        if (!eventStart) return true;
+
+        const es = new Date(eventStart); es.setHours(0, 0, 0, 0);
+        const ee = eventEnd ? new Date(eventEnd) : es; ee.setHours(0, 0, 0, 0);
+
+        if (filterStart && ee < filterStart) return false;
+        if (filterEnd && es > filterEnd) return false;
+        return true;
+      });
+    }
+
+    return filtered;
+  }, [searchQuery, startDate, endDate, allEvents]);
+
   const getGrade = (ratio) => {
     if (ratio === null) return { label: 'No Data', color: '#94a3b8', icon: '➖' };
     if (ratio >= 80) return { label: 'Excellent', color: '#10b981', icon: '🌟' };
@@ -93,9 +133,8 @@ export default function StudentEventsScreen({ college, studentId }) {
      let presentDays = 0;
      let absentDays = 0;
      let upcomingDays = 0;
-     let pastDaysCount = 0;
 
-     allEvents.forEach(ev => {
+     computedFilteredEvents.forEach(ev => {
          const days = getEventDates(ev.startDate, ev.endDate);
          
          days.forEach(day => {
@@ -105,33 +144,31 @@ export default function StudentEventsScreen({ college, studentId }) {
 
              if (wasPresent) {
                  presentDays++;
-                 pastDaysCount++;
              } else if (isPast) {
                  absentDays++;
-                 pastDaysCount++;
              } else {
                  upcomingDays++;
              }
          });
 
-         // Legacy Fallback
-         const daysFoundPresent = days.filter(d => ev.attendanceRecords?.some(r => r.attendanceDate === d)).length;
-         if (ev.status === 'Present' && daysFoundPresent === 0 && days.length > 0) {
+         // Legacy Fallback: Only for single-day events without an attendanceDate
+         const hasAnyDatedRecord = ev.attendanceRecords?.some(r => !!r.attendanceDate);
+         const hasUndatedRecord = ev.attendanceRecords?.some(r => !r.attendanceDate);
+         
+         if (hasUndatedRecord && !hasAnyDatedRecord && days.length === 1) {
              presentDays++;
-             if (days.length === 1) {
-                 if (isDatePast(days[0])) {
-                     absentDays = Math.max(0, absentDays - 1);
-                 } else {
-                     upcomingDays = Math.max(0, upcomingDays - 1);
-                 }
-                 pastDaysCount++;
+             if (isDatePast(days[0])) {
+                 absentDays = Math.max(0, absentDays - 1);
+             } else {
+                 upcomingDays = Math.max(0, upcomingDays - 1);
              }
          }
      });
 
+     const pastDaysCount = presentDays + absentDays;
      const ratio = pastDaysCount > 0 ? (presentDays / pastDaysCount) * 100 : null;
      return { totalDays, presentDays, absentDays, upcomingDays, pastDaysCount, ratio };
-  }, [allEvents]);
+  }, [computedFilteredEvents]);
 
   const grade = getGrade(attendanceStats.ratio);
   const scorePct = Math.round(attendanceStats.ratio || 0);
@@ -239,7 +276,6 @@ export default function StudentEventsScreen({ college, studentId }) {
         });
 
         setAllEvents(processedEvents);
-        setFilteredEvents(processedEvents);
       } catch (err) {
         console.error("Error loading student events:", err);
       } finally {
@@ -249,47 +285,6 @@ export default function StudentEventsScreen({ college, studentId }) {
 
     fetchStudentAndEvents();
   }, [studentId, accessToken, college]);
-
-  // Correctly compute filtered events via useMemo
-  const computedFilteredEvents = useMemo(() => {
-    let filtered = allEvents;
-
-    // Text search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(ev =>
-        ev.eventName?.toLowerCase().includes(query) ||
-        ev.eventLocation?.toLowerCase().includes(query) ||
-        ev.ngoName?.toLowerCase().includes(query)
-      );
-    }
-
-    // Date range filter — properly inside .filter(ev => ...)
-    if (startDate || endDate) {
-      const filterStart = startDate ? new Date(startDate) : null;
-      if (filterStart) filterStart.setHours(0, 0, 0, 0);
-
-      const filterEnd = endDate ? new Date(endDate) : null;
-      if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
-
-      filtered = filtered.filter(ev => {
-        const eventStart = ev.startDate ? new Date(ev.startDate) : ev.rawDate;
-        const eventEnd = ev.endDate ? new Date(ev.endDate) : eventStart;
-
-        if (!eventStart) return true; // can't filter, keep it
-
-        const es = new Date(eventStart); es.setHours(0, 0, 0, 0);
-        const ee = eventEnd ? new Date(eventEnd) : es; ee.setHours(0, 0, 0, 0);
-
-        // Overlap: event [es, ee] overlaps filter [filterStart, filterEnd]
-        if (filterStart && ee < filterStart) return false;
-        if (filterEnd && es > filterEnd) return false;
-        return true;
-      });
-    }
-
-    return filtered;
-  }, [searchQuery, startDate, endDate, allEvents]);
 
   // NO useEffect here — using computedFilteredEvents directly prevents infinite loop
 
@@ -507,7 +502,26 @@ export default function StudentEventsScreen({ college, studentId }) {
   );
 
   const renderTableRow = (item, index) => {
-    const statusColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
+    const daysList = getEventDates(item.startDate || item.rawDate, item.endDate || item.startDate || item.rawDate);
+    const isMultiDay = daysList.length > 1;
+    const attendedCount = daysList.filter(d => item.attendanceRecords?.some(r => r.attendanceDate === d)).length;
+    
+    let statusLabel = item.status;
+    let statusColor = item.status === 'Present' ? '#10b981' : (item.status === 'Absent' ? '#ef4444' : '#f59e0b');
+
+    if (isMultiDay) {
+        statusLabel = `${attendedCount}/${daysList.length} Days`;
+        if (attendedCount === daysList.length) {
+            statusColor = '#10b981';
+        } else if (attendedCount > 0) {
+            statusColor = '#f59e0b';
+        } else if (isDatePast(daysList[0])) {
+            statusColor = '#ef4444';
+        } else {
+            statusColor = colors.textSecondary;
+        }
+    }
+
     return (
       <View key={index} className="flex-row p-2 border-b border-l border-r" style={{
         backgroundColor: index % 2 === 0 ? colors.cardBg : (colors.backgroundColors?.[1] || '#f9f9f9'),
@@ -520,7 +534,7 @@ export default function StudentEventsScreen({ college, studentId }) {
         <Text className="text-center text-[9px]" style={{ color: colors.textSecondary, flex: 1 }}>{item.eventDate}</Text>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={{ fontSize: 8, fontWeight: 'bold', color: '#fff', backgroundColor: statusColor, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, overflow: 'hidden' }}>
-            {item.status}
+            {statusLabel}
           </Text>
         </View>
       </View>
@@ -695,31 +709,7 @@ export default function StudentEventsScreen({ college, studentId }) {
         {renderHeader()}
         {renderFilterSection()}
 
-        {/* --- ATTENDANCE ANALYTICS --- */}
-        {!loading && computedFilteredEvents.length > 0 && (
-          <View className="flex-row justify-between p-4 rounded-xl mb-6 border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-            <View className="items-center flex-1">
-              <Text className="text-[10px] uppercase font-bold" style={{ color: '#10b981' }}>Present</Text>
-              <Text className="text-xl font-bold" style={{ color: '#10b981' }}>
-                {computedFilteredEvents.filter(e => e.status === 'Present').length}
-              </Text>
-            </View>
-            <View style={{ width: 1, backgroundColor: colors.border, height: '100%', marginHorizontal: 10 }} />
-            <View className="items-center flex-1">
-              <Text className="text-[10px] uppercase font-bold" style={{ color: '#ef4444' }}>Absent</Text>
-              <Text className="text-xl font-bold" style={{ color: '#ef4444' }}>
-                {computedFilteredEvents.filter(e => e.status === 'Absent').length}
-              </Text>
-            </View>
-            <View style={{ width: 1, backgroundColor: colors.border, height: '100%', marginHorizontal: 10 }} />
-            <View className="items-center flex-1">
-              <Text className="text-[10px] uppercase font-bold" style={{ color: '#f59e0b' }}>Registered</Text>
-              <Text className="text-xl font-bold" style={{ color: '#f59e0b' }}>
-                {computedFilteredEvents.filter(e => e.status === 'Registered').length}
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* --- ATTENDANCE ANALYTICS REMOVED AS PER USER REQUEST --- */}
 
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-lg font-bold" style={{ color: colors.textPrimary }}>Activity History</Text>

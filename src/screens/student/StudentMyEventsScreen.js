@@ -375,6 +375,8 @@ export default function StudentMyEventsScreen({ student }) {
                         let statusLabel = item.status;
                         let statusColor = "#f59e0b"; // default orange
                         
+                        const missed = isMissed(item);
+
                         if (isMultiDay) {
                             statusLabel = `${attendedCount}/${daysList.length} Days`;
                             if (attendedCount === daysList.length) {
@@ -388,7 +390,6 @@ export default function StudentMyEventsScreen({ student }) {
                             }
                         } else {
                            // Single day fallback
-                           const missed = isMissed(item);
                            if (missed) {
                                statusLabel = "Absent";
                                statusColor = "#ef4444";
