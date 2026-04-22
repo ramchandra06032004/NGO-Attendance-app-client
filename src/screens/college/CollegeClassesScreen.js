@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList, Image, Modal } from 'react-native';
+import { FileText } from 'lucide-react-native';
 import AnimatedSearch from '../../components/AnimatedSearch';
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -197,6 +198,8 @@ export default function CollegeClassesScreen({ college }) {
               createdBy: event.eventId?.createdBy?.name || "Unknown NGO",
               location: event.eventId?.location || "N/A",
               eventDate: event.eventId?.eventDate,
+              startDate: event.eventId?.startDate,
+              endDate: event.eventId?.endDate,
             });
           }
         });
@@ -1176,508 +1179,7 @@ export default function CollegeClassesScreen({ college }) {
         </View>
 
 
-        {/* --- 2. DATA EXPORT ACTIONS --- */}
-        <View className="flex-row gap-3 mb-6">
-          <TouchableOpacity
-            className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
-            style={{
-              backgroundColor: colors.accent,
-              borderColor: colors.accent
-            }}
-            onPress={exportToExcel}
-          >
-            <Text className="text-white font-semibold text-xs text-center uppercase tracking-wide">
-              Export Class Data
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: colors.accent,
-              borderWidth: 1
-            }}
-            onPress={exportAllEventsToExcel}
-          >
-            <Text
-              className="font-semibold text-xs text-center uppercase tracking-wide"
-              style={{ color: colors.accent }}
-            >
-              Export All Events
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* --- 3. EVENT ANALYTICS --- */}
-        <View
-          className="rounded-xl border mb-6 overflow-hidden"
-          style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
-        >
-          <View className="p-4 border-b" style={{ borderColor: colors.border }}>
-            <Text
-              className="text-base font-bold"
-              style={{ color: colors.header }}
-            >
-              Event Attendance
-            </Text>
-          </View>
-
-          <View
-            className="p-4"
-            onStartShouldSetResponder={() => true}
-            onTouchEnd={(e) => e.stopPropagation()}
-          >
-            {/* --- Event Picker Button --- */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setShowEventModal(true)}
-              className="flex-row justify-between items-center p-3 rounded-lg border mb-4"
-              style={{
-                backgroundColor: colors.iconBg,
-                borderColor: selectedEvent ? colors.accent : colors.border,
-              }}
-            >
-              <View style={{ flex: 1, marginRight: 8 }}>
-                {selectedEvent ? (
-                  <>
-                    <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
-                      {selectedEvent.aim}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-                      {new Date(selectedEvent.eventDate).toDateString()} · {selectedEvent.createdBy || 'NGO'}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
-                    {dataLoading ? 'Loading events...' : `Select an event (${eventsList.length} available)`}
-                  </Text>
-                )}
-              </View>
-              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '600' }}>
-                {selectedEvent ? '✎ Change' : '▼ Pick'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* --- Searchable Event Picker Modal --- */}
-            <Modal
-              visible={showEventModal}
-              animationType="slide"
-              transparent
-              onRequestClose={() => setShowEventModal(false)}
-            >
-              <View style={{
-                flex: 1,
-                backgroundColor: 'rgba(0,0,0,0.45)',
-                justifyContent: 'flex-end',
-              }}>
-                <View style={{
-                  backgroundColor: colors.cardBg,
-                  borderTopLeftRadius: 20,
-                  borderTopRightRadius: 20,
-                  maxHeight: '85%',
-                  paddingTop: 12,
-                }}>
-                  {/* Handle bar */}
-                  <View style={{ alignItems: 'center', marginBottom: 8 }}>
-                    <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
-                  </View>
-
-                  {/* Modal Header */}
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingHorizontal: 16,
-                    paddingBottom: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                  }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.header }}>
-                      Select Event
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => { setShowEventModal(false); setEventSearch(''); }}
-                      style={{
-                        backgroundColor: colors.iconBg,
-                        borderRadius: 16,
-                        paddingHorizontal: 12,
-                        paddingVertical: 5,
-                      }}
-                    >
-                      <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>✕ Close</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Search Bar */}
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    margin: 12,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.iconBg,
-                  }}>
-                    <Text style={{ color: colors.textSecondary, marginRight: 8, fontSize: 16 }}>⌕</Text>
-                    <TextInput
-                      placeholder="Search by event name, NGO, or location..."
-                      placeholderTextColor={colors.textSecondary}
-                      value={eventSearch}
-                      onChangeText={setEventSearch}
-                      autoFocus
-                      style={{ flex: 1, color: colors.textPrimary, fontSize: 13, outlineStyle: 'none' }}
-                    />
-                    {eventSearch.length > 0 && (
-                      <TouchableOpacity onPress={() => setEventSearch('')}>
-                        <Text style={{ color: colors.textSecondary, fontSize: 16, paddingLeft: 6 }}>✕</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Results count */}
-                  {eventSearch.length > 0 && (
-                    <Text style={{ color: colors.textSecondary, fontSize: 11, paddingHorizontal: 16, marginBottom: 6 }}>
-                      {eventsList.filter(e =>
-                        e.aim?.toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        (e.createdBy?.name || e.createdBy || '').toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        e.location?.toLowerCase().includes(eventSearch.toLowerCase())
-                      ).length} result(s)
-                    </Text>
-                  )}
-
-                  {/* Event List */}
-                  {dataLoading ? (
-                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                      <ActivityIndicator size="large" color={colors.accent} />
-                      <Text style={{ color: colors.textSecondary, marginTop: 10, fontSize: 13 }}>Loading events...</Text>
-                    </View>
-                  ) : (
-                    <FlatList
-                      data={eventsList.filter(e =>
-                        e.aim?.toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        (e.createdBy?.name || e.createdBy || '').toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        e.location?.toLowerCase().includes(eventSearch.toLowerCase())
-                      )}
-                      keyExtractor={(item) => item._id}
-                      keyboardShouldPersistTaps="handled"
-                      contentContainerStyle={{ paddingBottom: 30 }}
-                      ListEmptyComponent={
-                        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                          <Text style={{ fontSize: 32 }}>🔍</Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 10 }}>
-                            {eventSearch ? `No events matching "${eventSearch}"` : 'No events found'}
-                          </Text>
-                        </View>
-                      }
-                      renderItem={({ item, index }) => {
-                        const isSelected = selectedEvent?._id === item._id;
-                        return (
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              setShowEventModal(false);
-                              setEventSearch('');
-                              handleEventSelect(item);
-                            }}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingHorizontal: 16,
-                              paddingVertical: 12,
-                              borderBottomWidth: 1,
-                              borderBottomColor: colors.border,
-                              backgroundColor: isSelected ? (colors.iconBg) : colors.cardBg,
-                            }}
-                          >
-                            {/* Index badge */}
-                            <View style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 16,
-                              backgroundColor: isSelected ? colors.accent : colors.iconBg,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              marginRight: 12,
-                              flexShrink: 0,
-                            }}>
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: isSelected ? '#fff' : colors.textSecondary }}>
-                                {index + 1}
-                              </Text>
-                            </View>
-
-                            {/* Event Info */}
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }} numberOfLines={2}>
-                                {item.aim}
-                              </Text>
-                              <View style={{ flexDirection: 'row', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
-                                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                                  📅 {new Date(item.eventDate).toDateString()}
-                                </Text>
-                                {(item.createdBy?.name || item.createdBy) && (
-                                  <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>
-                                    🏢 {item.createdBy?.name || item.createdBy}
-                                  </Text>
-                                )}
-                                {item.location && (
-                                  <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>
-                                    📍 {item.location}
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
-
-                            {/* Selected checkmark */}
-                            {isSelected && (
-                              <Text style={{ color: colors.accent, fontSize: 18, marginLeft: 8 }}>✓</Text>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      }}
-                    />
-                  )}
-                </View>
-              </View>
-            </Modal>
-
-            {/* Selected Event Data */}
-            {showAttendanceTable && selectedEvent && (
-              <View>
-                {/* --- Multi-day Date Selector --- */}
-                {isMultiDay && (
-                  <View style={{ marginBottom: 12 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', marginBottom: 6, marginLeft: 2 }}>
-                      Select Date
-                    </Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                      {eventDates.map((date) => {
-                        const isSelected = selectedDate === date;
-                        return (
-                          <TouchableOpacity
-                            key={date}
-                            onPress={() => setSelectedDate(date)}
-                            style={{
-                              paddingHorizontal: 12,
-                              paddingVertical: 6,
-                              borderRadius: 10,
-                              borderWidth: 1,
-                              borderColor: isSelected ? colors.accent : colors.border,
-                              backgroundColor: isSelected ? colors.accent : colors.cardBg,
-                            }}
-                          >
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: isSelected ? '#fff' : colors.textPrimary }}>
-                              {formatDateLabel(date)}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {eventLoading ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                    <ActivityIndicator size="small" color={colors.accent} />
-                    <Text style={{ color: colors.textSecondary, marginTop: 8, fontSize: 12 }}>Loading attendance...</Text>
-                  </View>
-                ) : eventAttendanceList.length === 0 ? (
-                  <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16, fontSize: 13, fontStyle: 'italic' }}>
-                    No students registered for this event.
-                  </Text>
-                ) : (() => {
-                  // Derived filtered list (computed inline so it stays reactive)
-                  const statusFiltered = tableStatusFilter === 'All'
-                    ? eventAttendanceList
-                    : eventAttendanceList.filter(r => r.status === tableStatusFilter);
-                  const tableFiltered = tableSearch.trim()
-                    ? statusFiltered.filter(r =>
-                      (r.studentName || '').toLowerCase().includes(tableSearch.toLowerCase()) ||
-                      (r.prn || '').toLowerCase().includes(tableSearch.toLowerCase()) ||
-                      (r.className || '').toLowerCase().includes(tableSearch.toLowerCase())
-                    )
-                    : statusFiltered;
-
-                  const STATUS_PILLS = [
-                    { label: 'All', color: colors.accent, count: eventAttendanceList.length },
-                    { label: 'Present', color: '#10b981', count: eventAttendanceList.filter(r => r.status === 'Present').length },
-                    { label: 'Absent', color: '#ef4444', count: eventAttendanceList.filter(r => r.status === 'Absent').length },
-                    { label: 'Registered', color: '#f59e0b', count: eventAttendanceList.filter(r => r.status === 'Registered').length },
-                  ];
-
-                  return (
-                    <>
-                      {/* --- Stat pills (tap to filter) + Download --- */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
-                        {STATUS_PILLS.map(pill => {
-                          const active = tableStatusFilter === pill.label;
-                          return (
-                            <TouchableOpacity
-                              key={pill.label}
-                              onPress={() => setTableStatusFilter(pill.label)}
-                              style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingHorizontal: 10,
-                                paddingVertical: 5,
-                                borderRadius: 20,
-                                borderWidth: 1.5,
-                                borderColor: pill.color,
-                                backgroundColor: active ? pill.color : 'transparent',
-                                gap: 5,
-                              }}
-                            >
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#fff' : pill.color }}>
-                                {pill.label}
-                              </Text>
-                              <View style={{
-                                backgroundColor: active ? 'rgba(255,255,255,0.3)' : pill.color,
-                                borderRadius: 10,
-                                minWidth: 18,
-                                paddingHorizontal: 4,
-                                alignItems: 'center',
-                              }}>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{pill.count}</Text>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
-
-                        {/* Spacer + Download button */}
-                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                          <TouchableOpacity
-                            onPress={exportEventAttendanceToExcel}
-                            disabled={isExporting}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingHorizontal: 10,
-                              paddingVertical: 5,
-                              borderRadius: 8,
-                              backgroundColor: isExporting ? colors.border : colors.iconBg,
-                              borderWidth: 1,
-                              borderColor: isExporting ? colors.border : colors.accent,
-                              gap: 4,
-                            }}
-                          >
-                            <Text style={{ fontSize: 12, color: isExporting ? colors.textSecondary : colors.accent }}>
-                              {isExporting ? "⏳" : "⬇"}
-                            </Text>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: isExporting ? colors.textSecondary : colors.accent }}>
-                              {isExporting ? "Wait..." : "Report"}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      {/* --- Search bar --- */}
-                      <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        paddingHorizontal: 10,
-                        paddingVertical: 7,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.iconBg,
-                        marginBottom: 8,
-                      }}>
-                        <Text style={{ color: colors.textSecondary, marginRight: 6, fontSize: 14 }}>⌕</Text>
-                        <TextInput
-                          placeholder="Search by name, PRN or class..."
-                          placeholderTextColor={colors.textSecondary}
-                          value={tableSearch}
-                          onChangeText={setTableSearch}
-                          style={{ flex: 1, color: colors.textPrimary, fontSize: 12, outlineStyle: 'none', padding: 0 }}
-                        />
-                        {tableSearch.length > 0 && (
-                          <TouchableOpacity onPress={() => setTableSearch('')}>
-                            <Text style={{ color: colors.textSecondary, fontSize: 14, paddingLeft: 6 }}>✕</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-
-                      {/* --- Row count badge --- */}
-                      <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 6, paddingLeft: 2 }}>
-                        Showing {tableFiltered.length} of {eventAttendanceList.length} student{eventAttendanceList.length !== 1 ? 's' : ''}
-                        {tableStatusFilter !== 'All' ? ` · ${tableStatusFilter}` : ''}
-                      </Text>
-
-                      {/* --- Student Cards (no horizontal scroll needed) --- */}
-                      {tableFiltered.length === 0 ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                          <Text style={{ fontSize: 24 }}>🔍</Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8 }}>No students match your filter.</Text>
-                        </View>
-                      ) : (
-                        <FlatList
-                          data={tableFiltered}
-                          keyExtractor={(_, i) => i.toString()}
-                          scrollEnabled={false}
-                          ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
-                          renderItem={({ item: record, index }) => {
-                            const statusColor = record.status === 'Present' ? '#10b981' : record.status === 'Absent' ? '#ef4444' : '#f59e0b';
-                            const initials = (record.studentName || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-                            return (
-                              <View style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                padding: 10,
-                                borderRadius: 10,
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                                backgroundColor: colors.cardBg,
-                              }}>
-                                {/* Avatar with index */}
-                                <View style={{ alignItems: 'center', marginRight: 10, width: 38 }}>
-                                  <View style={{
-                                    width: 36, height: 36, borderRadius: 18,
-                                    backgroundColor: colors.iconBg,
-                                    alignItems: 'center', justifyContent: 'center',
-                                    borderWidth: 1.5, borderColor: statusColor,
-                                  }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.accent }}>{initials}</Text>
-                                  </View>
-                                  <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 2 }}>#{index + 1}</Text>
-                                </View>
-
-                                {/* Main info */}
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textPrimary }} numberOfLines={1}>
-                                    {record.studentName}
-                                  </Text>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-                                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{record.prn}</Text>
-                                    {record.className ? (
-                                      <View style={{ backgroundColor: colors.iconBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                        <Text style={{ fontSize: 10, color: colors.textSecondary }}>{record.className}</Text>
-                                      </View>
-                                    ) : null}
-                                    {record.attendanceDate && record.attendanceDate !== 'N/A' ? (
-                                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>📅 {record.attendanceDate}</Text>
-                                    ) : null}
-                                  </View>
-                                </View>
-
-                                {/* Status pill */}
-                                <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8 }}>
-                                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{record.status}</Text>
-                                </View>
-                              </View>
-                            );
-                          }}
-                        />
-                      )}
-                    </>
-                  );
-                })()}
-              </View>
-            )}
-
-          </View>
-        </View>
+        {/* Event Attendance section moved to CollegeExport flow */}
 
         {/* --- 4. CLASS MANAGEMENT --- */}
         <View>
@@ -1757,6 +1259,35 @@ export default function CollegeClassesScreen({ college }) {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* --- CONSOLIDATED EXPORT ACTION (Moved to bottom) --- */}
+          <TouchableOpacity
+            className="mt-8 mb-10 py-4 px-4 rounded-xl border flex-row items-center justify-between"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              borderStyle: 'dashed',
+              opacity: 0.9
+            }}
+            onPress={() => navigate("CollegeExport", { college: collegeData, eventsList, accessToken })}
+          >
+            <View className="flex-row items-center gap-3">
+              <View 
+                style={{ 
+                  width: 38, height: 38, borderRadius: 10, 
+                  backgroundColor: colors.iconBg, 
+                  alignItems: 'center', justifyContent: 'center' 
+                }}
+              >
+                <FileText size={20} color={colors.accent} />
+              </View>
+              <View>
+                <Text className="font-bold text-sm" style={{ color: colors.header }}>Export Attendance</Text>
+                <Text className="text-[10px]" style={{ color: colors.textSecondary }}>View reports and data exports</Text>
+              </View>
+            </View>
+            <Text className="text-xs" style={{ color: colors.accent, fontWeight: 'bold' }}>OPEN →</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </TouchableOpacity>

@@ -263,12 +263,13 @@ export default function StudentMyInternshipsScreen({ student }) {
                           studentName: "My Work Logs",
                           startDate: item.startDate,
                           endDate: item.endDate,
+                          allowLateSubmissions: item.allowLateSubmissions,
                         })
                       }
                     >
                       <ClipboardList size={16} color={colors.accent} style={{ marginRight: 6 }} />
                       <Text className="text-sm font-extrabold" style={{ color: colors.accent }}>
-                        {item.workLogsCount} Daily logs
+                        {item.workLogsCount}/{item.totalDays} Daily logs
                       </Text>
                     </TouchableOpacity>
                   </View>

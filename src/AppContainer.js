@@ -15,6 +15,8 @@ import AdminLoginScreen from "./screens/admin/AdminLoginScreen";
 import AdminPanelScreen from "./screens/admin/AdminPanelScreen";
 import RegisterAdminScreen from "./screens/admin/RegisterAdminScreen";
 import AddClassScreen from "./screens/college/AddClassScreen";
+import CollegeExportScreen from "./screens/college/CollegeExportScreen";
+import CollegeEventAttendanceScreen from "./screens/college/CollegeEventAttendanceScreen";
 import AddStudentScreen from "./screens/college/AddStudentScreen";
 import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
 import AddNgoScreen from "./screens/admin/AddNgoScreen";
@@ -174,6 +176,23 @@ export default function AppContainer() {
         />
       );
       break;
+    case "CollegeExport":
+      Screen = (
+        <CollegeExportScreen
+          college={route.params?.college}
+          eventsList={route.params?.eventsList}
+        />
+      );
+      break;
+    case "CollegeEventAttendance":
+      Screen = (
+        <CollegeEventAttendanceScreen
+          event={route.params?.event}
+          college={route.params?.college}
+          accessToken={route.params?.accessToken}
+        />
+      );
+      break;
     case "AdminPanel":
       Screen = <AdminPanelScreen />;
       break;
@@ -235,6 +254,9 @@ export default function AppContainer() {
           internshipTitle={route.params?.internshipTitle}
           startDate={route.params?.startDate}
           endDate={route.params?.endDate}
+          allowLateSubmissions={route.params?.allowLateSubmissions}
+          totalDays={route.params?.totalDays}
+          currentLogsCount={route.params?.currentLogsCount}
         />
       );
       break;

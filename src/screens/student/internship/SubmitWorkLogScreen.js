@@ -16,7 +16,7 @@ import { useTheme } from "../../../context/ThemeContext";
 import * as api from "../../../../apis/api";
 import { ChevronLeft, ClipboardList } from "lucide-react-native";
 
-export default function SubmitWorkLogScreen({ internshipId, internshipTitle, startDate, endDate }) {
+export default function SubmitWorkLogScreen({ internshipId, internshipTitle, startDate, endDate, allowLateSubmissions, totalDays, currentLogsCount }) {
   const { goBack } = useContext(NavigationContext);
   const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -66,9 +66,18 @@ export default function SubmitWorkLogScreen({ internshipId, internshipTitle, sta
 
       const data = await response.json();
       if (response.ok) {
-        Alert.alert("Submitted! ✅", "Your work log has been submitted successfully.", [
-          { text: "OK", onPress: () => goBack() },
-        ]);
+        const newCount = (currentLogsCount || 0) + 1;
+        const totalReq = totalDays || 0;
+        
+        if (totalReq > 0 && newCount >= totalReq) {
+          Alert.alert("Internship Completed! 🏆", "Congratulations! You have submitted all required daily logs. Your internship is now marked as completed successfully.", [
+            { text: "Awesome!", onPress: () => goBack() },
+          ]);
+        } else {
+          Alert.alert("Submitted! ✅", "Your work log has been submitted successfully.", [
+            { text: "OK", onPress: () => goBack() },
+          ]);
+        }
       } else {
         Alert.alert("Error", data.message || "Failed to submit work log");
       }
@@ -135,7 +144,9 @@ export default function SubmitWorkLogScreen({ internshipId, internshipTitle, sta
             {!hasStarted 
               ? `Note: This internship starts on ${start.toLocaleDateString()}. You can only submit logs once it begins.`
               : isOver 
-                ? "This internship has ended. You can still submit back-dated logs for the internship period."
+                ? allowLateSubmissions 
+                  ? "This internship has ended. Late submissions are ENABLED by the NGO, so you can still submit missing logs."
+                  : "This internship has ended and late submissions are NOT allowed. Please contact the NGO SPOC if you need to submit missing logs."
                 : "Share what you worked on today. Be specific about tasks completed, skills learned, or challenges faced."}
           </Text>
         </View>
@@ -236,13 +247,17 @@ export default function SubmitWorkLogScreen({ internshipId, internshipTitle, sta
             backgroundColor: (loading || !hasStarted) ? colors.border : colors.accent,
           }}
           onPress={handleSubmit}
-          disabled={loading || !hasStarted}
+          disabled={loading || !hasStarted || (isOver && !allowLateSubmissions)}
         >
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
             <Text className="text-white font-bold text-base">
-              {!hasStarted ? "Internship Not Started" : "Submit Work Log ✓"}
+              {!hasStarted 
+                ? "Internship Not Started" 
+                : (isOver && !allowLateSubmissions) 
+                  ? "Submissions Locked" 
+                  : "Submit Work Log ✓"}
             </Text>
           )}
         </TouchableOpacity>

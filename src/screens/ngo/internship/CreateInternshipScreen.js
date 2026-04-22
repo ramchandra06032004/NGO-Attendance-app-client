@@ -67,6 +67,7 @@ export default function CreateInternshipScreen() {
     totalSlots: "",
     spocName: "",
     spocContact: "",
+    allowLateSubmissions: false,
   });
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
@@ -123,6 +124,7 @@ export default function CreateInternshipScreen() {
           endDate: endDate.toISOString(),
           spocName,
           spocContact,
+          allowLateSubmissions: form.allowLateSubmissions,
         }),
       });
 
@@ -366,13 +368,6 @@ export default function CreateInternshipScreen() {
         </View>
 
         <Field
-          label="SPOC Name"
-          value={form.spocName}
-          onChangeText={(v) => update("spocName", v)}
-          placeholder="Point of contact name"
-          colors={colors}
-        />
-        <Field
           label="SPOC Contact"
           value={form.spocContact}
           onChangeText={(v) => update("spocContact", v)}
@@ -380,6 +375,38 @@ export default function CreateInternshipScreen() {
           keyboardType="email-address"
           colors={colors}
         />
+
+        {/* Late Submissions Toggle */}
+        <TouchableOpacity
+          onPress={() => update("allowLateSubmissions", !form.allowLateSubmissions)}
+          className="p-4 rounded-xl mb-6 border flex-row items-center justify-between"
+          style={{
+            backgroundColor: form.allowLateSubmissions ? `${colors.accent}15` : colors.cardBg,
+            borderColor: form.allowLateSubmissions ? colors.accent : colors.border,
+          }}
+        >
+          <View className="flex-1 mr-3">
+            <Text className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+              Allow Late Submissions
+            </Text>
+            <Text className="text-[10px]" style={{ color: colors.textSecondary }}>
+              If enabled, students can submit work logs even after the internship ends.
+            </Text>
+          </View>
+          <View
+            className="w-12 h-6 rounded-full px-1 justify-center"
+            style={{
+              backgroundColor: form.allowLateSubmissions ? colors.accent : colors.border,
+            }}
+          >
+            <View
+              className="w-4 h-4 rounded-full bg-white"
+              style={{
+                alignSelf: form.allowLateSubmissions ? "flex-end" : "flex-start",
+              }}
+            />
+          </View>
+        </TouchableOpacity>
 
         {/* Submit */}
         <TouchableOpacity

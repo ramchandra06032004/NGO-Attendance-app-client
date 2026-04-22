@@ -137,18 +137,24 @@ export default function InternshipApplicantsScreen({ internship: initialInternsh
             </View>
           </View>
 
-          {/* Status badge */}
-          <View
-            className="flex-row items-center px-2.5 py-1 rounded-full"
-            style={{ backgroundColor: style.bg }}
-          >
-            <StatusIcon size={12} color={style.color} style={{ marginRight: 3 }} />
-            <Text
-              className="text-[11px] font-bold"
-              style={{ color: style.color }}
+          <View className="items-end">
+            <View
+              className="flex-row items-center px-2.5 py-1 rounded-full mb-1"
+              style={{ backgroundColor: style.bg }}
             >
-              {item.status === "accepted" ? "Accepted" : item.status === "rejected" ? "Not Selected" : "Pending"}
-            </Text>
+              <StatusIcon size={12} color={style.color} style={{ marginRight: 3 }} />
+              <Text
+                className="text-[11px] font-bold"
+                style={{ color: style.color }}
+              >
+                {item.status === "accepted" ? "Accepted" : item.status === "rejected" ? "Not Selected" : "Pending"}
+              </Text>
+            </View>
+            {item.isCompleted && (
+              <View className="bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
+                <Text className="text-[10px] font-black text-emerald-500">🏆 COMPLETED</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -199,7 +205,7 @@ export default function InternshipApplicantsScreen({ internship: initialInternsh
             >
               <ClipboardList size={13} color={colors.accent} style={{ marginRight: 4 }} />
               <Text className="text-xs font-bold" style={{ color: colors.accent }}>
-                Logs ({item.workLogsCount})
+                Logs ({item.workLogsCount}/{data?.internship?.totalDays})
               </Text>
             </TouchableOpacity>
           )}

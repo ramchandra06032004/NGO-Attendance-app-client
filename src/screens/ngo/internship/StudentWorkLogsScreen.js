@@ -14,7 +14,7 @@ import { useTheme } from "../../../context/ThemeContext";
 import * as api from "../../../../apis/api";
 import { ChevronLeft, ClipboardList } from "lucide-react-native";
 
-export default function StudentWorkLogsScreen({ internshipId, studentId, studentName, startDate, endDate }) {
+export default function StudentWorkLogsScreen({ internshipId, studentId, studentName, startDate, endDate, allowLateSubmissions }) {
   const { goBack, navigate } = useContext(NavigationContext);
   const { accessToken, userType } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -95,6 +95,9 @@ export default function StudentWorkLogsScreen({ internshipId, studentId, student
                 internshipTitle: data?.internship?.title || "My Internship",
                 startDate: startDate || data?.internship?.startDate,
                 endDate: endDate || data?.internship?.endDate,
+                allowLateSubmissions: allowLateSubmissions || data?.internship?.allowLateSubmissions,
+                totalDays: data?.internship?.totalDays,
+                currentLogsCount: data?.totalLogs || 0,
               })
             }
           >

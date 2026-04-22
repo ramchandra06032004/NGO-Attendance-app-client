@@ -13,7 +13,7 @@ import { NavigationContext } from "../../../context/NavigationContext";
 import { AuthContext } from "../../../context/AuthContext";
 import { useTheme } from "../../../context/ThemeContext";
 import * as api from "../../../../apis/api";
-import { ChevronLeft, Briefcase, Users, Plus, Search } from "lucide-react-native";
+import { ChevronLeft, Briefcase, Users, Plus, Search, Clock } from "lucide-react-native";
 import AnimatedSearch from "../../../components/AnimatedSearch";
 
 export default function NgoInternshipsScreen({ ngo }) {
@@ -56,8 +56,33 @@ export default function NgoInternshipsScreen({ ngo }) {
   };
 
   const onRefresh = () => {
-    setRefreshing(true);
     fetchInternships();
+  };
+
+  const toggleLateSubmissions = async (internshipId, currentValue) => {
+    try {
+      const response = await fetch(api.ngoUpdateInternshipSettingsAPI(internshipId), {
+        method: "PATCH",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ allowLateSubmissions: !currentValue }),
+      });
+      if (response.ok) {
+        setInternships((prev) =>
+          prev.map((it) =>
+            it._id === internshipId ? { ...it, allowLateSubmissions: !currentValue } : it
+          )
+        );
+      } else {
+        const data = await response.json();
+        Alert.alert("Error", data.message || "Failed to update setting");
+      }
+    } catch {
+      Alert.alert("Error", "Network error");
+    }
   };
 
   const getStatusColor = (internship) => {
@@ -72,7 +97,7 @@ export default function NgoInternshipsScreen({ ngo }) {
     if (new Date(internship.startDate) > now) return "Upcoming";
     return "Active";
   };
- 
+
   const filteredInternships = internships.filter((item) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
@@ -265,6 +290,41 @@ export default function NgoInternshipsScreen({ ngo }) {
                       </Text>
                     </View>
                   )}
+                </View>
+
+                {/* Late Submissions Toggle */}
+                <View
+                  className="mt-3 pt-3 border-t flex-row items-center justify-between"
+                  style={{ borderTopColor: colors.border }}
+                >
+                  <View className="flex-row items-center">
+                    <Clock size={12} color={colors.textSecondary} style={{ marginRight: 6 }} />
+                    <Text className="text-[10px]" style={{ color: colors.textSecondary }}>Late final Submissions</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => toggleLateSubmissions(item._id, item.allowLateSubmissions)}
+                    className="flex-row items-center"
+                  >
+                    <Text
+                      className="text-[10px] font-bold mr-2"
+                      style={{ color: item.allowLateSubmissions ? "#10b981" : colors.textSecondary }}
+                    >
+                      {item.allowLateSubmissions ? "ENABLED" : "DISABLED"}
+                    </Text>
+                    <View
+                      className="w-8 h-4 rounded-full px-0.5 justify-center"
+                      style={{
+                        backgroundColor: item.allowLateSubmissions ? "#10b981" : colors.border,
+                      }}
+                    >
+                      <View
+                        className="w-3 h-3 rounded-full bg-white"
+                        style={{
+                          alignSelf: item.allowLateSubmissions ? "flex-end" : "flex-start",
+                        }}
+                      />
+                    </View>
+                  </TouchableOpacity>
                 </View>
               </TouchableOpacity>
             );

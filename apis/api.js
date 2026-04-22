@@ -57,6 +57,8 @@ export const ngoUpdateApplicantStatusAPI = (internshipId, studentId) =>
     `${ngo_host}/internships/${internshipId}/applicants/${studentId}`;
 export const ngoInternshipWorkLogsAPI = (internshipId, studentId) =>
     `${ngo_host}/internships/${internshipId}/applicants/${studentId}/work-logs`;
+export const ngoUpdateInternshipSettingsAPI = (internshipId) =>
+    `${ngo_host}/internships/${internshipId}/update-settings`;
 
 // Student side
 export const studentInternshipsAPI = `${student_host}/internships`;
