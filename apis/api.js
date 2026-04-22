@@ -2,13 +2,13 @@
 import { Platform } from "react-native";
 
 // ✅ Correct Syntax: Use a ternary operator
-export const host = Platform.OS === "android"
-    ? "http://10.0.2.2:3000"
-    : "http://localhost:3000";
+// export const host = Platform.OS === "android"
+//     ? "http://10.0.2.2:3000"
+//     : "http://localhost:3000";
 //export const host = "http://172.16.30.42:3000";
 //export const host = "http://10.0.2.2:3000"; //Production
 //FOR WEB-VERSION:-
-//export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
+export const host = "https://ngo-attendance-app-server.onrender.com"; //Production
 
 //FOR MOBILE-VERSION:-
 //export const host = "https://ngo-attendance-backend.el.r.appspot.com"; //Production
