@@ -19,7 +19,7 @@ import { Calendar, LogOut } from "lucide-react-native";
 import AnimatedSearch from "../../components/AnimatedSearch";
 import CollapsibleFilter from "../../components/CollapsibleFilter";
 
-export default function StudentDashboardScreen({ student: loggedStudent }) {
+export default function StudentDashboardScreen({ student: loggedStudent, isTab }) {
     const { navigate } = useContext(NavigationContext);
     const { darkMode, lightTheme, darkTheme } = useTheme();
     const colors = darkMode ? darkTheme : lightTheme;
@@ -80,11 +80,6 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
     const handleRegisterForEvent = async (event) => {
         try {
-            console.log("=== REGISTRATION START ===");
-            console.log("Event ID:", event._id);
-            console.log("Access Token:", accessToken ? "Present" : "Missing");
-            console.log("API Endpoint:", api.studentRegisterEventAPI);
-
             const response = await fetch(api.studentRegisterEventAPI, {
                 method: "POST",
                 credentials: "include",
@@ -96,24 +91,14 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                 body: JSON.stringify({ eventId: event._id }),
             });
 
-            console.log("Response status:", response.status);
-            console.log("Response ok:", response.ok);
-
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error("Registration failed - Error data:", errorData);
                 throw new Error(errorData.message || "Registration failed");
             }
 
-            const data = await response.json();
-            console.log("Registration successful - Response data:", data);
             Alert.alert("Success", "Successfully registered for event!");
             fetchEvents(); // Refresh the list
         } catch (error) {
-            console.error("=== REGISTRATION ERROR ===");
-            console.error("Error type:", error.name);
-            console.error("Error message:", error.message);
-            console.error("Full error:", error);
             Alert.alert("Error", error.message || "Failed to register for event");
         }
     };
@@ -144,25 +129,24 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
             if (!matchesSearch) return false;
         }
 
-        // Date range filter: Show events that OVERLAP with the selected filter range
+        // Date range filter
         if (startDate || endDate) {
             const eventStart = event.startDate ? new Date(event.startDate) : new Date(event.eventDate);
             const eventEnd = event.endDate ? new Date(event.endDate) : eventStart;
-
-            // Reset time for comparison
             eventStart.setHours(0, 0, 0, 0);
             eventEnd.setHours(0, 0, 0, 0);
 
             const filterStart = startDate ? new Date(startDate) : null;
             if (filterStart) filterStart.setHours(0, 0, 0, 0);
-
             const filterEnd = endDate ? new Date(endDate) : null;
             if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
 
-            // Overlap logic: (EventStart <= FilterEnd) && (EventEnd >= FilterStart)
             if (filterStart && eventEnd < filterStart) return false;
             if (filterEnd && eventStart > filterEnd) return false;
         }
+
+        // Exclude registered events from Explore
+        if (event.isRegistered) return false;
 
         return true;
     });
@@ -179,39 +163,16 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
     return (
         <View
-            className="flex-1 px-5 pt-8"
+            className={`flex-1 px-5 ${isTab ? "pt-2" : "pt-8"}`}
             style={{
                 backgroundColor:
                     (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
             }}
         >
-            {/* Header Card */}
-            <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-                <View className="flex-row items-center justify-between">
-                    <View className="flex-1">
-                        <Text className="text-lg font-bold" style={{ color: colors.header }}>
-                            Welcome, {loggedStudent?.name || "Student"}
-                        </Text>
-                        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                            PRN: {loggedStudent?.prn || "N/A"}
-                        </Text>
-                    </View>
-                    <TouchableOpacity
-                        className="px-3 py-1.5 rounded-full border ml-2"
-                        style={{ borderColor: colors.error || "#ef4444", borderWidth: 1 }}
-                        onPress={handleLogout}
-                    >
-                        <Text className="text-xs font-bold" style={{ color: colors.error || "#ef4444" }}>
-                            Logout
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
             {/* Title + Search Row */}
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                 <Text style={{ fontSize: 20, fontWeight: '800', color: colors.header, flex: 1 }}>
-                    Upcoming Events
+                    Explore Events
                 </Text>
                 <AnimatedSearch
                     placeholder="Search events..."
@@ -220,41 +181,6 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                     colors={colors}
                     containerStyle={{ marginBottom: 0 }}
                 />
-            </View>
-
-            {/* Action Buttons — equal width, solid, prominent */}
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                <TouchableOpacity
-                    style={{
-                        flex: 1,
-                        backgroundColor: '#7c3aed',
-                        borderRadius: 10,
-                        paddingVertical: 10,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}
-                    onPress={() => navigate("StudentInternships", { student: loggedStudent })}
-                    activeOpacity={0.8}
-                >
-                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>🎓 Internships</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={{
-                        flex: 1,
-                        backgroundColor: colors.accent,
-                        borderRadius: 10,
-                        paddingVertical: 10,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexDirection: 'row',
-                    }}
-                    onPress={() => navigate("StudentMyEvents", { student: loggedStudent })}
-                    activeOpacity={0.8}
-                >
-                    <Calendar size={14} color="white" style={{ marginRight: 6 }} />
-                    <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>My Events</Text>
-                </TouchableOpacity>
             </View>
 
             {/* Collapsible Date Filter */}

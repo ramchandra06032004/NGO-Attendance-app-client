@@ -32,6 +32,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const [endDate, setEndDate] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
+  const [sortOrder, setSortOrder] = useState("newest"); // "newest" or "oldest"
   const { logout, accessToken } = useContext(AuthContext);
 
   useEffect(() => {
@@ -125,6 +126,10 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
     }
 
     return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.startDate || a.eventDate);
+    const dateB = new Date(b.startDate || b.eventDate);
+    return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
   });
 
   const clearDateRange = () => {
@@ -230,54 +235,13 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
         />
       </View>
 
-      {/* --- ACTION BUTTONS (equal width, prominent) --- */}
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: colors.accent,
-            borderRadius: 10,
-            paddingVertical: 10,
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexDirection: 'row',
-          }}
-          onPress={() => navigate("AddEvent")}
-          activeOpacity={0.8}
-        >
-          <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>+ New Event</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: '#7c3aed',
-            borderRadius: 10,
-            paddingVertical: 10,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onPress={() => navigate("NgoInternships", { ngo: loggedNgo })}
-          activeOpacity={0.8}
-        >
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>🎓 Internships</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity
-          style={{
-            flex: 1,
-            backgroundColor: colors.accent + 'dd',
-            borderRadius: 10,
-            paddingVertical: 10,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-          onPress={() => navigate("AddStudent", { isNgoVolunteer: true, ngo: loggedNgo })}
-          activeOpacity={0.8}
-        >
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>+ Volunteer</Text>
-        </TouchableOpacity>
-      </View>
+
+
+
+
+
 
       {/* --- FILTERS --- */}
       <CollapsibleFilter colors={colors} title="Filter by Date">
@@ -377,6 +341,33 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
               <Text className="text-white font-bold text-sm">✕</Text>
             </TouchableOpacity>
           )}
+        </View>
+
+        {/* --- Sort Options --- */}
+        <View className="mt-4 pt-3 border-t" style={{ borderTopColor: colors.border }}>
+          <Text className="text-xs font-bold mb-2 uppercase tracking-widest" style={{ color: colors.textSecondary }}>Sort By Date</Text>
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={() => setSortOrder("newest")}
+              className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+              style={{
+                backgroundColor: sortOrder === "newest" ? colors.accent : colors.cardBg,
+                borderColor: sortOrder === "newest" ? colors.accent : colors.border,
+              }}
+            >
+              <Text className="text-xs font-bold" style={{ color: sortOrder === "newest" ? "#fff" : colors.textPrimary }}>Newest First</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setSortOrder("oldest")}
+              className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+              style={{
+                backgroundColor: sortOrder === "oldest" ? colors.accent : colors.cardBg,
+                borderColor: sortOrder === "oldest" ? colors.accent : colors.border,
+              }}
+            >
+              <Text className="text-xs font-bold" style={{ color: sortOrder === "oldest" ? "#fff" : colors.textPrimary }}>Oldest First</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </CollapsibleFilter>
 

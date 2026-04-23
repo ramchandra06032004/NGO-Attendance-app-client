@@ -4,6 +4,7 @@ import HomeScreen from "./screens/HomeScreen";
 import NgoEventsScreen from "./screens/ngo/NgoEventsScreen";
 import EventDetailScreen from "./screens/ngo/EventDetailScreen";
 import EventInfoScreen from "./screens/ngo/EventInfoScreen";
+import NgoDashboard from "./screens/ngo/NgoDashboard";
 import SelectCollegeScreen from "./screens/ngo/SelectCollegeScreen";
 import StudentsListScreen from "./screens/ngo/StudentsListScreen";
 import CollegeClassesScreen from "./screens/college/CollegeClassesScreen";
@@ -25,7 +26,7 @@ import AttendanceRecords from "./screens/ngo/AttendanceRecords";
 import RegisteredStudentsScreen from "./screens/ngo/RegisteredStudentsScreen";
 import EntityDetailScreen from "./screens/admin/EntityDetailScreen";
 import StudentLoginScreen from "./screens/student/StudentLoginScreen";
-import StudentDashboardScreen from "./screens/student/StudentDashboardScreen";
+import StudentDashboardWrapper from "./screens/student/StudentDashboardWrapper";
 import StudentMyEventsScreen from "./screens/student/StudentMyEventsScreen";
 // Internship screens
 import NgoInternshipsScreen from "./screens/ngo/internship/NgoInternshipsScreen";
@@ -90,13 +91,13 @@ export default function AppContainer() {
   // Block access to login screens if already authenticated
   if (isAuthenticated && (route.name === "NgoLogin" || route.name === "CollegeLogin" || route.name === "AdminLogin" || route.name === "StudentLogin")) {
     if (userType === "ngo") {
-      return <NgoEventsScreen ngo={user} />;
+      return <NgoDashboard ngo={user} />;
     } else if (userType === "college") {
       return <CollegeClassesScreen college={user} />;
     } else if (userType === "admin") {
       return <AdminPanelScreen />;
     } else if (userType === "student") {
-      return <StudentDashboardScreen student={user} />;
+      return <StudentDashboardWrapper student={user} />;
     }
   }
 
@@ -115,7 +116,7 @@ export default function AppContainer() {
       Screen = <AdminLoginScreen />;
       break;
     case "NgoEvents":
-      Screen = <NgoEventsScreen ngo={route.params?.ngo || user} />;
+      Screen = <NgoDashboard ngo={route.params?.ngo || user} />;
       break;
     case "EventDetail":
       Screen = <EventDetailScreen eventId={route.params?.eventId} />;
@@ -215,7 +216,7 @@ export default function AppContainer() {
       Screen = <StudentLoginScreen />;
       break;
     case "StudentDashboard":
-      Screen = <StudentDashboardScreen student={route.params?.student || user} />;
+      Screen = <StudentDashboardWrapper student={route.params?.student || user} />;
       break;
     case "StudentMyEvents":
       Screen = <StudentMyEventsScreen student={route.params?.student || user} />;

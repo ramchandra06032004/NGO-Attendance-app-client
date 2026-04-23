@@ -24,7 +24,7 @@ import {
 } from "lucide-react-native";
 import AnimatedSearch from "../../../components/AnimatedSearch";
 
-export default function StudentMyInternshipsScreen({ student }) {
+export default function StudentMyInternshipsScreen({ student, isTab }) {
   const { goBack, navigate } = useContext(NavigationContext);
   const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -93,40 +93,62 @@ export default function StudentMyInternshipsScreen({ student }) {
 
   return (
     <View
-      className="flex-1 px-5 pt-8"
+      className={`flex-1 px-5 ${isTab ? "pt-2" : "pt-8"}`}
       style={{
         backgroundColor:
           (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
       }}
     >
       {/* Header Row */}
-      <View className="flex-row items-center justify-between mb-4" style={{ zIndex: 10 }}>
-        <View className="flex-row items-center flex-1">
-          <TouchableOpacity
-            onPress={goBack}
-            className="p-2 rounded-full mr-3 border"
-            style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
-          >
-            <ChevronLeft size={22} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <View>
-            <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
-              My Internships
+      {!isTab && (
+        <View className="flex-row items-center justify-between mb-4" style={{ zIndex: 10 }}>
+          <View className="flex-row items-center flex-1">
+            <TouchableOpacity
+              onPress={goBack}
+              className="p-2 rounded-full mr-3 border"
+              style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+            >
+              <ChevronLeft size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <View>
+              <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
+                My Internships
+              </Text>
+              <Text className="text-[10px]" style={{ color: colors.textSecondary }}>
+                {internships.length} applications
+              </Text>
+            </View>
+          </View>
+
+          <AnimatedSearch
+            placeholder="Search..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            colors={colors}
+            containerStyle={{ marginBottom: 0 }}
+          />
+        </View>
+      )}
+
+      {isTab && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 20, fontWeight: '800', color: colors.header }}>
+              Applied Internships
             </Text>
-            <Text className="text-[10px]" style={{ color: colors.textSecondary }}>
-              {internships.length} applications
+            <Text style={{ fontSize: 10, color: colors.textSecondary }}>
+              {internships.length} applications total
             </Text>
           </View>
+          <AnimatedSearch
+            placeholder="Search..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            colors={colors}
+            containerStyle={{ marginBottom: 0 }}
+          />
         </View>
-
-        <AnimatedSearch
-          placeholder="Search..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          colors={colors}
-          containerStyle={{ marginBottom: 0 }}
-        />
-      </View>
+      )}
 
 
       {loading ? (

@@ -16,7 +16,7 @@ import * as api from "../../../../apis/api";
 import { ChevronLeft, Briefcase, BookOpen, Search } from "lucide-react-native";
 import AnimatedSearch from "../../../components/AnimatedSearch";
 
-export default function StudentInternshipsScreen({ student }) {
+export default function StudentInternshipsScreen({ student, isTab }) {
   const { goBack, navigate } = useContext(NavigationContext);
   const { accessToken } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -99,67 +99,84 @@ export default function StudentInternshipsScreen({ student }) {
     if (item.applicationStatus === "rejected") return { text: "✕ Sorry, not selected", bg: "#ef4444", disabled: true };
     return { text: "Applied", bg: "#94a3b8", disabled: true };
   };
-
   return (
     <View
-      className="flex-1 px-5 pt-8"
+      className={`flex-1 px-5 ${isTab ? "pt-2" : "pt-8"}`}
       style={{
         backgroundColor:
           (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
       }}
     >
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-        {/* Back + Title */}
-        <TouchableOpacity
-          onPress={goBack}
-          style={{
-            padding: 8,
-            borderRadius: 20,
-            marginRight: 10,
-            borderWidth: 1,
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-          }}
-        >
-          <ChevronLeft size={20} color={colors.textPrimary} />
-        </TouchableOpacity>
+      {!isTab && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+          {/* Back + Title */}
+          <TouchableOpacity
+            onPress={goBack}
+            style={{
+              padding: 8,
+              borderRadius: 20,
+              marginRight: 10,
+              borderWidth: 1,
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+            }}
+          >
+            <ChevronLeft size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
 
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.header }}>Internship Offers</Text>
-          <Text style={{ fontSize: 10, color: colors.textSecondary }}>Browse & apply</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: colors.header }}>Internship Offers</Text>
+            <Text style={{ fontSize: 10, color: colors.textSecondary }}>Browse & apply</Text>
+          </View>
+
+          {/* Search — expands to fixed 200px, won't push My button */}
+          <AnimatedSearch
+            placeholder="Search..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            colors={colors}
+            containerStyle={{ marginBottom: 0, marginRight: 8 }}
+          />
         </View>
+      )}
 
-        {/* Search — expands to fixed 200px, won't push My button */}
-        <AnimatedSearch
-          placeholder="Search..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          colors={colors}
-          containerStyle={{ marginBottom: 0, marginRight: 8 }}
-        />
+      {isTab && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ fontSize: 20, fontWeight: '800', color: colors.header, flex: 1 }}>
+            Browse Internships
+          </Text>
+          <AnimatedSearch
+            placeholder="Search..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            colors={colors}
+            containerStyle={{ marginBottom: 0 }}
+          />
+        </View>
+      )}
 
-
-      </View>
       {/* My Internships */}
-      <TouchableOpacity
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: colors.accent,
-          backgroundColor: darkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
-          marginBottom: 16,
-          marginTop: 4,
-        }}
-        onPress={() => navigate("StudentMyInternships", { student })}
-      >
-        <BookOpen size={16} color={colors.accent} style={{ marginRight: 8 }} />
-        <Text style={{ fontSize: 13, fontWeight: '700', color: colors.accent }}>My Internships</Text>
-      </TouchableOpacity>
+      {!isTab && (
+        <TouchableOpacity
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: colors.accent,
+            backgroundColor: darkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.05)',
+            marginBottom: 16,
+            marginTop: 4,
+          }}
+          onPress={() => navigate("StudentMyInternships", { student })}
+        >
+          <BookOpen size={16} color={colors.accent} style={{ marginRight: 8 }} />
+          <Text style={{ fontSize: 13, fontWeight: '700', color: colors.accent }}>My Internships</Text>
+        </TouchableOpacity>
+      )}
       {loading ? (
         <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color={colors.accent} />

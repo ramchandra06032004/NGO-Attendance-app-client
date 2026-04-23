@@ -368,6 +368,14 @@ export default function CreateInternshipScreen() {
         </View>
 
         <Field
+          label="SPOC Name"
+          value={form.spocName}
+          onChangeText={(v) => update("spocName", v)}
+          placeholder="Enter coordinator name"
+          colors={colors}
+        />
+
+        <Field
           label="SPOC Contact"
           value={form.spocContact}
           onChangeText={(v) => update("spocContact", v)}

@@ -8,6 +8,7 @@ import {
   ScrollView,
   TextInput,
 } from "react-native";
+import { ChevronLeft } from "lucide-react-native";
 
 import { ngo_host } from "../../../apis/api";
 import { useTheme } from "../../context/ThemeContext";
@@ -538,13 +539,13 @@ export default function AttendanceRecords({ route = {} }) {
         <View className="flex-row justify-between items-center mb-4">
           <TouchableOpacity
             onPress={() => goBack()}
-            className="px-4 py-2 rounded-xl border flex-row items-center"
+            className="p-2 rounded-full border"
             style={{
               borderColor: colors.border,
               backgroundColor: colors.backgroundColors?.[0] || '#fff',
             }}
           >
-            <Text className="font-semibold" style={{ color: colors.textPrimary }}>← Back</Text>
+            <ChevronLeft size={22} color={colors.textPrimary} />
           </TouchableOpacity>
 
           {attendanceData.attendance && attendanceData.attendance.length > 0 && (

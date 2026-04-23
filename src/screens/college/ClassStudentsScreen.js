@@ -6,6 +6,7 @@ import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getAllCollegeAPI } from '../../../apis/api';
 import AnimatedSearch from '../../components/AnimatedSearch';
+import { ChevronLeft } from 'lucide-react-native';
 
 export default function ClassStudentsScreen({ college, className }) {
   const { navigate, goBack } = useContext(NavigationContext);
@@ -196,12 +197,14 @@ export default function ClassStudentsScreen({ college, className }) {
             onPress={() => goBack()}
             style={{
               marginRight: 12,
-              padding: 8,
+              padding: 6,
               borderRadius: 20,
+              borderWidth: 1,
+              borderColor: colors.border,
               backgroundColor: colors.backgroundColors?.[1] || "#F3F4F6",
             }}
           >
-            <Text style={{ fontSize: 18, color: colors.textPrimary, fontWeight: "bold" }}>←</Text>
+            <ChevronLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
 
           <View style={{ flex: 1 }}>

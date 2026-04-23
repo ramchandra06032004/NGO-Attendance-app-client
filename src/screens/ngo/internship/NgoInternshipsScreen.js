@@ -8,24 +8,32 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Image,
 } from "react-native";
 import { NavigationContext } from "../../../context/NavigationContext";
 import { AuthContext } from "../../../context/AuthContext";
 import { useTheme } from "../../../context/ThemeContext";
 import * as api from "../../../../apis/api";
-import { ChevronLeft, Briefcase, Users, Plus, Search, Clock } from "lucide-react-native";
+import { ChevronLeft, Briefcase, Users, Plus, Search, Clock, LayoutGrid } from "lucide-react-native";
 import AnimatedSearch from "../../../components/AnimatedSearch";
+import CollapsibleFilter from "../../../components/CollapsibleFilter";
 
-export default function NgoInternshipsScreen({ ngo }) {
+export default function NgoInternshipsScreen({ ngo, hideHeaderBack }) {
   const { navigate, goBack } = useContext(NavigationContext);
-  const { accessToken } = useContext(AuthContext);
+  const { accessToken, logout } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("Home");
+  };
 
   const [internships, setInternships] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortOrder, setSortOrder] = useState("newest");
 
   useEffect(() => {
     fetchInternships();
@@ -106,6 +114,10 @@ export default function NgoInternshipsScreen({ ngo }) {
       item.domain?.toLowerCase().includes(q) ||
       item.location?.toLowerCase().includes(q)
     );
+  }).sort((a, b) => {
+    const dateA = new Date(a.startDate);
+    const dateB = new Date(b.startDate);
+    return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
   });
 
   return (
@@ -116,51 +128,131 @@ export default function NgoInternshipsScreen({ ngo }) {
           (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
       }}
     >
-      {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-        <TouchableOpacity
-          onPress={goBack}
-          style={{
-            padding: 8,
-            borderRadius: 20,
-            marginRight: 10,
-            borderWidth: 1,
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-          }}
-        >
-          <ChevronLeft size={20} color={colors.textPrimary} />
-        </TouchableOpacity>
+      {/* --- HEADER CARD --- */}
+      <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+        <View className="flex-row items-center justify-between gap-1">
+          {/* Left: Logo + NGO Info */}
+          <View className="flex-row items-center flex-1 gap-3">
+            {/* Logo Box */}
+            <View
+              className="rounded-lg border overflow-hidden"
+              style={{
+                backgroundColor: colors.iconBg,
+                borderColor: colors.border,
+                width: 60,
+                height: 60,
+                flexShrink: 0,
+              }}
+            >
+              {ngo?.profileImage ? (
+                <Image
+                  source={{ uri: ngo.profileImage }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View className="flex-1 justify-center items-center" style={{ backgroundColor: colors.accent }}>
+                  <Text className="text-white font-bold text-xl">
+                    {ngo?.name?.[0]?.toUpperCase() || "N"}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {/* NGO Name & Address */}
+            <View className="flex-1">
+              <Text
+                className="font-bold text-sm leading-5"
+                style={{ color: colors.header }}
+                numberOfLines={1}
+              >
+                {ngo?.name?.toUpperCase() || "NGO NAME"}
+              </Text>
+              <Text
+                className="text-xs mt-0.5"
+                style={{ color: colors.textSecondary }}
+                numberOfLines={1}
+              >
+                {ngo?.address || "NGO Address"}
+              </Text>
+            </View>
+          </View>
+
+          {/* Right: Logout Button */}
+          <TouchableOpacity
+            className="px-3 py-1.5 rounded-full border ml-1"
+            style={{ borderColor: colors.error || "#ef4444", borderWidth: 1 }}
+            onPress={handleLogout}
+          >
+            <Text
+              className="text-xs font-bold"
+              style={{ color: colors.error || "#ef4444" }}
+            >
+              Logout
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* --- TITLE ROW --- */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        {!hideHeaderBack && (
+          <TouchableOpacity
+            onPress={goBack}
+            style={{
+              padding: 8,
+              borderRadius: 20,
+              marginRight: 10,
+              borderWidth: 1,
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+            }}
+          >
+            <ChevronLeft size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+        )}
 
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.header }}>Internships</Text>
-          <Text style={{ fontSize: 10, color: colors.textSecondary }}>{internships.length} programs</Text>
+          <Text style={{ fontSize: 22, fontWeight: '800', color: colors.header }}>Internships</Text>
+          <Text style={{ fontSize: 10, color: colors.textSecondary }}>{internships.length} programs total</Text>
         </View>
 
         <AnimatedSearch
-          placeholder="Search..."
+          placeholder="Search internships..."
           value={searchQuery}
           onChangeText={setSearchQuery}
           colors={colors}
-          containerStyle={{ marginBottom: 0, marginRight: 8 }}
+          containerStyle={{ marginBottom: 0 }}
         />
-
-        <TouchableOpacity
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 10,
-            backgroundColor: colors.accent,
-            height: 40,
-          }}
-          onPress={() => navigate("CreateInternship")}
-        >
-          <Plus size={14} color="white" style={{ marginRight: 4 }} />
-          <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>New</Text>
-        </TouchableOpacity>
       </View>
+
+      {/* --- SORTING --- */}
+      <CollapsibleFilter colors={colors} title="Sort Options">
+        <View className="pt-2">
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={() => setSortOrder("newest")}
+              className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+              style={{
+                backgroundColor: sortOrder === "newest" ? colors.accent : colors.cardBg,
+                borderColor: sortOrder === "newest" ? colors.accent : colors.border,
+              }}
+            >
+              <Text className="text-xs font-bold" style={{ color: sortOrder === "newest" ? "#fff" : colors.textPrimary }}>Newest First</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setSortOrder("oldest")}
+              className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+              style={{
+                backgroundColor: sortOrder === "oldest" ? colors.accent : colors.cardBg,
+                borderColor: sortOrder === "oldest" ? colors.accent : colors.border,
+              }}
+            >
+              <Text className="text-xs font-bold" style={{ color: sortOrder === "oldest" ? "#fff" : colors.textPrimary }}>Oldest First</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </CollapsibleFilter>
 
       {loading ? (
         <View className="flex-1 justify-center items-center">

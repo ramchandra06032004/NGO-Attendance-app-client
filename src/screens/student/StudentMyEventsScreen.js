@@ -9,11 +9,18 @@ import {
     TextInput,
     Alert,
 } from "react-native";
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    useAnimatedScrollHandler,
+    interpolate,
+    Extrapolate,
+} from "react-native-reanimated";
 import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
-import { ChevronLeft, CheckCircle, Clock, XCircle, Search } from "lucide-react-native";
+import { ChevronLeft, CheckCircle, Clock, XCircle, Search, Info } from "lucide-react-native";
 import AnimatedSearch from "../../components/AnimatedSearch";
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -51,7 +58,7 @@ const isDatePast = (dateStr) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function StudentMyEventsScreen({ student }) {
+export default function StudentMyEventsScreen({ student, isTab }) {
     const { goBack } = useContext(NavigationContext);
     const { accessToken } = useContext(AuthContext);
     const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -61,6 +68,30 @@ export default function StudentMyEventsScreen({ student }) {
     const [searchQuery, setSearchQuery] = useState("");
     const [refreshing, setRefreshing] = useState(false);
     const [expandedEvents, setExpandedEvents] = useState(new Set());
+
+    // --- Animation Logic ---
+    const scrollY = useSharedValue(0);
+    const flatListRef = React.useRef(null);
+
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (event) => {
+            scrollY.value = event.contentOffset.y;
+        },
+    });
+
+    const headerOpacity = useAnimatedStyle(() => {
+        return {
+            opacity: interpolate(scrollY.value, [0, 100], [1, 0], Extrapolate.CLAMP),
+            transform: [{ translateY: interpolate(scrollY.value, [0, 100], [0, -20], Extrapolate.CLAMP) }],
+        };
+    });
+
+    const stickyBarTranslateY = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: interpolate(scrollY.value, [100, 150], [-100, 0], Extrapolate.CLAMP) }],
+            opacity: interpolate(scrollY.value, [100, 150], [0, 1], Extrapolate.CLAMP),
+        };
+    });
 
     const toggleExpand = (eventId) => {
         const newSet = new Set(expandedEvents);
@@ -237,100 +268,110 @@ export default function StudentMyEventsScreen({ student }) {
             </View>
         );
     };
+    const renderStickyStats = () => {
+        if (loading || events.length === 0) return null;
+        return (
+            <Animated.View
+                style={[
+                    stickyBarTranslateY,
+                    {
+                        position: 'absolute',
+                        top: isTab ? 2 : 0, 
+                        left: 0,
+                        right: 0,
+                        zIndex: 1000,
+                        backgroundColor: colors.cardBg,
+                        paddingVertical: 12,
+                        paddingHorizontal: 16,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 8,
+                        elevation: 5,
+                    }
+                ]}
+            >
+                <TouchableOpacity 
+                    activeOpacity={0.8} 
+                    onPress={() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true })}
+                    style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                >
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: grade.color + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        <Text style={{ fontSize: 18 }}>{grade.icon}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: grade.color }}>{scorePct}%</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.header, marginLeft: 8 }}>Attendance</Text>
+                        </View>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                            {attendanceStats.presentDays} of {attendanceStats.pastDaysCount} events attended
+                        </Text>
+                    </View>
+                    <View style={{ backgroundColor: colors.accent + '10', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                        <Info size={14} color={colors.accent} />
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
 
     return (
         <View
-            className="flex-1 px-5 pt-8"
+            className={`flex-1 px-5 ${isTab ? "pt-2" : "pt-8"}`}
             style={{
                 backgroundColor:
                     (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
             }}
         >
+            {renderStickyStats()}
+
             {/* Header */}
-            <View className="flex-row items-center justify-between mb-4" style={{ zIndex: 10 }}>
-                <View className="flex-row items-center flex-1">
-                    <TouchableOpacity
-                        onPress={goBack}
-                        className="p-2 rounded-full mr-3 border"
-                        style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
-                    >
-                        <ChevronLeft size={24} color={colors.textPrimary} />
-                    </TouchableOpacity>
-                    <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
-                        My Events
-                    </Text>
-                </View>
-
-                <AnimatedSearch
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    colors={colors}
-                    containerStyle={{ marginBottom: 0 }}
-                />
-            </View>
-
-            {/* Stats Card */}
-            {!loading && events.length > 0 && (
-                <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-                    {/* Counts row */}
-                    <View className="flex-row justify-around mb-4">
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: colors.accent }}>
-                                {attendanceStats.totalDays}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Total
-                            </Text>
-                        </View>
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: "#10b981" }}>
-                                {attendanceStats.presentDays}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Attended
-                            </Text>
-                        </View>
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: "#ef4444" }}>
-                                {attendanceStats.absentDays}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Absent
-                            </Text>
-                        </View>
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
-                                {attendanceStats.upcomingDays}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Upcoming
-                            </Text>
-                        </View>
+            {!isTab && (
+                <View className="flex-row items-center justify-between mb-4" style={{ zIndex: 10 }}>
+                    <View className="flex-row items-center flex-1">
+                        <TouchableOpacity
+                            onPress={goBack}
+                            className="p-2 rounded-full mr-3 border"
+                            style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+                        >
+                            <ChevronLeft size={24} color={colors.textPrimary} />
+                        </TouchableOpacity>
+                        <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
+                            My Events
+                        </Text>
                     </View>
 
-                    {/* Score Section */}
-                    <View style={{ backgroundColor: grade.color + '12', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: grade.color + '40' }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: colors.textSecondary }}>My Attendance</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 }}>
-                                <Text style={{ fontSize: 11, marginRight: 3 }}>{grade.icon}</Text>
-                                <Text style={{ fontSize: 11, fontWeight: 'bold', color: grade.color }}>{grade.label}</Text>
-                            </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 6 }}>
-                            <Text style={{ fontSize: 26, fontWeight: '900', color: grade.color, lineHeight: 30 }}>{scorePct}%</Text>
-                            <Text style={{ fontSize: 10, color: colors.textSecondary, marginLeft: 6 }}>({attendanceStats.presentDays} attended / {attendanceStats.pastDaysCount} past days)</Text>
-                        </View>
-                        {/* Progress bar */}
-                        <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
-                            <View style={{ height: '100%', width: `${scorePct}%`, backgroundColor: grade.color, borderRadius: 3 }} />
-                        </View>
-                        <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Percentage based on present vs absent states for past days</Text>
-                    </View>
+                    <AnimatedSearch
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        colors={colors}
+                        containerStyle={{ marginBottom: 0 }}
+                    />
                 </View>
             )}
 
+            {isTab && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '800', color: colors.header, flex: 1 }}>
+                        Registered Events
+                    </Text>
+                    <AnimatedSearch
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        colors={colors}
+                        containerStyle={{ marginBottom: 0 }}
+                    />
+                </View>
+            )}
 
             {/* Event List */}
             {loading ? (
@@ -347,13 +388,77 @@ export default function StudentMyEventsScreen({ student }) {
                     </Text>
                 </View>
             ) : (
-                <FlatList
+                <Animated.FlatList
+                    ref={flatListRef}
+                    onScroll={scrollHandler}
+                    scrollEventThrottle={16}
                     data={filteredEvents}
                     keyExtractor={(item, index) => item._id || index.toString()}
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    }
+                    ListHeaderComponent={
+                        <Animated.View style={headerOpacity}>
+                            <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+                                {/* Counts row */}
+                                <View className="flex-row justify-around mb-4">
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: colors.accent }}>
+                                            {attendanceStats.totalDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Total
+                                        </Text>
+                                    </View>
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: "#10b981" }}>
+                                            {attendanceStats.presentDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Attended
+                                        </Text>
+                                    </View>
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: "#ef4444" }}>
+                                            {attendanceStats.absentDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Absent
+                                        </Text>
+                                    </View>
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
+                                            {attendanceStats.upcomingDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Upcoming
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Score Section */}
+                                <View style={{ backgroundColor: grade.color + '12', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: grade.color + '40' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                        <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: colors.textSecondary }}>My Attendance</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 }}>
+                                            <Text style={{ fontSize: 11, marginRight: 3 }}>{grade.icon}</Text>
+                                            <Text style={{ fontSize: 11, fontWeight: 'bold', color: grade.color }}>{grade.label}</Text>
+                                        </View>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 6 }}>
+                                        <Text style={{ fontSize: 26, fontWeight: '900', color: grade.color, lineHeight: 30 }}>{scorePct}%</Text>
+                                        <Text style={{ fontSize: 10, color: colors.textSecondary, marginLeft: 6 }}>({attendanceStats.presentDays} attended / {attendanceStats.pastDaysCount} past days)</Text>
+                                    </View>
+                                    {/* Progress bar */}
+                                    <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
+                                        <View style={{ height: '100%', width: `${scorePct}%`, backgroundColor: grade.color, borderRadius: 3 }} />
+                                    </View>
+                                    <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Percentage based on present vs absent states for past days</Text>
+                                </View>
+                            </View>
+                        </Animated.View>
                     }
                     ListEmptyComponent={
                         <View className="flex-1 justify-center items-center py-10">

@@ -9,6 +9,7 @@ import {
   ToastAndroid,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { ChevronLeft } from "lucide-react-native";
 import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -283,21 +284,30 @@ export default function AddEventScreen() {
           : "#fff",
       }}
     >
-      <ScrollView contentContainerStyle={{ padding: 20 }}>
-        {/* Back Button */}
+      {/* Header */}
+      <View
+        className="flex-row items-center px-5 pt-10 pb-4 border-b"
+        style={{ borderBottomColor: colors.border, backgroundColor: colors.cardBg }}
+      >
         <TouchableOpacity
           onPress={goBack}
-          style={{
-            marginBottom: 15,
-            alignSelf: 'flex-start',
-          }}
+          className="p-2 rounded-full mr-3 border"
+          style={{ borderColor: colors.border }}
         >
-          <Text style={{ fontSize: 28, color: colors.textPrimary }}>←</Text>
+          <ChevronLeft size={22} color={colors.textPrimary} />
         </TouchableOpacity>
+        <View>
+          <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
+            Add New Event
+          </Text>
+          <Text className="text-xs" style={{ color: colors.textSecondary }}>
+            Fill in the event details below
+          </Text>
+        </View>
+      </View>
 
-        <Text className="text-3xl font-bold mb-5 text-center" style={{ color: colors.header }}>
-          Add New Event
-        </Text>
+      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 40 }}>
+
         <TextInput
           placeholder="Location"
           value={location}

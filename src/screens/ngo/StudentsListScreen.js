@@ -12,6 +12,7 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
+import { ChevronLeft } from "lucide-react-native";
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 /** Returns "YYYY-MM-DD" for a Date or ISO string */
@@ -429,10 +430,10 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
         <View className="flex-row items-center justify-between mb-3">
           <TouchableOpacity
             onPress={() => goBack()}
-            className="px-4 py-2 rounded-xl border flex-row items-center"
+            className="p-2 rounded-full border mr-3"
             style={{ borderColor: colors.border, backgroundColor: colors.backgroundColors?.[0] || "#fff" }}
           >
-            <Text className="font-semibold" style={{ color: colors.textPrimary }}>← Back</Text>
+            <ChevronLeft size={22} color={colors.textPrimary} />
           </TouchableOpacity>
 
           {/* Stats Badge */}
