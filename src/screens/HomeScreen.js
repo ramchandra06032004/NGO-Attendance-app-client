@@ -21,71 +21,76 @@ import { NavigationContext } from '../context/NavigationContext';
 import { AuthContext } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
-import Animated, { 
-  useSharedValue, 
-  useAnimatedStyle, 
-  withSpring, 
-  withTiming 
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming
 } from 'react-native-reanimated';
 
 // --- Card Component ---
 const LoginCard = ({ icon: Icon, title, subtitle, color = '#64748b', onPress, darkMode, disabled }) => {
   const scale = useSharedValue(1);
+  const shadow = useSharedValue(0.05);
+  const glow = useSharedValue(0);
+
   const { lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
-  
   const activeColor = color || '#64748b';
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
+    shadowOpacity: shadow.value,
+    borderColor: glow.value === 0 ? colors.border : `${activeColor}66`,
+    borderWidth: glow.value === 0 ? 1 : 2,
   }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.97);
+    shadow.value = withSpring(0.15);
+    glow.value = withTiming(1, { duration: 200 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1);
+    shadow.value = withSpring(0.05);
+    glow.value = withTiming(0, { duration: 200 });
+  };
 
   return (
     <Pressable
       onPress={disabled ? null : onPress}
-      onPressIn={() => (scale.value = withSpring(0.97))}
-      onPressOut={() => (scale.value = withSpring(1))}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       className="flex-1"
     >
       <Animated.View
-        className="p-6 rounded-2xl items-center justify-center border overflow-hidden"
+        className="p-6 rounded-[28px] items-center justify-center border overflow-hidden"
         style={[
           animatedStyle,
           {
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-            borderWidth: 1,
+            backgroundColor: darkMode ? `${colors.cardBg}CC` : `${colors.cardBg}EE`,
             shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.05,
-            shadowRadius: 10,
-            elevation: 2,
+            shadowOffset: { width: 0, height: 10 },
+            shadowRadius: 24,
+            elevation: 4,
             opacity: disabled ? 0.4 : 1,
-            height: 160,
+            height: 180,
           },
         ]}
       >
-        {/* Subtle Accent Bar */}
-        <View 
-          style={{ 
-            position: 'absolute', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            height: 4, 
-            backgroundColor: activeColor,
-            opacity: 0.8
-          }} 
-        />
-
-        <View className="mb-4">
-          <Icon color={activeColor} size={36} strokeWidth={2} />
+        {/* Modern Icon Container */}
+        <View
+          className="w-16 h-16 rounded-full items-center justify-center mb-4"
+          style={{ backgroundColor: `${activeColor}15` }}
+        >
+          <Icon color={activeColor} size={32} strokeWidth={2} />
         </View>
-        
-        <Text className="text-base font-bold text-center mb-1" style={{ color: colors.header }}>
+
+        <Text className="text-lg font-bold text-center mb-1" style={{ color: colors.header }}>
           {title}
         </Text>
-        <Text className="text-[11px] text-center font-medium leading-4 px-2" style={{ color: colors.textSecondary, opacity: 0.9 }}>
+        <Text className="text-xs text-center font-medium leading-4 px-2 opacity-60" style={{ color: colors.textSecondary }}>
           {subtitle}
         </Text>
       </Animated.View>
@@ -113,8 +118,8 @@ export default function HomeScreen() {
       style={{ flex: 1 }}
     >
       <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView 
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 100 }} 
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
         >
           {/* Theme Toggle - Absolute top right */}
@@ -129,33 +134,33 @@ export default function HomeScreen() {
           </View>
 
           {/* Header Section */}
-          <View className="items-center mb-10">
+          <View className="items-center mb-12">
             <Image
               source={require('../../assets/CODER_HIVE_logo.png')}
-              style={{ width: 100, height: 100 }}
+              style={{ width: 110, height: 110 }}
               resizeMode="contain"
             />
-            <View className="flex-row items-center mt-2 gap-1">
-              <Text className="text-3xl font-black" style={{ color: colors.header }}>MarkIn</Text>
-              <BadgeCheck color={colors.accent} size={24} />
+            <View className="flex-row items-center mt-3 gap-1.5">
+              <Text className="text-3xl font-black tracking-tight" style={{ color: colors.header }}>MarkIn</Text>
+              <BadgeCheck color={colors.accent} size={26} />
             </View>
-            <Text className="text-[13px] font-semibold mt-1" style={{ color: colors.textSecondary }}>
+            <Text className="text-sm font-semibold mt-1.5 opacity-60" style={{ color: colors.textSecondary }}>
               Seamlessly Mark • Track • Verify Attendance
             </Text>
           </View>
 
           {/* Role Grid Section */}
-          <View className="w-full">
-            <Text className="text-sm font-bold mb-6 text-center uppercase tracking-widest opacity-60" style={{ color: colors.textSecondary }}>
-              Select Your Role
+          <View className="w-full px-1">
+            <Text className="text-lg font-bold mb-8 text-center" style={{ color: colors.header }}>
+              Choose your role
             </Text>
 
             {/* Row 1 */}
-            <View className="flex-row gap-4 mb-4">
+            <View className="flex-row gap-5 mb-5">
               <LoginCard
                 icon={HeartHandshake}
                 title="NGO"
-                subtitle="Mark attendance for events"
+                subtitle="Manage events & mark attendance"
                 color={roleColors.ngo}
                 darkMode={darkMode}
                 onPress={() => navigate('NgoLogin')}
@@ -164,7 +169,7 @@ export default function HomeScreen() {
               <LoginCard
                 icon={School}
                 title="College"
-                subtitle="Monitor student records"
+                subtitle="Monitor student attendance records"
                 color={roleColors.college}
                 darkMode={darkMode}
                 onPress={() => navigate('CollegeLogin')}
@@ -173,36 +178,29 @@ export default function HomeScreen() {
             </View>
 
             {/* Row 2 */}
-            <View className="flex-row gap-4">
-              <LoginCard
-                icon={GraduationCap}
-                title="Student"
-                subtitle="Browse and register"
-                color={roleColors.student}
-                darkMode={darkMode}
-                onPress={() => navigate('StudentLogin')}
-                disabled={isAuthenticated && userType !== 'student'}
-              />
-              <LoginCard
-                icon={Shield}
-                title="Admin"
-                subtitle="System management"
-                color={roleColors.admin}
-                darkMode={darkMode}
-                onPress={() => navigate('AdminLogin')}
-                disabled={isAuthenticated && userType !== 'admin'}
-              />
+            <View className="flex-row justify-center">
+              <View style={{ width: '48%' }}>
+                <LoginCard
+                  icon={GraduationCap}
+                  title="Student"
+                  subtitle="Browse events and register yourself"
+                  color={roleColors.student}
+                  darkMode={darkMode}
+                  onPress={() => navigate('StudentLogin')}
+                  disabled={isAuthenticated && userType !== 'student'}
+                />
+              </View>
             </View>
           </View>
 
           {/* Footer */}
-          <View className="pt-12 mt-12 items-center px-4 mb-4">
-            <Text className="text-[10px] font-bold uppercase tracking-[2px] mb-3 opacity-40" style={{ color: colors.textSecondary }}>
+          <View className="pt-16 items-center px-4">
+            <Text className="text-[10px] font-extrabold uppercase tracking-[3px] mb-4 opacity-20" style={{ color: colors.textSecondary }}>
               Developed by
             </Text>
             <Image
               source={darkMode ? require('../../assets/coderzhive-dark.png') : require('../../assets/coderzhive-light.png')}
-              style={{ height: 24, opacity: 0.6 }}
+              style={{ height: 22, opacity: 0.3 }}
               resizeMode="contain"
             />
           </View>
