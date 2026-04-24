@@ -25,7 +25,9 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  withTiming
+  withTiming,
+  FadeInDown,
+  FadeInUp,
 } from 'react-native-reanimated';
 
 // --- Card Component ---
@@ -65,11 +67,11 @@ const LoginCard = ({ icon: Icon, title, subtitle, color = '#64748b', onPress, da
       className="flex-1"
     >
       <Animated.View
-        className="p-6 rounded-[28px] items-center justify-center border overflow-hidden"
+        className="p-6 rounded-[28px] items-center justify-center overflow-hidden"
         style={[
           animatedStyle,
           {
-            backgroundColor: darkMode ? `${colors.cardBg}CC` : `${colors.cardBg}EE`,
+            backgroundColor: colors.cardBg,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 10 },
             shadowRadius: 24,
@@ -123,7 +125,10 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Theme Toggle - Absolute top right */}
-          <View style={{ position: 'absolute', top: 10, right: 20, zIndex: 10 }}>
+          <Animated.View 
+            entering={FadeInUp.duration(600).delay(100)}
+            style={{ position: 'absolute', top: 10, right: 20, zIndex: 10 }}
+          >
             <Pressable
               onPress={() => setTheme(!darkMode)}
               className="p-3 rounded-full active:scale-95"
@@ -131,10 +136,13 @@ export default function HomeScreen() {
             >
               {darkMode ? <Sun size={20} color="#facc15" strokeWidth={2.5} /> : <Moon size={20} color="#64748b" strokeWidth={2.5} />}
             </Pressable>
-          </View>
+          </Animated.View>
 
           {/* Header Section */}
-          <View className="items-center mb-12">
+          <Animated.View 
+            entering={FadeInDown.duration(600).delay(100)}
+            className="items-center mb-12"
+          >
             <Image
               source={require('../../assets/CODER_HIVE_logo.png')}
               style={{ width: 110, height: 110 }}
@@ -147,16 +155,23 @@ export default function HomeScreen() {
             <Text className="text-sm font-semibold mt-1.5 opacity-60" style={{ color: colors.textSecondary }}>
               Seamlessly Mark • Track • Verify Attendance
             </Text>
-          </View>
+          </Animated.View>
 
           {/* Role Grid Section */}
           <View className="w-full px-1">
-            <Text className="text-lg font-bold mb-8 text-center" style={{ color: colors.header }}>
+            <Animated.Text 
+              entering={FadeInDown.duration(600).delay(200)}
+              className="text-lg font-bold mb-8 text-center" 
+              style={{ color: colors.header }}
+            >
               Choose your role
-            </Text>
+            </Animated.Text>
 
             {/* Row 1 */}
-            <View className="flex-row gap-5 mb-5">
+            <Animated.View 
+              entering={FadeInDown.duration(600).delay(300)}
+              className="flex-row gap-5 mb-5"
+            >
               <LoginCard
                 icon={HeartHandshake}
                 title="NGO"
@@ -175,10 +190,13 @@ export default function HomeScreen() {
                 onPress={() => navigate('CollegeLogin')}
                 disabled={isAuthenticated && userType !== 'college'}
               />
-            </View>
+            </Animated.View>
 
             {/* Row 2 */}
-            <View className="flex-row justify-center">
+            <Animated.View 
+              entering={FadeInDown.duration(600).delay(400)}
+              className="flex-row justify-center"
+            >
               <View style={{ width: '48%' }}>
                 <LoginCard
                   icon={GraduationCap}
@@ -190,11 +208,14 @@ export default function HomeScreen() {
                   disabled={isAuthenticated && userType !== 'student'}
                 />
               </View>
-            </View>
+            </Animated.View>
           </View>
 
           {/* Footer */}
-          <View className="pt-16 items-center px-4">
+          <Animated.View 
+            entering={FadeInDown.duration(600).delay(500)}
+            className="pt-16 items-center px-4"
+          >
             <Text className="text-[10px] font-extrabold uppercase tracking-[3px] mb-4 opacity-20" style={{ color: colors.textSecondary }}>
               Developed by
             </Text>
@@ -203,68 +224,72 @@ export default function HomeScreen() {
               style={{ height: 22, opacity: 0.3 }}
               resizeMode="contain"
             />
-          </View>
+          </Animated.View>
         </ScrollView>
 
         {/* Help Button - Fixed at bottom-left */}
-        <Pressable
-          onPress={() => {
-            const helpUrl = 'https://ngo-website-1-d3az.onrender.com/';
-            Linking.openURL(helpUrl).catch(err => console.error('Failed to open URL:', err));
-          }}
-          className="px-3 py-1.5 rounded-full flex-row items-center active:opacity-70"
-          style={{
-            position: 'absolute',
-            bottom: 25,
-            left: 20,
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-            borderWidth: 1,
-            shadowColor: '#000',
-            shadowOpacity: 0.05,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
+        <Animated.View 
+          entering={FadeInUp.duration(600).delay(600)}
+          style={{ position: 'absolute', bottom: 25, left: 20 }}
         >
-          <HelpCircle size={14} color={colors.textSecondary} strokeWidth={2.5} />
-          <Text className="ml-1.5 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-            Help Center
-          </Text>
-        </Pressable>
+          <Pressable
+            onPress={() => {
+              const helpUrl = 'https://ngo-website-1-d3az.onrender.com/';
+              Linking.openURL(helpUrl).catch(err => console.error('Failed to open URL:', err));
+            }}
+            className="px-3 py-1.5 rounded-full flex-row items-center active:opacity-70"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              borderWidth: 1,
+              shadowColor: '#000',
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <HelpCircle size={14} color={colors.textSecondary} strokeWidth={2.5} />
+            <Text className="ml-1.5 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+              Help Center
+            </Text>
+          </Pressable>
+        </Animated.View>
 
         {/* Report/Mail Bugs Button - Fixed at bottom-right */}
-        <Pressable
-          onPress={() => {
-            if (Platform.OS === 'web') {
-              const email = 'coderzhiveai@gmail.com';
-              const subject = encodeURIComponent('Bug Report');
-              const body = encodeURIComponent('Please describe the bug you encountered:');
-              const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`;
-              window.open(gmailUrl, '_blank');
-            } else {
-              const bugReportEmail = 'mailto:coderzhiveai@gmail.com?subject=Bug Report&body=Please describe the bug you encountered:';
-              Linking.openURL(bugReportEmail).catch(err => console.error('Failed to open email:', err));
-            }
-          }}
-          className="px-3 py-1.5 rounded-full flex-row items-center active:opacity-70"
-          style={{
-            position: 'absolute',
-            bottom: 25,
-            right: 20,
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-            borderWidth: 1,
-            shadowColor: '#000',
-            shadowOpacity: 0.05,
-            shadowRadius: 4,
-            elevation: 2,
-          }}
+        <Animated.View 
+          entering={FadeInUp.duration(600).delay(600)}
+          style={{ position: 'absolute', bottom: 25, right: 20 }}
         >
-          <Mail size={14} color={colors.textSecondary} strokeWidth={2.5} />
-          <Text className="ml-1.5 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
-            Report Issue
-          </Text>
-        </Pressable>
+          <Pressable
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                const email = 'coderzhiveai@gmail.com';
+                const subject = encodeURIComponent('Bug Report');
+                const body = encodeURIComponent('Please describe the bug you encountered:');
+                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`;
+                window.open(gmailUrl, '_blank');
+              } else {
+                const bugReportEmail = 'mailto:coderzhiveai@gmail.com?subject=Bug Report&body=Please describe the bug you encountered:';
+                Linking.openURL(bugReportEmail).catch(err => console.error('Failed to open email:', err));
+              }
+            }}
+            className="px-3 py-1.5 rounded-full flex-row items-center active:opacity-70"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              borderWidth: 1,
+              shadowColor: '#000',
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <Mail size={14} color={colors.textSecondary} strokeWidth={2.5} />
+            <Text className="ml-1.5 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+              Report Issue
+            </Text>
+          </Pressable>
+        </Animated.View>
       </SafeAreaView>
     </LinearGradient>
   );
