@@ -8,6 +8,7 @@ import {
   ScrollView,
   TextInput,
 } from "react-native";
+import { ChevronLeft } from "lucide-react-native";
 
 import { ngo_host } from "../../../apis/api";
 import { useTheme } from "../../context/ThemeContext";
@@ -15,12 +16,35 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import ExcelJS from 'exceljs';
 import { Buffer } from 'buffer';
+import AnimatedSearch from "../../components/AnimatedSearch";
 // Platform-specific imports
 let RealFileSystem, RealSharing;
 if (RNPlatform.OS !== "web") {
   RealFileSystem = require("expo-file-system/legacy");
   RealSharing = require("expo-sharing");
 }
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function toDateString(date) {
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function getEventDates(startDate, endDate) {
+  const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate || startDate); end.setHours(0, 0, 0, 0);
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) { dates.push(toDateString(cur)); cur.setDate(cur.getDate() + 1); }
+  return dates;
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function AttendanceRecords({ route = {} }) {
   // Helper function to save file to local storage
@@ -79,24 +103,46 @@ export default function AttendanceRecords({ route = {} }) {
   const [registeredStudents, setRegisteredStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState("table"); // "table" or "card"
+  const [viewMode, setViewMode] = useState("card"); // "table" or "card"
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // ── Multi-day date selection ───────────────────────────────────────────────
+  const eventDates = React.useMemo(() => {
+    const start = event?.startDate || event?.eventDate;
+    const end = event?.endDate || start;
+    if (!start) return [];
+    return getEventDates(start, end);
+  }, [event]);
+  const isMultiDay = eventDates.length > 1;
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  // Default to today (or first day) when event dates are computed
+  useEffect(() => {
+    if (eventDates.length > 0 && selectedDate === null) {
+      const today = toDateString(new Date());
+      setSelectedDate(eventDates.includes(today) ? today : eventDates[0]);
+    }
+  }, [eventDates]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (event && event._id) {
-      fetchAttendance();
+      fetchAttendance(selectedDate);
       fetchRegisteredStudents();
     } else {
       setLoading(false);
       setError("Event data not available");
     }
-  }, [event]);
+  }, [event, selectedDate]);
 
-  const fetchAttendance = async () => {
+  const fetchAttendance = async (date) => {
     try {
+      setLoading(true);
+      const dateParam = date ? `?date=${date}` : "";
       const response = await fetch(
-        `${ngo_host}/event/${event._id}/attendance`,
+        `${ngo_host}/event/${event._id}/attendance${dateParam}`,
         {
           method: "GET",
           credentials: "include",
@@ -149,315 +195,239 @@ export default function AttendanceRecords({ route = {} }) {
     }
   };
 
-  // ✅ UPDATED FUNCTION: Uses exceljs to embed images
+  // Helper to fetch attendance data for a specific date (internal use for export)
+  const fetchAttendanceForExport = async (date) => {
+    const dateParam = date ? `?date=${date}` : "";
+    const response = await fetch(
+      `${ngo_host}/event/${event._id}/attendance${dateParam}`,
+      {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+    if (!response.ok) throw new Error(`Failed to fetch attendance for ${date}`);
+    const res = await response.json();
+    return res.data;
+  };
+
   const exportToExcel = async () => {
     try {
-      if (
-        !attendanceData.attendance ||
-        attendanceData.attendance.length === 0
-      ) {
-        alert("No attendance records to export");
-        return;
-      }
+      setIsExporting(true);
 
-      // 1. Initialize Workbook
       const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Attendance");
+      const todayString = toDateString(new Date());
 
-      // Prepare Data
-      const ngoName = user?.name || attendanceData.event?.ngo?.name || "NGO";
-      const ngoAddress =
-        user?.address ||
-        attendanceData.event?.ngo?.address ||
-        "Address not available";
-      const profileImageUrl =
-        user?.profileImage || attendanceData.event?.ngo?.profileImage || null;
+      // 1. Prepare NGO Info
+      const ngoName = user?.name || "NGO";
+      const ngoAddress = user?.address || "Address not available";
+      const profileImageUrl = user?.profileImage || null;
 
-      // 2. Handle Image Embedding (Fixed for Mobile & Web)
+      // 2. Fetch Image once
+      let imageId = null;
       if (profileImageUrl) {
         try {
           let base64Data = "";
           let extension = "png";
-
-          // Simple extension detection
           if (profileImageUrl.toLowerCase().includes("jpg") || profileImageUrl.toLowerCase().includes("jpeg")) {
             extension = "jpeg";
           }
 
           if (RNPlatform.OS === "web") {
-            // 🌍 WEB: Use Fetch + FileReader (Requires CORS allowed on Bucket)
             const response = await fetch(profileImageUrl);
             const blob = await response.blob();
-
             const reader = new FileReader();
             reader.readAsDataURL(blob);
-
-            await new Promise((resolve) => {
-              reader.onloadend = () => {
-                // Remove the "data:image/png;base64," prefix
-                base64Data = reader.result.toString().split(",")[1];
-                resolve();
-              };
+            base64Data = await new Promise((resolve) => {
+              reader.onloadend = () => resolve(reader.result.toString().split(",")[1]);
             });
-
           } else {
-            // 📱 MOBILE: Use FileSystem (More stable than fetch blob)
-            const fileUri = `${FileSystem.cacheDirectory}temp_excel_image.${extension}`;
-
-            // Download to local cache first
-            await FileSystem.downloadAsync(profileImageUrl, fileUri);
-
-            // Read as Base64
-            base64Data = await FileSystem.readAsStringAsync(fileUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
+            const fileUri = `${RealFileSystem.cacheDirectory}temp_logo.${extension}`;
+            await RealFileSystem.downloadAsync(profileImageUrl, fileUri);
+            base64Data = await RealFileSystem.readAsStringAsync(fileUri, { encoding: 'base64' });
           }
 
-          // Add to workbook
           if (base64Data) {
-            const imageId = workbook.addImage({
-              base64: base64Data,
-              extension: extension,
-            });
-
-            worksheet.addImage(imageId, {
-              tl: { col: 0, row: 1 }, // A2
-              br: { col: 1, row: 4 }, // B5
-              editAs: "oneCell",
-            });
+            imageId = workbook.addImage({ base64: base64Data, extension: extension });
           }
-
         } catch (err) {
-          console.log("Could not load image for Excel:", err);
-          worksheet.getCell("A2").value = "Image Error (See Logs)";
+          console.log("Image load error:", err);
         }
-      } else {
-        worksheet.getCell("A2").value = "No Image";
       }
-      // 3. Layout: Text Data (Matches previous design)
 
-      // Name (Merged B2:E2)
-      worksheet.mergeCells("B2:E2");
-      const nameCell = worksheet.getCell("B2");
-      nameCell.value = ngoName;
-      nameCell.font = { bold: true, size: 16 };
-      nameCell.alignment = { vertical: "middle" };
+      // 3. Loop through all dates to create sheets
+      const datesToExport = eventDates.length > 0 ? eventDates : [null];
 
-      // Address (Merged B3:E3)
-      worksheet.mergeCells("B3:E3");
-      const addrCell = worksheet.getCell("B3");
-      addrCell.value = ngoAddress;
-      addrCell.font = { color: { argb: "FF666666" }, size: 11 };
-      addrCell.alignment = { vertical: "top", wrapText: true };
+      for (const date of datesToExport) {
+        const sheetData = await fetchAttendanceForExport(date);
+        const sheetName = date ? formatDateLabel(date).replace(/,/g, "").replace(/\s+/g, "_") : "Attendance";
+        const worksheet = workbook.addWorksheet(sheetName);
 
-      // EVENT DETAILS Header (Merged A5:E5)
-      worksheet.mergeCells("A5:E5");
-      const eventHeader = worksheet.getCell("A5");
-      eventHeader.value = "EVENT DETAILS";
-      eventHeader.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF4472C4" },
-      };
-      eventHeader.font = { color: { argb: "FFFFFFFF" }, bold: true };
-      eventHeader.alignment = { horizontal: "center" };
+        // Layout NGO Logo
+        if (imageId) {
+          worksheet.addImage(imageId, {
+            tl: { col: 0, row: 1 },
+            br: { col: 1, row: 4 },
+            editAs: "oneCell",
+          });
+        } else {
+          worksheet.getCell("A2").value = "NGO Logo";
+        }
 
-      // Event Info Rows
-      const centerStyle = { horizontal: "center" };
+        // NGO Name & Address
+        worksheet.mergeCells("B2:E2");
+        const nc = worksheet.getCell("B2");
+        nc.value = ngoName;
+        nc.font = { bold: true, size: 16 };
+        nc.alignment = { vertical: "middle" };
 
-      const r6 = worksheet.getCell("A6");
-      r6.value = `Event: ${attendanceData.event?.aim || "N/A"}`;
-      r6.font = { bold: true, size: 14 };
-      r6.alignment = centerStyle;
-      worksheet.mergeCells("A6:E6");
+        worksheet.mergeCells("B3:E3");
+        const ac = worksheet.getCell("B3");
+        ac.value = ngoAddress;
+        ac.font = { color: { argb: "FF666666" }, size: 11 };
+        ac.alignment = { vertical: "top", wrapText: true };
 
-      const r7 = worksheet.getCell("A7");
-      r7.value = `Location: ${attendanceData.event?.location || "N/A"}`;
-      r7.alignment = centerStyle;
-      worksheet.mergeCells("A7:E7");
+        // Event Header
+        worksheet.mergeCells("A5:F5");
+        const eh = worksheet.getCell("A5");
+        eh.value = "EVENT ATTENDANCE RECORD";
+        eh.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+        eh.font = { color: { argb: "FFFFFFFF" }, bold: true };
+        eh.alignment = { horizontal: "center" };
 
-      const r8 = worksheet.getCell("A8");
-      r8.value = `Date: ${new Date(attendanceData.event?.eventDate).toLocaleDateString()}`;
-      r8.alignment = centerStyle;
-      worksheet.mergeCells("A8:E8");
+        // Event Info Rows
+        const center = { horizontal: "center" };
+        worksheet.mergeCells("A6:F6");
+        const r6 = worksheet.getCell("A6");
+        r6.value = `Event: ${sheetData.event?.aim || "N/A"}`;
+        r6.font = { bold: true, size: 14 };
+        r6.alignment = center;
 
-      const r9 = worksheet.getCell("A9");
-      r9.value = `Total Students Present: ${attendanceData.totalStudentsPresent || 0}`;
-      r9.alignment = centerStyle;
-      worksheet.mergeCells("A9:E9");
+        worksheet.mergeCells("A7:F7");
+        const r7 = worksheet.getCell("A7");
+        r7.value = `Location: ${sheetData.event?.location || "N/A"}`;
+        r7.alignment = center;
 
-      // 4. Table Header (Row 11)
-      const headerRow = worksheet.getRow(11);
-      headerRow.values = [
-        "Student Name",
-        "College",
-        "Department",
-        "Class",
-        "Status",
-        "Marked Date",
-      ];
+        worksheet.mergeCells("A8:F8");
+        const r8 = worksheet.getCell("A8");
+        const displayDate = date ? new Date(date).toLocaleDateString() : "All Records";
+        r8.value = `Attendance Date: ${displayDate}`;
+        r8.font = { italic: true };
+        r8.alignment = center;
 
-      headerRow.eachCell((cell) => {
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FF4472C4" },
-        };
-        cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-        cell.alignment = { horizontal: "center" };
-        cell.border = {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
+        worksheet.mergeCells("A9:F9");
+        const r9 = worksheet.getCell("A9");
+        r9.value = `Total Present: ${sheetData.totalStudentsPresent || 0}`;
+        r9.alignment = center;
 
-      // 5. Add Data Rows — include all merged students (Present + Absent/Registered)
-      const eventPastForExcel = (() => {
-        if (!attendanceData.event?.eventDate) return false;
-        const ed = new Date(attendanceData.event.eventDate);
-        ed.setHours(0, 0, 0, 0);
-        const td = new Date(); td.setHours(0, 0, 0, 0);
-        return ed < td;
-      })();
-
-      // Build attended set
-      const attendedIdsExcel = new Set(
-        (attendanceData.attendance || [])
-          .filter(s => s.attendanceMarkedAt)
-          .map(s => s._id)
-      );
-
-      // Present students
-      const presentRows = (attendanceData.attendance || [])
-        .filter(s => s.attendanceMarkedAt)
-        .map(s => ({
-          name: s.name || "",
-          collegeName: attendanceData.colleges?.find(col => col.classes.includes(s.classId._id))?.name || "",
-          department: s.department || "",
-          className: s.classId?.className || "",
-          status: "Present",
-          markedAt: new Date(s.attendanceMarkedAt).toLocaleDateString(),
-        }));
-
-      // Registered / Absent students
-      const registeredRows = registeredStudents
-        .filter(s => !attendedIdsExcel.has(s._id))
-        .map(s => ({
-          name: s.name || "",
-          collegeName: s.collegeName || "",
-          department: s.department || "",
-          className: s.class?.className || s.class?.name || "",
-          status: eventPastForExcel ? "Absent" : "Registered",
-          markedAt: "N/A",
-        }));
-
-      const allRows = [...presentRows, ...registeredRows];
-
-      allRows.forEach((student, index) => {
-        const row = worksheet.addRow([
-          student.name,
-          student.collegeName,
-          student.department,
-          student.className,
-          student.status,
-          student.markedAt,
-        ]);
-
-        // Alternating Row Colors
-        const bgColor = index % 2 === 0 ? "FFFFFFFF" : "FFF2F2F2";
-        row.eachCell((cell, colNumber) => {
-          // Status column (col 5) gets color-coded
-          if (colNumber === 5) {
-            const statusArgb =
-              student.status === "Present" ? "FF10b981" :
-                student.status === "Absent" ? "FFef4444" :
-                  "FFf59e0b"; // Registered
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: statusArgb } };
-            cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-          } else {
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
-          }
-          cell.alignment = { horizontal: "center" };
-          cell.border = {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          };
+        // Table Header
+        const headerRow = worksheet.getRow(11);
+        headerRow.values = ["Student Name", "College", "Department", "Class", "Status", "Marked Time"];
+        headerRow.eachCell((cell) => {
+          cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+          cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+          cell.alignment = center;
+          cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
         });
-      });
 
-      // Adjust Column Widths
-      worksheet.columns = [
-        { width: 25 }, // Name
-        { width: 30 }, // College
-        { width: 20 }, // Dept
-        { width: 15 }, // Class
-        { width: 15 }, // Status
-        { width: 20 }, // Date
-      ];
+        // Data Rows
+        const isPast = isDatePast(date);
+        const attendedIds = new Set((sheetData.attendance || []).filter(s => s.attendanceMarkedAt).map(s => s._id));
 
-      // 6. Write & Save File
+        const presentRows = (sheetData.attendance || [])
+          .filter(s => s.attendanceMarkedAt)
+          .map(s => ({
+            name: s.name || "",
+            college: sheetData.colleges?.find(col => col && col.classes && col.classes.includes(s.classId?._id))?.name || "",
+            dept: s.department || "",
+            class: s.classId?.className || "",
+            status: "Present",
+            time: new Date(s.attendanceMarkedAt).toLocaleTimeString(),
+          }));
+
+        const absentRows = registeredStudents
+          .filter(s => !attendedIds.has(s._id))
+          .map(s => ({
+            name: s.name || "",
+            college: s.collegeName || "",
+            dept: s.department || "",
+            class: s.class?.className || s.class?.name || "",
+            status: isPast ? "Absent" : "Registered",
+            time: "N/A",
+          }));
+
+        const allRows = [...presentRows, ...absentRows];
+        allRows.forEach((student, index) => {
+          const row = worksheet.addRow([
+            student.name,
+            student.college,
+            student.dept,
+            student.class,
+            student.status,
+            student.time,
+          ]);
+
+          const bgColor = index % 2 === 0 ? "FFFFFFFF" : "FFF2F2F2";
+          row.eachCell((cell, colNum) => {
+            if (colNum === 5) {
+              const statusArgb = student.status === "Present" ? "FF10b981" : student.status === "Absent" ? "FFef4444" : "FFf59e0b";
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: statusArgb } };
+              cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
+            } else {
+              cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: bgColor } };
+            }
+            cell.alignment = center;
+            cell.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+          });
+        });
+
+        worksheet.columns = [
+          { width: 25 }, { width: 30 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 20 }
+        ];
+      }
+
+      // 4. Save Workbook
       const buffer = await workbook.xlsx.writeBuffer();
-      const filename = `attendance_${attendanceData.event?.aim?.replace(
-        /\s+/g,
-        "_"
-      )}.xlsx`;
+      const filename = `attendance_${event?.aim?.replace(/\s+/g, "_")}_full.xlsx`;
 
       if (RNPlatform.OS === "web") {
-        const blob = new Blob([buffer], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
+        const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
         const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        anchor.click();
+        const a = document.createElement("a");
+        a.href = url; a.download = filename; a.click();
         window.URL.revokeObjectURL(url);
-        alert("Export Successful!");
       } else {
-        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
-
-        if (RNPlatform.OS === "android") {
-          // Android: Let user choose where to save
-          await saveFile(filename, base64);
-        } else {
-          // iOS: Use share sheet
-          const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
-          await RealFileSystem.writeAsStringAsync(fileUri, base64, {
-            encoding: RealFileSystem.EncodingType.Base64,
-          });
-
-          await RealSharing.shareAsync(fileUri, {
-            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            dialogTitle: "Export Attendance",
-            UTI: "com.microsoft.excel.xlsx",
-          });
-        }
+        await saveFile(filename, base64);
       }
+      //alert("Multi-sheet export successful!");
     } catch (error) {
       console.error("Export Error:", error);
       alert("Failed to export: " + error.message);
+    } finally {
+      setIsExporting(false);
     }
   };
   const getCollegeName = (classId) => {
+    if (!classId) return "Unknown College";
     const college = attendanceData.colleges?.find((col) =>
-      col.classes.includes(classId)
+      col && col.classes && col.classes.includes(classId)
     );
     return college ? college.name : "Unknown College";
   };
 
-  // Returns true if the event date has already passed
-  const isEventPast = () => {
-    if (!attendanceData.event?.eventDate) return false;
-    const eventDate = new Date(attendanceData.event.eventDate);
-    eventDate.setHours(0, 0, 0, 0);
+  // Returns true if the provided date string is in the past
+  const isDatePast = (dateStr) => {
+    if (!dateStr) return false;
+    const targetDate = new Date(dateStr);
+    targetDate.setHours(0, 0, 0, 0);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return eventDate < today;
+    return targetDate < today;
   };
 
   // Color helper for status badges
@@ -469,7 +439,8 @@ export default function AttendanceRecords({ route = {} }) {
 
   // Merge registered students with attendance data
   const mergedStudents = React.useMemo(() => {
-    const eventPast = isEventPast();
+    // Determine if the currently viewed day is in the past
+    const isDayPast = isDatePast(selectedDate);
 
     // Only students who were ACTUALLY marked present (have attendanceMarkedAt)
     const attendedIds = new Set(
@@ -484,7 +455,7 @@ export default function AttendanceRecords({ route = {} }) {
       .map(student => ({
         ...student,
         status: "Present",
-        collegeName: getCollegeName(student.classId._id),
+        collegeName: getCollegeName(student.classId?._id),
       }));
 
     // Students who registered but haven't been marked present
@@ -492,14 +463,15 @@ export default function AttendanceRecords({ route = {} }) {
       .filter(student => !attendedIds.has(student._id))
       .map(student => ({
         ...student,
-        // If event is past and not marked present → Absent
-        status: eventPast ? "Absent" : "Registered",
+        // If the specific day is past and student not marked present → Absent
+        // Otherwise, they are still "Registered" (Pending) for today/future
+        status: isDayPast ? "Absent" : "Registered",
         classId: student.class || {},
         attendanceMarkedAt: null,
       }));
 
     return [...presentStudents, ...registeredOnly];
-  }, [attendanceData, registeredStudents]);
+  }, [attendanceData, registeredStudents, selectedDate]);
 
   // Filter merged students based on search query
   const filteredStudents = mergedStudents.filter((item) => {
@@ -567,39 +539,40 @@ export default function AttendanceRecords({ route = {} }) {
         <View className="flex-row justify-between items-center mb-4">
           <TouchableOpacity
             onPress={() => goBack()}
-            className="px-4 py-2 rounded-xl border flex-row items-center"
+            className="p-2 rounded-full border"
             style={{
               borderColor: colors.border,
               backgroundColor: colors.backgroundColors?.[0] || '#fff',
             }}
           >
-            <Text className="font-semibold" style={{ color: colors.textPrimary }}>← Back</Text>
+            <ChevronLeft size={22} color={colors.textPrimary} />
           </TouchableOpacity>
 
           {attendanceData.attendance && attendanceData.attendance.length > 0 && (
             <TouchableOpacity
               onPress={exportToExcel}
+              disabled={isExporting}
               className="px-4 py-2 rounded-xl flex-row items-center"
               style={{
-                backgroundColor: colors.accent,
+                backgroundColor: isExporting ? colors.textSecondary : colors.accent,
+                height: 44,
               }}
             >
-              <Text className="text-white font-bold text-sm">Export Excel</Text>
+              <Text className="text-white font-bold text-sm">
+                {isExporting ? "Exporting..." : "Export Excel"}
+              </Text>
             </TouchableOpacity>
           )}
 
           {/* Search Button */}
           {attendanceData.attendance && attendanceData.attendance.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setShowSearch(!showSearch)}
-              className="px-4 py-2 rounded-xl border"
-              style={{
-                backgroundColor: showSearch ? colors.accent : colors.cardBg,
-                borderColor: showSearch ? colors.accent : colors.border,
-              }}
-            >
-              <Text className="font-bold text-sm" style={{ color: showSearch ? '#fff' : colors.textPrimary }}>Search</Text>
-            </TouchableOpacity>
+            <AnimatedSearch
+              placeholder="Search..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              colors={colors}
+              containerStyle={{ marginBottom: 0, marginLeft: 8 }}
+            />
           )}
         </View>
 
@@ -609,14 +582,66 @@ export default function AttendanceRecords({ route = {} }) {
         </Text>
 
         {/* Event Details */}
-        <View className="flex-row flex-wrap gap-3 mb-3">
-          <View className="flex-row items-center">
-            <Text className="text-sm" style={{ color: colors.textSecondary }}>Location: {attendanceData.event?.location}</Text>
+        <View className="mb-3">
+          <View className="flex-row items-center mb-1">
+            <Text className="text-sm font-bold" style={{ color: colors.accent }}>📍 Location: </Text>
+            <Text className="text-sm" style={{ color: colors.textPrimary }}>{attendanceData.event?.location || "N/A"}</Text>
+          </View>
+          <View className="flex-row items-center mb-1">
+            <Text className="text-sm font-bold" style={{ color: colors.accent }}>📅 Duration: </Text>
+            <Text className="text-sm" style={{ color: colors.textPrimary }}>
+              {new Date(attendanceData.event?.startDate || attendanceData.event?.eventDate).toLocaleDateString()}
+              {attendanceData.event?.endDate && attendanceData.event?.endDate !== attendanceData.event?.startDate && ` - ${new Date(attendanceData.event?.endDate).toLocaleDateString()}`}
+            </Text>
           </View>
           <View className="flex-row items-center">
-            <Text className="text-sm" style={{ color: colors.textSecondary }}>Date: {new Date(attendanceData.event?.eventDate).toLocaleDateString()}</Text>
+            <Text className="text-sm font-bold" style={{ color: colors.accent }}>⏰ Daily Timing: </Text>
+            <Text className="text-sm" style={{ color: colors.textPrimary }}>{attendanceData.event?.startTime || "N/A"} - {attendanceData.event?.endTime || "N/A"}</Text>
           </View>
+          {attendanceData.event?.spocName && (
+            <View className="flex-row items-center mt-1">
+              <Text className="text-sm font-bold" style={{ color: colors.accent }}>👤 Manager: </Text>
+              <Text className="text-sm mr-4" style={{ color: colors.textPrimary }}>{attendanceData.event?.spocName}</Text>
+              {attendanceData.event?.spocContact && (
+                <>
+                  <Text className="text-sm font-bold" style={{ color: colors.accent }}>📞 Contact: </Text>
+                  <Text className="text-sm" style={{ color: colors.textPrimary }}>{attendanceData.event?.spocContact}</Text>
+                </>
+              )}
+            </View>
+          )}
         </View>
+
+        {/* ── Day selector for multi-day events ───────────────────────── */}
+        {isMultiDay && (
+          <View className="mb-3">
+            <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>VIEW BY DATE</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {eventDates.map((date) => {
+                const isSelected = date === selectedDate;
+                return (
+                  <TouchableOpacity
+                    key={date}
+                    onPress={() => setSelectedDate(date)}
+                    className="mr-2 px-4 py-2 rounded-xl border"
+                    style={{
+                      borderColor: isSelected ? colors.accent : colors.border,
+                      backgroundColor: isSelected ? colors.accent : colors.cardBg,
+                    }}
+                  >
+                    <Text
+                      className="font-bold text-xs"
+                      style={{ color: isSelected ? "#fff" : colors.textPrimary }}
+                    >
+                      {formatDateLabel(date)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+        {/* ─────────────────────────────────────────────────────────────── */}
 
         {/* Stats Card */}
         <View className="p-3 rounded-xl mb-3" style={{ backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '30' }}>
@@ -630,23 +655,6 @@ export default function AttendanceRecords({ route = {} }) {
           </Text>
         </View>
 
-        {/* Search Bar - Collapsible */}
-        {showSearch && (
-          <View className="mb-3">
-            <TextInput
-              className="px-4 py-3 rounded-xl border"
-              style={{
-                backgroundColor: colors.cardBg,
-                borderColor: colors.border,
-                color: colors.textPrimary,
-              }}
-              placeholder="Search by name, college, department, or class..."
-              placeholderTextColor={colors.textSecondary}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-        )}
 
         {/* View Toggle */}
         <View className="flex-row items-center justify-between">
@@ -796,11 +804,13 @@ export default function AttendanceRecords({ route = {} }) {
                   </View>
 
                   <View className="flex-row items-center">
-                    <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>Marked:</Text>
+                    <Text className="text-xs font-semibold" style={{ color: colors.textSecondary, width: 100 }}>Date:</Text>
                     <Text className="text-xs flex-1" style={{ color: colors.accent }}>
-                      {item.attendanceMarkedAt
-                        ? new Date(item.attendanceMarkedAt).toLocaleDateString()
-                        : "N/A"}
+                      {item.attendanceDate
+                        ? formatDateLabel(item.attendanceDate)
+                        : item.attendanceMarkedAt
+                          ? new Date(item.attendanceMarkedAt).toLocaleDateString()
+                          : "N/A"}
                     </Text>
                   </View>
                 </View>

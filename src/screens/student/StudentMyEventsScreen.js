@@ -9,13 +9,56 @@ import {
     TextInput,
     Alert,
 } from "react-native";
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    useAnimatedScrollHandler,
+    interpolate,
+    Extrapolate,
+} from "react-native-reanimated";
 import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
-import { ChevronLeft, CheckCircle, Clock, XCircle } from "lucide-react-native";
+import { ChevronLeft, CheckCircle, Clock, XCircle, Search, Info } from "lucide-react-native";
+import AnimatedSearch from "../../components/AnimatedSearch";
 
-export default function StudentMyEventsScreen({ student }) {
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function toDateString(date) {
+  if (!date) return null;
+  // If it's already a ISO-like date string (YYYY-MM-DD), just return the date part
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    return date.split('T')[0];
+  }
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function getEventDates(startDate, endDate) {
+  const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate || startDate); end.setHours(0, 0, 0, 0);
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) { dates.push(toDateString(cur)); cur.setDate(cur.getDate() + 1); }
+  return dates;
+}
+const isDatePast = (dateStr) => {
+  if (!dateStr) return false;
+  const targetDate = new Date(dateStr);
+  targetDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return targetDate < today;
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function StudentMyEventsScreen({ student, isTab }) {
     const { goBack } = useContext(NavigationContext);
     const { accessToken } = useContext(AuthContext);
     const { darkMode, lightTheme, darkTheme } = useTheme();
@@ -24,6 +67,38 @@ export default function StudentMyEventsScreen({ student }) {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [refreshing, setRefreshing] = useState(false);
+    const [expandedEvents, setExpandedEvents] = useState(new Set());
+
+    // --- Animation Logic ---
+    const scrollY = useSharedValue(0);
+    const flatListRef = React.useRef(null);
+
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (event) => {
+            scrollY.value = event.contentOffset.y;
+        },
+    });
+
+    const headerOpacity = useAnimatedStyle(() => {
+        return {
+            opacity: interpolate(scrollY.value, [0, 100], [1, 0], Extrapolate.CLAMP),
+            transform: [{ translateY: interpolate(scrollY.value, [0, 100], [0, -20], Extrapolate.CLAMP) }],
+        };
+    });
+
+    const stickyBarTranslateY = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: interpolate(scrollY.value, [100, 150], [-100, 0], Extrapolate.CLAMP) }],
+            opacity: interpolate(scrollY.value, [100, 150], [0, 1], Extrapolate.CLAMP),
+        };
+    });
+
+    const toggleExpand = (eventId) => {
+        const newSet = new Set(expandedEvents);
+        if (newSet.has(eventId)) newSet.delete(eventId);
+        else newSet.add(eventId);
+        setExpandedEvents(newSet);
+    };
 
     useEffect(() => {
         fetchMyEvents();
@@ -66,13 +141,14 @@ export default function StudentMyEventsScreen({ student }) {
     const filteredEvents = events.filter((event) => {
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            const eventDate = event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "";
+            const eventDateRange = `${new Date(event.startDate).toLocaleDateString()} - ${new Date(event.endDate).toLocaleDateString()}`;
             const matchesSearch = (
                 event.aim?.toLowerCase().includes(query) ||
                 event.location?.toLowerCase().includes(query) ||
                 event.description?.toLowerCase().includes(query) ||
                 event.status?.toLowerCase().includes(query) ||
-                eventDate.toLowerCase().includes(query)
+                event.spocName?.toLowerCase().includes(query) ||
+                eventDateRange.toLowerCase().includes(query)
             );
             return matchesSearch;
         }
@@ -82,8 +158,9 @@ export default function StudentMyEventsScreen({ student }) {
     // Returns true when the student registered but the event date has already passed
     const isMissed = (event) => {
         if (event.status !== "Registered") return false;
-        if (!event.eventDate) return false;
-        const eventDate = new Date(event.eventDate);
+        const dateToCheck = event.endDate || event.startDate || event.eventDate;
+        if (!dateToCheck) return false;
+        const eventDate = new Date(dateToCheck);
         eventDate.setHours(0, 0, 0, 0);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -100,25 +177,6 @@ export default function StudentMyEventsScreen({ student }) {
         return status === "Attended" ? CheckCircle : Clock;
     };
 
-    // --- Score Calculation ---
-    const score = useMemo(() => {
-        const attended = events.filter(e => e.status === 'Attended').length;
-        return attended * 10;
-    }, [events]);
-
-    const maxScore = useMemo(() => {
-        const pastEvents = events.filter(e => e.status === 'Attended' || isMissed(e)).length;
-        return pastEvents > 0 ? pastEvents * 10 : 10;
-    }, [events]);
-
-    // Grade is based on attendance ratio: attended / (attended + missed)
-    const attendanceRatio = useMemo(() => {
-        const attended = events.filter(e => e.status === 'Attended').length;
-        const missed = events.filter(e => isMissed(e)).length;
-        const total = attended + missed;
-        return total > 0 ? (attended / total) * 100 : null; // null = no past events yet
-    }, [events]);
-
     const getGrade = (ratio) => {
         if (ratio === null) return { label: 'No Data', color: '#94a3b8', icon: '➖' };
         if (ratio >= 80) return { label: 'Excellent', color: '#10b981', icon: '🌟' };
@@ -127,107 +185,193 @@ export default function StudentMyEventsScreen({ student }) {
         return { label: 'Poor', color: '#ef4444', icon: '❌' };
     };
 
-    const grade = getGrade(attendanceRatio);
-    const scorePct = Math.min(100, maxScore > 0 ? (score / maxScore) * 100 : 0);
+    // --- Attendance Stats Calculation (Strictly Day-Based) ---
+    const attendanceStats = useMemo(() => {
+        let totalDays = 0;
+        let presentDays = 0;
+        let absentDays = 0;
+        let upcomingDays = 0;
+        let pastDaysCount = 0;
+
+        events.forEach(event => {
+            const days = getEventDates(event.startDate || event.eventDate, event.endDate || event.startDate || event.eventDate);
+            
+            days.forEach(day => {
+                totalDays++;
+                const wasPresent = event.attendanceRecords?.some(r => r.attendanceDate === day);
+                const isPast = isDatePast(day);
+
+                if (wasPresent) {
+                    presentDays++;
+                    pastDaysCount++;
+                } else if (isPast) {
+                    absentDays++;
+                    pastDaysCount++;
+                } else {
+                    upcomingDays++;
+                }
+            });
+
+            // Fallback for legacy "Attended" events that might be missing specific day records
+            const daysFoundPresent = days.filter(d => event.attendanceRecords?.some(r => r.attendanceDate === d)).length;
+            if (event.status === "Attended" && daysFoundPresent === 0 && days.length > 0) {
+                // Count at least 1 day as present for legacy single-day events
+                presentDays++;
+                if (days.length === 1) {
+                    // It was a single day event, so we replace the absent/upcoming with present
+                    if (isDatePast(days[0])) {
+                        absentDays = Math.max(0, absentDays - 1);
+                    } else {
+                        upcomingDays = Math.max(0, upcomingDays - 1);
+                    }
+                    pastDaysCount++;
+                }
+            }
+        });
+
+        const ratio = pastDaysCount > 0 ? (presentDays / pastDaysCount) * 100 : null;
+        return { totalDays, presentDays, absentDays, upcomingDays, pastDaysCount, ratio };
+    }, [events]);
+
+    const grade = getGrade(attendanceStats.ratio);
+    const scorePct = Math.round(attendanceStats.ratio || 0);
+
+    const renderBreakdown = (event) => {
+        const days = getEventDates(event.startDate || event.eventDate, event.endDate || event.startDate || event.eventDate);
+        return (
+            <View style={{ marginTop: 12, padding: 12, backgroundColor: colors.iconBg, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>
+                    Attendance Breakdown
+                </Text>
+                {days.map((day, idx) => {
+                    const record = event.attendanceRecords?.find(r => r.attendanceDate === day);
+                    const isPast = isDatePast(day);
+                    const status = record ? "Present" : (isPast ? "Absent" : "Upcoming");
+                    const color = record ? "#10b981" : (isPast ? "#ef4444" : colors.textSecondary);
+                    
+                    return (
+                        <View key={day} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: colors.border + '50' }}>
+                            <View>
+                                <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textPrimary }}>{formatDateLabel(day)}</Text>
+                                {record && (
+                                    <Text style={{ fontSize: 10, color: colors.textSecondary, marginTop: 1 }}>
+                                        🕒 {new Date(record.attendanceMarkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </Text>
+                                )}
+                            </View>
+                            <View style={{ backgroundColor: color + '15', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: color + '30' }}>
+                                <Text style={{ fontSize: 10, fontWeight: '800', color: color, textTransform: 'uppercase' }}>{status}</Text>
+                            </View>
+                        </View>
+                    );
+                })}
+            </View>
+        );
+    };
+    const renderStickyStats = () => {
+        if (loading || events.length === 0) return null;
+        return (
+            <Animated.View
+                style={[
+                    stickyBarTranslateY,
+                    {
+                        position: 'absolute',
+                        top: isTab ? 2 : 0, 
+                        left: 0,
+                        right: 0,
+                        zIndex: 1000,
+                        backgroundColor: colors.cardBg,
+                        paddingVertical: 12,
+                        paddingHorizontal: 16,
+                        borderRadius: 12,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 8,
+                        elevation: 5,
+                    }
+                ]}
+            >
+                <TouchableOpacity 
+                    activeOpacity={0.8} 
+                    onPress={() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true })}
+                    style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                >
+                    <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: grade.color + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        <Text style={{ fontSize: 18 }}>{grade.icon}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '900', color: grade.color }}>{scorePct}%</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: colors.header, marginLeft: 8 }}>Attendance</Text>
+                        </View>
+                        <Text style={{ fontSize: 11, color: colors.textSecondary }}>
+                            {attendanceStats.presentDays} of {attendanceStats.pastDaysCount} events attended
+                        </Text>
+                    </View>
+                    <View style={{ backgroundColor: colors.accent + '10', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
+                        <Info size={14} color={colors.accent} />
+                    </View>
+                </TouchableOpacity>
+            </Animated.View>
+        );
+    };
 
     return (
         <View
-            className="flex-1 px-5 pt-8"
+            className={`flex-1 px-5 ${isTab ? "pt-2" : "pt-8"}`}
             style={{
                 backgroundColor:
                     (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
             }}
         >
+            {renderStickyStats()}
+
             {/* Header */}
-            <View className="flex-row items-center mb-4">
-                <TouchableOpacity
-                    onPress={goBack}
-                    className="p-2 rounded-full mr-3 border"
-                    style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
-                >
-                    <ChevronLeft size={24} color={colors.textPrimary} />
-                </TouchableOpacity>
-                <Text className="text-2xl font-extrabold" style={{ color: colors.header }}>
-                    My Events
-                </Text>
-            </View>
-
-            {/* Stats Card */}
-            {!loading && events.length > 0 && (
-                <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-                    {/* Counts row */}
-                    <View className="flex-row justify-around mb-4">
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: colors.accent }}>
-                                {events.length}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Total
-                            </Text>
-                        </View>
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: "#10b981" }}>
-                                {events.filter(e => e.status === "Attended").length}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Attended
-                            </Text>
-                        </View>
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: "#ef4444" }}>
-                                {events.filter(e => isMissed(e)).length}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Absent
-                            </Text>
-                        </View>
-                        <View className="items-center">
-                            <Text className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
-                                {events.filter(e => e.status === "Registered" && !isMissed(e)).length}
-                            </Text>
-                            <Text className="text-xs" style={{ color: colors.textSecondary }}>
-                                Upcoming
-                            </Text>
-                        </View>
+            {!isTab && (
+                <View className="flex-row items-center justify-between mb-4" style={{ zIndex: 10 }}>
+                    <View className="flex-row items-center flex-1">
+                        <TouchableOpacity
+                            onPress={goBack}
+                            className="p-2 rounded-full mr-3 border"
+                            style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+                        >
+                            <ChevronLeft size={24} color={colors.textPrimary} />
+                        </TouchableOpacity>
+                        <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
+                            My Events
+                        </Text>
                     </View>
 
-                    {/* Score Section */}
-                    <View style={{ backgroundColor: grade.color + '12', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: grade.color + '40' }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: colors.textSecondary }}>My Score</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 }}>
-                                <Text style={{ fontSize: 11, marginRight: 3 }}>{grade.icon}</Text>
-                                <Text style={{ fontSize: 11, fontWeight: 'bold', color: grade.color }}>{grade.label}</Text>
-                            </View>
-                        </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginBottom: 6 }}>
-                            <Text style={{ fontSize: 26, fontWeight: '900', color: grade.color, lineHeight: 30 }}>{score}</Text>
-                            <Text style={{ fontSize: 12, color: colors.textSecondary, marginLeft: 4, marginBottom: 2 }}>/ {maxScore} pts</Text>
-                        </View>
-                        {/* Progress bar */}
-                        <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
-                            <View style={{ height: '100%', width: `${scorePct}%`, backgroundColor: grade.color, borderRadius: 3 }} />
-                        </View>
-                        <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Grade based on attendance ratio (attended ÷ past events)</Text>
-                    </View>
+                    <AnimatedSearch
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        colors={colors}
+                        containerStyle={{ marginBottom: 0 }}
+                    />
                 </View>
             )}
 
-            {/* Search Bar */}
-            <View className="mb-4">
-                <TextInput
-                    className="px-4 py-3 rounded-xl border"
-                    style={{
-                        backgroundColor: colors.cardBg,
-                        borderColor: colors.border,
-                        color: colors.textPrimary,
-                    }}
-                    placeholder="Search events..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                />
-            </View>
+            {isTab && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <Text style={{ fontSize: 20, fontWeight: '800', color: colors.header, flex: 1 }}>
+                        Registered Events
+                    </Text>
+                    <AnimatedSearch
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        colors={colors}
+                        containerStyle={{ marginBottom: 0 }}
+                    />
+                </View>
+            )}
 
             {/* Event List */}
             {loading ? (
@@ -244,13 +388,77 @@ export default function StudentMyEventsScreen({ student }) {
                     </Text>
                 </View>
             ) : (
-                <FlatList
+                <Animated.FlatList
+                    ref={flatListRef}
+                    onScroll={scrollHandler}
+                    scrollEventThrottle={16}
                     data={filteredEvents}
                     keyExtractor={(item, index) => item._id || index.toString()}
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                    }
+                    ListHeaderComponent={
+                        <Animated.View style={headerOpacity}>
+                            <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
+                                {/* Counts row */}
+                                <View className="flex-row justify-around mb-4">
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: colors.accent }}>
+                                            {attendanceStats.totalDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Total
+                                        </Text>
+                                    </View>
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: "#10b981" }}>
+                                            {attendanceStats.presentDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Attended
+                                        </Text>
+                                    </View>
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: "#ef4444" }}>
+                                            {attendanceStats.absentDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Absent
+                                        </Text>
+                                    </View>
+                                    <View className="items-center">
+                                        <Text className="text-2xl font-bold" style={{ color: "#f59e0b" }}>
+                                            {attendanceStats.upcomingDays}
+                                        </Text>
+                                        <Text className="text-xs" style={{ color: colors.textSecondary }}>
+                                            Upcoming
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Score Section */}
+                                <View style={{ backgroundColor: grade.color + '12', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: grade.color + '40' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                        <Text style={{ fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase', color: colors.textSecondary }}>My Attendance</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: grade.color + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 20 }}>
+                                            <Text style={{ fontSize: 11, marginRight: 3 }}>{grade.icon}</Text>
+                                            <Text style={{ fontSize: 11, fontWeight: 'bold', color: grade.color }}>{grade.label}</Text>
+                                        </View>
+                                    </View>
+                                    <View style={{ flexDirection: 'row', alignItems: 'baseline', marginBottom: 6 }}>
+                                        <Text style={{ fontSize: 26, fontWeight: '900', color: grade.color, lineHeight: 30 }}>{scorePct}%</Text>
+                                        <Text style={{ fontSize: 10, color: colors.textSecondary, marginLeft: 6 }}>({attendanceStats.presentDays} attended / {attendanceStats.pastDaysCount} past days)</Text>
+                                    </View>
+                                    {/* Progress bar */}
+                                    <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' }}>
+                                        <View style={{ height: '100%', width: `${scorePct}%`, backgroundColor: grade.color, borderRadius: 3 }} />
+                                    </View>
+                                    <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 4, opacity: 0.7 }}>Percentage based on present vs absent states for past days</Text>
+                                </View>
+                            </View>
+                        </Animated.View>
                     }
                     ListEmptyComponent={
                         <View className="flex-1 justify-center items-center py-10">
@@ -260,17 +468,53 @@ export default function StudentMyEventsScreen({ student }) {
                         </View>
                     }
                     renderItem={({ item }) => {
+                        const daysList = getEventDates(item.startDate || item.eventDate, item.endDate || item.startDate || item.eventDate);
+                        const isMultiDay = daysList.length > 1;
+                        
+                        // Calculate per-event stats
+                        const attendedCount = daysList.filter(d => item.attendanceRecords?.some(r => r.attendanceDate === d)).length;
+                        const isPast = daysList.every(d => isDatePast(d));
+                        const isFuture = daysList.every(d => !isDatePast(d));
+                        
+                        // Determine status label and color
+                        let statusLabel = item.status;
+                        let statusColor = "#f59e0b"; // default orange
+                        
                         const missed = isMissed(item);
-                        const StatusIcon = getStatusIcon(item.status, missed);
-                        const statusColor = getStatusColor(item.status, missed);
+
+                        if (isMultiDay) {
+                            statusLabel = `${attendedCount}/${daysList.length} Days`;
+                            if (attendedCount === daysList.length) {
+                                statusColor = "#10b981"; // Green
+                            } else if (attendedCount > 0) {
+                                statusColor = "#f59e0b"; // Orange
+                            } else if (isDatePast(daysList[0])) {
+                                statusColor = "#ef4444"; // Red (started but 0 attendance)
+                            } else {
+                                statusColor = colors.textSecondary; // Grey (Upcoming)
+                            }
+                        } else {
+                           // Single day fallback
+                           if (missed) {
+                               statusLabel = "Absent";
+                               statusColor = "#ef4444";
+                           } else if (item.status === "Attended") {
+                               statusColor = "#10b981";
+                           }
+                        }
+
+                        const StatusIcon = item.status === "Attended" || (isMultiDay && attendedCount > 0) ? CheckCircle : (statusColor === "#ef4444" ? XCircle : Clock);
+                        const isExpanded = expandedEvents.has(item._id);
 
                         return (
-                            <View
+                            <TouchableOpacity
+                                activeOpacity={0.9}
+                                onPress={() => isMultiDay && toggleExpand(item._id)}
                                 className="p-4 rounded-2xl mb-4 border shadow-sm"
                                 style={{
                                     backgroundColor: colors.cardBg,
-                                    borderColor: colors.border,
-                                    elevation: 2,
+                                    borderColor: isExpanded ? colors.accent : colors.border,
+                                    elevation: isExpanded ? 4 : 2,
                                 }}
                             >
                                 {/* Status Badge */}
@@ -284,80 +528,118 @@ export default function StudentMyEventsScreen({ student }) {
                                             className="text-xs font-bold"
                                             style={{ color: statusColor }}
                                         >
-                                            {missed ? "Absent" : item.status}
+                                            {statusLabel}
                                         </Text>
                                     </View>
-                                    {item.attendanceMarkedAt && (
+                                    {isMultiDay && (
+                                        <View className="px-2 py-0.5 rounded-md" style={{ backgroundColor: colors.accent + '15' }}>
+                                            <Text style={{ fontSize: 9, fontWeight: '700', color: colors.accent }}>MULTI-DAY</Text>
+                                        </View>
+                                    )}
+                                    {!isMultiDay && item.attendanceMarkedAt && (
                                         <Text className="text-xs" style={{ color: colors.textSecondary }}>
                                             {new Date(item.attendanceMarkedAt).toLocaleDateString()}
                                         </Text>
                                     )}
                                 </View>
 
-                                {/* Event Title */}
-                                <Text
-                                    className="text-lg font-bold mb-1"
-                                    style={{ color: colors.textPrimary }}
-                                >
-                                    {item.aim}
-                                </Text>
+                                <View className="flex-row justify-between items-start mb-2">
+                                    <View className="flex-1 pr-3">
+                                        <Text
+                                            className="text-lg font-bold mb-1"
+                                            style={{ color: colors.header || colors.textPrimary }}
+                                        >
+                                            {item.aim}
+                                        </Text>
 
-                                {/* NGO Name */}
-                                {item.createdBy && (
-                                    <Text
-                                        className="text-xs font-semibold mb-2"
-                                        style={{ color: colors.accent }}
-                                    >
-                                        by {item.createdBy.name}
-                                    </Text>
-                                )}
+                                        {item.createdBy && (
+                                            <Text
+                                                className="text-[11px] font-semibold mb-2"
+                                                style={{ color: colors.accent }}
+                                            >
+                                                by {item.createdBy.name}
+                                            </Text>
+                                        )}
 
-                                {/* Location */}
-                                <View className="flex-row items-center mb-2 opacity-90">
-                                    <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
-                                    <Text
-                                        className="text-sm font-medium"
-                                        style={{ color: colors.textSecondary }}
-                                    >
-                                        {item.location}
-                                    </Text>
-                                </View>
+                                        {/* Location */}
+                                        <View className="flex-row items-center mb-1 opacity-90">
+                                            <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
+                                            <Text
+                                                className="text-[13px] font-medium"
+                                                style={{ color: colors.textSecondary }}
+                                            >
+                                                {item.location}
+                                            </Text>
+                                        </View>
+                                    </View>
 
-                                {/* Date Badge */}
-                                <View
-                                    className="self-start px-2 py-1 rounded-md mb-2"
-                                    style={{ backgroundColor: colors.iconBg }}
-                                >
-                                    <Text
-                                        className="text-xs font-bold"
-                                        style={{ color: colors.textPrimary }}
+                                    {/* Date & Time Badge (Right Column) */}
+                                    <View
+                                        className="items-end px-2.5 py-2 rounded-xl"
+                                        style={{ backgroundColor: colors.iconBg, minWidth: 100 }}
                                     >
-                                        📅 {new Date(item.eventDate).toLocaleDateString()}
-                                    </Text>
+                                        <Text
+                                            className="text-[10px] font-bold mb-1 text-right"
+                                            style={{ color: colors.textPrimary }}
+                                        >
+                                            📅 {new Date(item.startDate || item.eventDate).toLocaleDateString()}{item.endDate && item.endDate !== item.startDate ? ` - ${new Date(item.endDate).toLocaleDateString()}` : ''}
+                                        </Text>
+                                        <Text
+                                            className="text-[10px] font-semibold opacity-80 text-right"
+                                            style={{ color: colors.textPrimary }}
+                                        >
+                                            ⏰ Daily: {item.startTime || "N/A"} - {item.endTime || "N/A"}
+                                        </Text>
+                                    </View>
                                 </View>
 
                                 {/* Description Snippet */}
                                 <Text
-                                    className="text-sm leading-5"
-                                    numberOfLines={2}
+                                    className="text-sm leading-5 mb-3"
+                                    numberOfLines={isExpanded ? 0 : 2}
                                     style={{ color: colors.textSecondary }}
                                 >
                                     {item.description}
                                 </Text>
 
-                                {/* Missed Event Banner */}
-                                {missed && (
+                                {isMultiDay && (
+                                    <TouchableOpacity 
+                                        onPress={() => toggleExpand(item._id)}
+                                        style={{ 
+                                            flexDirection: 'row', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center',
+                                            backgroundColor: colors.accent + '10', 
+                                            paddingVertical: 8, 
+                                            borderRadius: 10,
+                                            borderWidth: 1,
+                                            borderColor: colors.accent + '20',
+                                            marginTop: 4
+                                        }}
+                                    >
+                                        <Text style={{ fontSize: 11, fontWeight: '800', color: colors.accent, letterSpacing: 0.5 }}>
+                                            {isExpanded ? "CLOSE DETAILS" : "VIEW DAILY BREAKDOWN"}
+                                        </Text>
+                                        <Text style={{ fontSize: 10, color: colors.accent, marginLeft: 4 }}>
+                                            {isExpanded ? "▲" : "▼"}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+
+                                {isExpanded && isMultiDay && renderBreakdown(item)}
+
+                                {/* Missed Event Banner (Only for single day fallback) */}
+                                {missed && !isMultiDay && (
                                     <View
                                         className="flex-row items-center mt-3 px-3 py-2 rounded-xl"
                                         style={{ backgroundColor: "#ef444415", borderLeftWidth: 3, borderLeftColor: "#ef4444" }}
                                     >
-                                        {/* <Text style={{ fontSize: 16, marginRight: 6 }}>😔</Text> */}
                                         <Text className="text-xs font-semibold" style={{ color: "#ef4444" }}>
                                             You missed this event!
                                         </Text>
                                     </View>
                                 )}
-                            </View>
+                            </TouchableOpacity>
                         );
                     }}
                 />

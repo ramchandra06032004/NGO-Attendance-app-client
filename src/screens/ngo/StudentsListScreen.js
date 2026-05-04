@@ -12,15 +12,58 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
+import { ChevronLeft } from "lucide-react-native";
 
-export default function StudentsListScreen({ college, eventId: propEventId, route }) {
-  //added line for testing git commit
-  // eventId is passed as prop (not using react-navigation)
+// ── Date helpers ─────────────────────────────────────────────────────────────
+/** Returns "YYYY-MM-DD" for a Date or ISO string */
+function toDateString(date) {
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Returns a user-friendly label like "Mon, Apr 14" */
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + "T00:00:00"); // force local time
+  return d.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** Generates all dates from startDate to endDate (inclusive) as "YYYY-MM-DD" strings */
+function getEventDates(startDate, endDate) {
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate || startDate);
+  end.setHours(0, 0, 0, 0);
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) {
+    dates.push(toDateString(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+/** Returns today as "YYYY-MM-DD" */
+function todayString() {
+  return toDateString(new Date());
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function StudentsListScreen({ college, eventId: propEventId, route, event: propEvent, registeredStudents: propRegisteredStudents }) {
   const eventId = propEventId;
 
-  // Get registered students from route params if navigating from RegisteredStudentsScreen
-  const registeredStudents = route?.params?.registeredStudents;
+  // Get registered students from props or route params
+  const registeredStudents = propRegisteredStudents || route?.params?.registeredStudents;
   const isFromRegisteredStudents = !!registeredStudents;
+
+  // Event may be passed as prop or via route params
+  const eventData = propEvent || route?.params?.event;
 
   const { goBack } = useContext(NavigationContext);
   const { accessToken } = useContext(AuthContext);
@@ -38,24 +81,35 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
   // Track students who were originally present (from database) - these will be locked
   const [originallyPresentIds, setOriginallyPresentIds] = useState(new Set());
 
+  // ── Multi-day date selection ─────────────────────────────────────────────
+  const [eventDates, setEventDates] = useState([]); // all days in the event
+  const [selectedDate, setSelectedDate] = useState(null); // currently selected day
+  const isMultiDay = eventDates.length > 1;
+  // ────────────────────────────────────────────────────────────────────────
+
+  // Compute event dates whenever eventData or eventId changes
+  useEffect(() => {
+    const start = eventData?.startDate || eventData?.eventDate;
+    const end = eventData?.endDate || start;
+    if (start) {
+      const dates = getEventDates(start, end);
+      setEventDates(dates);
+      // Default: today if within range, else first day
+      const today = todayString();
+      const defaultDate = dates.includes(today) ? today : dates[0];
+      setSelectedDate(defaultDate);
+    }
+  }, [eventData]);
+
   useEffect(() => {
     // If coming from RegisteredStudentsScreen, use the provided students
     if (isFromRegisteredStudents) {
-      console.log("=== USING REGISTERED STUDENTS ===");
-      console.log("Registered students count:", registeredStudents.length);
-
-      // Group registered students by class
       const studentsByClass = {};
       registeredStudents.forEach((student) => {
         const className = student.class?.name || "Unassigned";
         const classId = student.class?._id || "unassigned";
-
         if (!studentsByClass[classId]) {
-          studentsByClass[classId] = {
-            _id: classId,
-            name: className,
-            students: [],
-          };
+          studentsByClass[classId] = { _id: classId, name: className, students: [] };
         }
         studentsByClass[classId].students.push(student);
       });
@@ -64,33 +118,18 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
       setClassObjects(normalized);
       setClasses(["All Classes", ...normalized.map((c) => c.name)]);
       setSelectedClass("All Classes");
-
-      // Reset presentIds initially
       setPresentIds(new Set());
       setOriginallyPresentIds(new Set());
 
-      // Fetch existing attendance to check if any registered students are already marked
-      if (eventId) {
-        fetchExistingAttendance();
+      if (eventId && selectedDate) {
+        fetchExistingAttendance(selectedDate);
       } else {
         setLoadingAttendance(false);
       }
-
       return;
     }
 
     // Original logic for normal attendance marking flow
-    // Normalize incoming college -> classes (handles className / name)
-    const collegeId = college?._id || college?.id;
-    const collegeName = college?.name || college?.collegeName;
-
-    console.log("=== STUDENTS LIST SCREEN EFFECT TRIGGERED ===");
-    console.log("College ID:", collegeId);
-    console.log("College Name:", collegeName);
-    console.log("Event ID:", eventId);
-    console.log("Resetting presentIds and originallyPresentIds...");
-    console.log("============================================");
-
     const clsArray = Array.isArray(college?.classes) ? college.classes : [];
     const normalized = clsArray
       .map((c) => {
@@ -107,18 +146,15 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
     setClassObjects(normalized);
     setClasses(["All Classes", ...normalized.map((c) => c.name)]);
     setSelectedClass("All Classes");
-
-    // Reset presentIds and originallyPresentIds immediately when college changes
     setPresentIds(new Set());
     setOriginallyPresentIds(new Set());
 
-    // Fetch existing attendance when component mounts
-    if (eventId) {
-      fetchExistingAttendance();
+    if (eventId && selectedDate) {
+      fetchExistingAttendance(selectedDate);
     } else {
       setLoadingAttendance(false);
     }
-  }, [college?._id || college?.id, eventId, isFromRegisteredStudents]); // Use college ID instead of entire object
+  }, [college?._id || college?.id, eventId, isFromRegisteredStudents, selectedDate]);
 
   const togglePresent = (studentId) => {
     setPresentIds((prev) => {
@@ -130,7 +166,6 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
   };
 
   const markAbsent = (studentId) => {
-    // explicitly remove from present set
     setPresentIds((prev) => {
       if (!prev.has(studentId)) return prev;
       const next = new Set(prev);
@@ -139,8 +174,8 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
     });
   };
 
-  // Fetch existing attendance for this event
-  const fetchExistingAttendance = async () => {
+  // Fetch existing attendance for this event on the given date
+  const fetchExistingAttendance = async (date) => {
     try {
       setLoadingAttendance(true);
 
@@ -148,32 +183,28 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
       const validStudentIds = new Set();
 
       if (isFromRegisteredStudents) {
-        // When coming from RegisteredStudentsScreen, use the registered students
         registeredStudents.forEach((student) => {
           const id = student._id || student.id || student.prn;
-          if (id) validStudentIds.add(id);
+          if (id) validStudentIds.add(id.toString());
         });
       } else {
-        // Original logic: get students from college classes
         const clsArray = Array.isArray(college?.classes) ? college.classes : [];
         clsArray.forEach((cls) => {
           const students = Array.isArray(cls.students) ? cls.students : [];
           students.forEach((student) => {
             const id = student._id || student.id || student.prn;
-            if (id) validStudentIds.add(id);
+            if (id) validStudentIds.add(id.toString());
           });
         });
       }
 
-      console.log("Valid student IDs for this college:", Array.from(validStudentIds));
-
-      // Get collegeId from route params or college prop
       const collegeId = route?.params?.collegeId || college?._id || college?.id;
 
-      // Use college-specific endpoint if we have a collegeId
+      // Always use college-specific endpoint; append ?date= for per-day filtering
+      const dateParam = date ? `?date=${date}` : "";
       const attendanceUrl = collegeId
-        ? `${api.ngo_host}/event/${eventId}/college/${collegeId}/attendance`
-        : `${api.ngo_host}/event/${eventId}/attendance`;
+        ? `${api.ngo_host}/event/${eventId}/college/${collegeId}/attendance${dateParam}`
+        : `${api.ngo_host}/event/${eventId}/attendance${dateParam}`;
 
       console.log("Fetching attendance from:", attendanceUrl);
 
@@ -192,33 +223,25 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
 
         let allAttendedStudentIds = [];
 
-        // Check if this is college-specific response (nested structure)
         if (data?.data?.attendance?.[0]?.students) {
-          // College-specific endpoint format: attendance[0].students[{studentId, ...}]
+          // College-specific format: only students with attendanceMarkedAt are truly present
           allAttendedStudentIds = data.data.attendance[0].students
-            .filter(student => student.attendanceMarkedAt) // Only students who were actually marked
-            .map(student => student.studentId || student._id);
-
-          console.log("Using college-specific attendance format");
+            .filter((student) => student.attendanceMarkedAt)
+            .map((student) => (student.studentId || student._id).toString());
         } else {
-          // Event-wide endpoint format: attendance[{_id, ...}]
-          allAttendedStudentIds = data?.data?.attendance?.map(
-            (record) => record._id || record.id
-          ) || [];
-
-          console.log("Using event-wide attendance format");
+          allAttendedStudentIds =
+            data?.data?.attendance?.map((record) =>
+              (record._id || record.id).toString()
+            ) || [];
         }
 
-        // Filter to only include students from the current college/registered list
-        const filteredStudentIds = allAttendedStudentIds.filter(id => validStudentIds.has(id));
-
-        console.log("All attendance loaded:", allAttendedStudentIds);
-        console.log("Filtered to current college:", filteredStudentIds);
+        const filteredStudentIds = allAttendedStudentIds.filter((id) =>
+          validStudentIds.has(id)
+        );
 
         setPresentIds(new Set(filteredStudentIds));
-        setOriginallyPresentIds(new Set(filteredStudentIds)); // Lock these students
+        setOriginallyPresentIds(new Set(filteredStudentIds));
       } else {
-        console.log("No existing attendance found or error fetching");
         setPresentIds(new Set());
         setOriginallyPresentIds(new Set());
       }
@@ -231,30 +254,30 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
     }
   };
 
+  // When selected date changes, reset and re-fetch
+  const handleDateSelect = (date) => {
+    if (date === selectedDate) return;
+    setPresentIds(new Set());
+    setOriginallyPresentIds(new Set());
+    setSelectedDate(date);
+    // useEffect will trigger fetchExistingAttendance via selectedDate dependency
+  };
+
   const handleSubmit = () => {
-    // Platform-specific confirmation
-    if (Platform.OS === 'web') {
+    if (Platform.OS === "web") {
+      const label = selectedDate ? formatDateLabel(selectedDate) : "this event";
       const confirmed = window.confirm(
-        "Are you sure you want to submit this attendance? This action is irreversible and cannot be undone."
+        `Are you sure you want to submit attendance for ${label}? This action is irreversible and cannot be undone.`
       );
-      if (confirmed) {
-        submitAttendance();
-      }
+      if (confirmed) submitAttendance();
     } else {
-      // Show confirmation alert before submitting (Mobile)
+      const label = selectedDate ? formatDateLabel(selectedDate) : "this event";
       Alert.alert(
         "Confirm Submission",
-        "Are you sure you want to submit this attendance? This action is irreversible and cannot be undone.",
+        `Are you sure you want to submit attendance for ${label}? This action is irreversible and cannot be undone.`,
         [
-          {
-            text: "Cancel",
-            style: "cancel"
-          },
-          {
-            text: "Submit",
-            onPress: () => submitAttendance(),
-            style: "destructive"
-          }
+          { text: "Cancel", style: "cancel" },
+          { text: "Submit", onPress: () => submitAttendance(), style: "destructive" },
         ]
       );
     }
@@ -262,23 +285,15 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
 
   const submitAttendance = async () => {
     const presentArray = Array.from(presentIds);
-    // Get collegeId from college prop OR from route params (when coming from RegisteredStudentsScreen)
     const collegeId = college?._id || college?.id || route?.params?.collegeId;
-    const collegeName = college?.name || college?.collegeName || route?.params?.collegeName;
-
-    console.log("=== SUBMIT ATTENDANCE DEBUG ===");
-    console.log("College ID:", collegeId);
-    console.log("College Name:", collegeName);
-    console.log("Present IDs:", presentArray);
-    console.log("Present IDs count:", presentArray.length);
-    console.log("===============================");
 
     const reqBody = {
       studentIds: presentArray,
       eventId: eventId,
       collegeId: collegeId,
+      attendanceDate: selectedDate, // include the specific day
     };
-    console.log(reqBody);
+    console.log("Submitting attendance:", reqBody);
 
     try {
       const response = await fetch(api.attendanceAPI, {
@@ -297,30 +312,25 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
         try {
           const errData = await response.json();
           if (errData && errData.message) errMsg = errData.message;
-        } catch { }
+        } catch {}
         throw new Error(errMsg);
       }
 
       const data = await response.json();
       console.log("Attendance submitted successfully:", data);
 
-      // Show success alert and navigate back (Platform-specific)
-      if (Platform.OS === 'web') {
-        window.alert("Attendance has been submitted successfully!");
+      const label = selectedDate ? formatDateLabel(selectedDate) : "the event";
+      if (Platform.OS === "web") {
+        window.alert(`Attendance for ${label} has been submitted successfully!`);
         goBack();
       } else {
-        Alert.alert("Success", "Attendance has been submitted successfully!", [
-          {
-            text: "OK",
-            onPress: () => goBack()
-          },
+        Alert.alert("Success", `Attendance for ${label} has been submitted successfully!`, [
+          { text: "OK", onPress: () => goBack() },
         ]);
       }
     } catch (err) {
       console.log("Error in submitting attendance:", err);
-
-      // Platform-specific error alert
-      if (Platform.OS === 'web') {
+      if (Platform.OS === "web") {
         window.alert("Failed to submit attendance: " + err.message);
       } else {
         Alert.alert("Error", "Failed to submit attendance: " + err.message, [
@@ -341,27 +351,24 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
     }
 
     return students.map((student) => {
-      const id =
-        student._id || student.id || student.prn || Math.random().toString();
-      const prn =
-        student.prn || student.PRN || student.roll || student.regNo || "—";
+      const id = student._id || student.id || student.prn || Math.random().toString();
+      const prn = student.prn || student.PRN || student.roll || student.regNo || "—";
       const dept = student.department || student.dept || "—";
       const name = student.name || student.fullName || "Unknown";
       const isPresent = presentIds.has(id);
-      const isLocked = originallyPresentIds.has(id); // Check if student was originally present
+      const isLocked = originallyPresentIds.has(id);
 
       return (
         <View
           key={id}
           className="p-4 rounded-xl mb-3 border"
-          style={{
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-          }}
+          style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
         >
           <View className="flex-row items-center justify-between">
             <View className="flex-1 mr-3">
-              <Text className="text-base font-bold mb-1" style={{ color: colors.header }}>{name}</Text>
+              <Text className="text-base font-bold mb-1" style={{ color: colors.header }}>
+                {name}
+              </Text>
               <View className="flex-row gap-3">
                 <Text className="text-xs" style={{ color: colors.textSecondary }}>PRN: {prn}</Text>
                 <Text className="text-xs" style={{ color: colors.textSecondary }}>Dept: {dept}</Text>
@@ -379,8 +386,8 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
                   opacity: isLocked ? 0.6 : 1,
                 }}
               >
-                <Text className="font-bold text-xs" style={{ color: isPresent ? '#fff' : colors.textPrimary }}>
-                  {isLocked ? 'Marked' : 'Present'}
+                <Text className="font-bold text-xs" style={{ color: isPresent ? "#fff" : colors.textPrimary }}>
+                  {isLocked ? "Marked" : "Present"}
                 </Text>
               </TouchableOpacity>
 
@@ -389,12 +396,12 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
                 disabled={isLocked}
                 className="px-4 py-2 rounded-xl border"
                 style={{
-                  borderColor: !isPresent ? colors.error || '#ef4444' : colors.border,
-                  backgroundColor: !isPresent ? colors.error || '#ef4444' : colors.cardBg,
+                  borderColor: !isPresent ? colors.error || "#ef4444" : colors.border,
+                  backgroundColor: !isPresent ? colors.error || "#ef4444" : colors.cardBg,
                   opacity: isLocked ? 0.6 : 1,
                 }}
               >
-                <Text className="font-bold text-xs" style={{ color: !isPresent ? '#fff' : colors.textPrimary }}>
+                <Text className="font-bold text-xs" style={{ color: !isPresent ? "#fff" : colors.textPrimary }}>
                   Absent
                 </Text>
               </TouchableOpacity>
@@ -405,37 +412,35 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
     });
   };
 
-  // Calculate present count
   const presentCount = presentIds.size;
-
-  // Calculate NEW students marked (excluding already-locked students)
-  const newStudentsCount = Array.from(presentIds).filter(id => !originallyPresentIds.has(id)).length;
+  const newStudentsCount = Array.from(presentIds).filter(
+    (id) => !originallyPresentIds.has(id)
+  ).length;
 
   return (
     <View
       className="flex-1"
-      style={{
-        backgroundColor: colors.backgroundColors
-          ? colors.backgroundColors[0]
-          : "#fff",
-      }}
+      style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : "#fff" }}
     >
       {/* Header Section */}
-      <View className="px-5 pt-8 pb-4" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+      <View
+        className="px-5 pt-8 pb-4"
+        style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}
+      >
         <View className="flex-row items-center justify-between mb-3">
           <TouchableOpacity
             onPress={() => goBack()}
-            className="px-4 py-2 rounded-xl border flex-row items-center"
-            style={{
-              borderColor: colors.border,
-              backgroundColor: colors.backgroundColors?.[0] || '#fff',
-            }}
+            className="p-2 rounded-full border mr-3"
+            style={{ borderColor: colors.border, backgroundColor: colors.backgroundColors?.[0] || "#fff" }}
           >
-            <Text className="font-semibold" style={{ color: colors.textPrimary }}>← Back</Text>
+            <ChevronLeft size={22} color={colors.textPrimary} />
           </TouchableOpacity>
 
           {/* Stats Badge */}
-          <View className="px-4 py-2 rounded-xl" style={{ backgroundColor: colors.accent + '15', borderWidth: 1, borderColor: colors.accent + '30' }}>
+          <View
+            className="px-4 py-2 rounded-xl"
+            style={{ backgroundColor: colors.accent + "15", borderWidth: 1, borderColor: colors.accent + "30" }}
+          >
             <Text className="font-bold text-sm" style={{ color: colors.accent }}>
               {presentCount} Present
             </Text>
@@ -443,11 +448,47 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
         </View>
 
         <Text className="text-2xl font-extrabold mb-1" style={{ color: colors.header }}>
-          {college?.name.toUpperCase() || college?.collegeName.toUpperCase() || "College"}
+          {college?.name?.toUpperCase() || college?.collegeName?.toUpperCase() || "College"}
         </Text>
-        <Text className="text-sm" style={{ color: colors.textSecondary }}>
+        <Text className="text-sm mb-3" style={{ color: colors.textSecondary }}>
           Mark Attendance
         </Text>
+
+        {/* ── Day selector for multi-day events ─────────────────────────── */}
+        {isMultiDay && (
+          <View className="mb-1">
+            <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>
+              SELECT DATE
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {eventDates.map((date) => {
+                const isSelected = date === selectedDate;
+                const isPast = date <= todayString();
+                return (
+                  <TouchableOpacity
+                    key={date}
+                    onPress={() => handleDateSelect(date)}
+                    disabled={!isPast}
+                    className="mr-2 px-4 py-2 rounded-xl border"
+                    style={{
+                      borderColor: isSelected ? colors.accent : colors.border,
+                      backgroundColor: isSelected ? colors.accent : colors.cardBg,
+                      opacity: isPast ? 1 : 0.4,
+                    }}
+                  >
+                    <Text
+                      className="font-bold text-xs"
+                      style={{ color: isSelected ? "#fff" : colors.textPrimary }}
+                    >
+                      {formatDateLabel(date)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+        {/* ────────────────────────────────────────────────────────────────── */}
       </View>
 
       {/* Main Content */}
@@ -459,36 +500,28 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
           </View>
         ) : (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={true}>
-
             {/* Class Filter Dropdown */}
             <View className="mb-4">
-              <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>FILTER BY CLASS</Text>
+              <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>
+                FILTER BY CLASS
+              </Text>
               <TouchableOpacity
                 onPress={() => setShowDropdown((s) => !s)}
                 className="px-4 py-3 rounded-xl border flex-row items-center justify-between"
-                style={{
-                  borderColor: colors.border,
-                  backgroundColor: colors.cardBg,
-                }}
+                style={{ borderColor: colors.border, backgroundColor: colors.cardBg }}
               >
                 <Text className="font-semibold" style={{ color: colors.textPrimary }}>
                   {selectedClass}
                 </Text>
-                <Text style={{ color: colors.textSecondary }}>{showDropdown ? '▲' : '▼'}</Text>
+                <Text style={{ color: colors.textSecondary }}>{showDropdown ? "▲" : "▼"}</Text>
               </TouchableOpacity>
 
               {showDropdown && (
                 <View
                   className="mt-2 rounded-xl border overflow-hidden"
-                  style={{
-                    borderColor: colors.border,
-                    backgroundColor: colors.cardBg,
-                  }}
+                  style={{ borderColor: colors.border, backgroundColor: colors.cardBg }}
                 >
-                  <ScrollView
-                    className="max-h-55"
-                    showsVerticalScrollIndicator={true}
-                  >
+                  <ScrollView className="max-h-55" showsVerticalScrollIndicator={true}>
                     {classes.map((className) => (
                       <TouchableOpacity
                         key={className}
@@ -498,17 +531,13 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
                         }}
                         className="px-4 py-3 border-b"
                         style={{
-                          backgroundColor:
-                            selectedClass === className ? colors.accent : "transparent",
+                          backgroundColor: selectedClass === className ? colors.accent : "transparent",
                           borderColor: colors.border,
                         }}
                       >
                         <Text
                           className="font-semibold"
-                          style={{
-                            color:
-                              selectedClass === className ? "#fff" : colors.textPrimary,
-                          }}
+                          style={{ color: selectedClass === className ? "#fff" : colors.textPrimary }}
                         >
                           {className}
                         </Text>
@@ -541,10 +570,7 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
                   const cls = classObjects.find((c) => c.name === selectedClass);
                   return cls ? (
                     <View>
-                      <Text
-                        className="text-sm font-bold mb-3 uppercase"
-                        style={{ color: colors.textSecondary }}
-                      >
+                      <Text className="text-sm font-bold mb-3 uppercase" style={{ color: colors.textSecondary }}>
                         {selectedClass}
                       </Text>
                       {renderStudentsForClass(cls)}
@@ -573,7 +599,9 @@ export default function StudentsListScreen({ college, eventId: propEventId, rout
                 }}
               >
                 <Text className="text-white font-bold text-base">
-                  Submit Attendance {newStudentsCount > 0 ? `(${newStudentsCount} new)` : '(No new students)'}
+                  {selectedDate && isMultiDay
+                    ? `Submit for ${formatDateLabel(selectedDate)} ${newStudentsCount > 0 ? `(${newStudentsCount} new)` : "(No new students)"}`
+                    : `Submit Attendance ${newStudentsCount > 0 ? `(${newStudentsCount} new)` : "(No new students)"}`}
                 </Text>
               </TouchableOpacity>
             </View>

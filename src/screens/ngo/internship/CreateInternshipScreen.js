@@ -1,0 +1,534 @@
+import React, { useContext, useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Platform,
+} from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { NavigationContext } from "../../../context/NavigationContext";
+import { AuthContext } from "../../../context/AuthContext";
+import { useTheme } from "../../../context/ThemeContext";
+import * as api from "../../../../apis/api";
+import { ChevronLeft } from "lucide-react-native";
+
+const DOMAINS = [
+  "Teaching & Education",
+  "Healthcare",
+  "Environment",
+  "Technology",
+  "Social Work",
+  "Agriculture",
+  "Arts & Culture",
+  "Legal Aid",
+  "Other",
+];
+
+const Field = ({ label, value, onChangeText, placeholder, multiline, keyboardType, colors }) => (
+  <View className="mb-4">
+    <Text className="text-xs font-bold mb-1.5" style={{ color: colors.textSecondary }}>
+      {label} <Text style={{ color: "#ef4444" }}>*</Text>
+    </Text>
+    <TextInput
+      className="px-4 py-3 rounded-xl border"
+      style={{
+        backgroundColor: colors.cardBg,
+        borderColor: colors.border,
+        color: colors.textPrimary,
+        minHeight: multiline ? 90 : undefined,
+        textAlignVertical: multiline ? "top" : "center",
+      }}
+      placeholder={placeholder}
+      placeholderTextColor={colors.textSecondary}
+      value={value}
+      onChangeText={onChangeText}
+      multiline={multiline}
+      keyboardType={keyboardType}
+    />
+  </View>
+);
+
+export default function CreateInternshipScreen() {
+  const { goBack, navigate } = useContext(NavigationContext);
+  const { accessToken, user, userType } = useContext(AuthContext);
+  const { darkMode, lightTheme, darkTheme } = useTheme();
+  const colors = darkMode ? darkTheme : lightTheme;
+
+  const isSuperAdmin = userType === "ngo" && user?.is_hierarchical;
+
+  const [branches, setBranches] = useState([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState(null);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetchBranches();
+    }
+  }, []);
+
+  const fetchBranches = async () => {
+    setLoadingBranches(true);
+    try {
+      const response = await fetch(`${api.getAllBranchesAPI}?ngo_id=${user._id}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setBranches(data.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+    } finally {
+      setLoadingBranches(false);
+    }
+  };
+
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    domain: DOMAINS[0],
+    location: "",
+    stipend: "",
+    totalSlots: "",
+    spocName: "",
+    spocContact: "",
+    allowLateSubmissions: false,
+  });
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showDomainPicker, setShowDomainPicker] = useState(false);
+
+  const update = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const formatDate = (date) => {
+    if (!date) return "Select Date";
+    return new Date(date).toLocaleDateString();
+  };
+
+  const handleSubmit = async () => {
+    const { title, description, domain, location, totalSlots, spocName, spocContact } = form;
+
+    if (!title || !description || !domain || !location || !totalSlots || !spocName || !spocContact) {
+      Alert.alert("Missing Fields", "Please fill in all required fields");
+      return;
+    }
+    if (!startDate || !endDate) {
+      Alert.alert("Missing Dates", "Please select start and end dates");
+      return;
+    }
+    if (new Date(endDate) <= new Date(startDate)) {
+      Alert.alert("Invalid Dates", "End date must be after start date");
+      return;
+    }
+    const slots = parseInt(totalSlots);
+    if (isNaN(slots) || slots < 1) {
+      Alert.alert("Invalid Slots", "Total slots must be a positive number");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(api.ngoInternshipsAPI, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          title,
+          description,
+          domain,
+          location,
+          stipend: form.stipend || "Unpaid",
+          totalSlots: slots,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          spocName,
+          spocContact,
+          allowLateSubmissions: form.allowLateSubmissions,
+          branchId: selectedBranch?.branch_id || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert("Success", "Internship created successfully!", [
+          { text: "OK", onPress: () => goBack() },
+        ]);
+      } else {
+        Alert.alert("Error", data.message || "Failed to create internship");
+      }
+    } catch (err) {
+      Alert.alert("Error", "Network error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  return (
+    <View
+      className="flex-1"
+      style={{
+        backgroundColor:
+          (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
+      }}
+    >
+      {/* Header */}
+      <View
+        className="flex-row items-center px-5 pt-10 pb-4 border-b"
+        style={{ borderBottomColor: colors.border, backgroundColor: colors.cardBg }}
+      >
+        <TouchableOpacity
+          onPress={goBack}
+          className="p-2 rounded-full mr-3 border"
+          style={{ borderColor: colors.border }}
+        >
+          <ChevronLeft size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View>
+          <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
+            Create Internship
+          </Text>
+          <Text className="text-xs" style={{ color: colors.textSecondary }}>
+            Fill in the program details below
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView
+        className="flex-1 px-5 pt-4"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <Field
+          label="Internship Title"
+          value={form.title}
+          onChangeText={(v) => update("title", v)}
+          placeholder="e.g. Teaching Assistant Internship"
+          colors={colors}
+        />
+        <Field
+          label="Description"
+          value={form.description}
+          onChangeText={(v) => update("description", v)}
+          placeholder="Describe the internship program..."
+          multiline={true}
+          colors={colors}
+        />
+
+        {/* Branch picker (Super Admin only) */}
+        {isSuperAdmin && (
+          <View className="mb-4">
+            <Text className="text-xs font-bold mb-1.5" style={{ color: colors.textSecondary }}>
+              Branch (Optional for NGO-wide, select for Branch-specific)
+            </Text>
+            <TouchableOpacity
+              className="px-4 py-3 rounded-xl border flex-row justify-between items-center"
+              style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+              onPress={() => setShowBranchPicker(!showBranchPicker)}
+            >
+              <Text style={{ color: selectedBranch ? colors.textPrimary : colors.textSecondary }}>
+                {selectedBranch ? selectedBranch.name : "Select Branch (NGO-wide)"}
+              </Text>
+              <Text style={{ color: colors.textSecondary }}>▼</Text>
+            </TouchableOpacity>
+            {showBranchPicker && (
+              <View
+                className="rounded-xl border mt-1 overflow-hidden"
+                style={{
+                  backgroundColor: colors.cardBg,
+                  borderColor: colors.border,
+                }}
+              >
+                <TouchableOpacity
+                  className="px-4 py-3 border-b"
+                  style={{ borderBottomColor: colors.border }}
+                  onPress={() => {
+                    setSelectedBranch(null);
+                    setShowBranchPicker(false);
+                  }}
+                >
+                  <Text style={{ color: !selectedBranch ? colors.accent : colors.textPrimary }}>
+                    NGO-wide (No specific branch)
+                  </Text>
+                </TouchableOpacity>
+                {branches.map((b) => (
+                  <TouchableOpacity
+                    key={b.branch_id}
+                    className="px-4 py-3 border-b"
+                    style={{ borderBottomColor: colors.border }}
+                    onPress={() => {
+                      setSelectedBranch(b);
+                      setShowBranchPicker(false);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selectedBranch?.branch_id === b.branch_id ? colors.accent : colors.textPrimary,
+                        fontWeight: selectedBranch?.branch_id === b.branch_id ? "bold" : "normal",
+                      }}
+                    >
+                      {b.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Domain picker */}
+        <View className="mb-4">
+          <Text className="text-xs font-bold mb-1.5" style={{ color: colors.textSecondary }}>
+            Domain <Text style={{ color: "#ef4444" }}>*</Text>
+          </Text>
+          <TouchableOpacity
+            className="px-4 py-3 rounded-xl border flex-row justify-between items-center"
+            style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+            onPress={() => setShowDomainPicker(!showDomainPicker)}
+          >
+            <Text style={{ color: colors.textPrimary }}>{form.domain}</Text>
+            <Text style={{ color: colors.textSecondary }}>▼</Text>
+          </TouchableOpacity>
+          {showDomainPicker && (
+            <View
+              className="rounded-xl border mt-1 overflow-hidden"
+              style={{
+                backgroundColor: colors.cardBg,
+                borderColor: colors.border,
+              }}
+            >
+              {DOMAINS.map((d) => (
+                <TouchableOpacity
+                  key={d}
+                  className="px-4 py-3 border-b"
+                  style={{ borderBottomColor: colors.border }}
+                  onPress={() => {
+                    update("domain", d);
+                    setShowDomainPicker(false);
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: form.domain === d ? colors.accent : colors.textPrimary,
+                      fontWeight: form.domain === d ? "bold" : "normal",
+                    }}
+                  >
+                    {d}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <Field
+          label="Location"
+          value={form.location}
+          onChangeText={(v) => update("location", v)}
+          placeholder="e.g. Mumbai, Maharashtra"
+          colors={colors}
+        />
+
+        {/* Date pickers row */}
+        <View className="flex-row gap-3 mb-4">
+          <View className="flex-1">
+            <Text className="text-xs font-bold mb-1.5" style={{ color: colors.textSecondary }}>
+              Start Date <Text style={{ color: "#ef4444" }}>*</Text>
+            </Text>
+            {Platform.OS === "web" ? (
+              <input
+                type="date"
+                value={startDate ? startDate.toISOString().split("T")[0] : ""}
+                onChange={(e) => e.target.value && setStartDate(new Date(e.target.value))}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "12px",
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.cardBg,
+                  color: colors.textPrimary,
+                  fontSize: "14px",
+                  width: "100%",
+                  fontFamily: "inherit",
+                }}
+              />
+            ) : (
+              <TouchableOpacity
+                className="px-3 py-3 rounded-xl border"
+                style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+                onPress={() => setShowStartPicker(true)}
+              >
+                <Text style={{ color: startDate ? colors.textPrimary : colors.textSecondary }}>
+                  {formatDate(startDate)}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View className="flex-1">
+            <Text className="text-xs font-bold mb-1.5" style={{ color: colors.textSecondary }}>
+              End Date <Text style={{ color: "#ef4444" }}>*</Text>
+            </Text>
+            {Platform.OS === "web" ? (
+              <input
+                type="date"
+                value={endDate ? endDate.toISOString().split("T")[0] : ""}
+                onChange={(e) => e.target.value && setEndDate(new Date(e.target.value))}
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "12px",
+                  border: `1px solid ${colors.border}`,
+                  backgroundColor: colors.cardBg,
+                  color: colors.textPrimary,
+                  fontSize: "14px",
+                  width: "100%",
+                  fontFamily: "inherit",
+                }}
+              />
+            ) : (
+              <TouchableOpacity
+                className="px-3 py-3 rounded-xl border"
+                style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+                onPress={() => setShowEndPicker(true)}
+              >
+                <Text style={{ color: endDate ? colors.textPrimary : colors.textSecondary }}>
+                  {formatDate(endDate)}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {Platform.OS !== "web" && showStartPicker && (
+          <DateTimePicker
+            value={startDate || new Date()}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={(_, d) => { setShowStartPicker(false); if (d) setStartDate(d); }}
+          />
+        )}
+        {Platform.OS !== "web" && showEndPicker && (
+          <DateTimePicker
+            value={endDate || new Date()}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={(_, d) => { setShowEndPicker(false); if (d) setEndDate(d); }}
+          />
+        )}
+
+        {/* Row: Slots + Stipend */}
+        <View className="flex-row gap-3">
+          <View className="flex-1">
+            <Field
+              label="Total Slots"
+              value={form.totalSlots}
+              onChangeText={(v) => update("totalSlots", v)}
+              placeholder="e.g. 5"
+              keyboardType="numeric"
+              colors={colors}
+            />
+          </View>
+          <View className="flex-1">
+            <View className="mb-4">
+              <Text className="text-xs font-bold mb-1.5" style={{ color: colors.textSecondary }}>
+                Stipend
+              </Text>
+              <TextInput
+                className="px-4 py-3 rounded-xl border"
+                style={{
+                  backgroundColor: colors.cardBg,
+                  borderColor: colors.border,
+                  color: colors.textPrimary,
+                }}
+                placeholder="e.g. ₹5000/month"
+                placeholderTextColor={colors.textSecondary}
+                value={form.stipend}
+                onChangeText={(v) => update("stipend", v)}
+              />
+            </View>
+          </View>
+        </View>
+
+        <Field
+          label="SPOC Name"
+          value={form.spocName}
+          onChangeText={(v) => update("spocName", v)}
+          placeholder="Enter coordinator name"
+          colors={colors}
+        />
+
+        <Field
+          label="SPOC Contact"
+          value={form.spocContact}
+          onChangeText={(v) => update("spocContact", v)}
+          placeholder="Phone or email"
+          keyboardType="email-address"
+          colors={colors}
+        />
+
+        {/* Late Submissions Toggle */}
+        <TouchableOpacity
+          onPress={() => update("allowLateSubmissions", !form.allowLateSubmissions)}
+          className="p-4 rounded-xl mb-6 border flex-row items-center justify-between"
+          style={{
+            backgroundColor: form.allowLateSubmissions ? `${colors.accent}15` : colors.cardBg,
+            borderColor: form.allowLateSubmissions ? colors.accent : colors.border,
+          }}
+        >
+          <View className="flex-1 mr-3">
+            <Text className="text-sm font-bold" style={{ color: colors.textPrimary }}>
+              Allow Late Submissions
+            </Text>
+            <Text className="text-[10px]" style={{ color: colors.textSecondary }}>
+              If enabled, students can submit work logs even after the internship ends.
+            </Text>
+          </View>
+          <View
+            className="w-12 h-6 rounded-full px-1 justify-center"
+            style={{
+              backgroundColor: form.allowLateSubmissions ? colors.accent : colors.border,
+            }}
+          >
+            <View
+              className="w-4 h-4 rounded-full bg-white"
+              style={{
+                alignSelf: form.allowLateSubmissions ? "flex-end" : "flex-start",
+              }}
+            />
+          </View>
+        </TouchableOpacity>
+
+        {/* Submit */}
+        <TouchableOpacity
+          className="py-4 rounded-xl items-center mt-2"
+          style={{ backgroundColor: loading ? colors.border : colors.accent }}
+          onPress={handleSubmit}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="white" />
+          ) : (
+            <Text className="text-white font-bold text-base">
+              Create Internship
+            </Text>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+}

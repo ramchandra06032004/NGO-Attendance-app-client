@@ -4,6 +4,10 @@ import HomeScreen from "./screens/HomeScreen";
 import NgoEventsScreen from "./screens/ngo/NgoEventsScreen";
 import EventDetailScreen from "./screens/ngo/EventDetailScreen";
 import EventInfoScreen from "./screens/ngo/EventInfoScreen";
+import NgoDashboard from "./screens/ngo/NgoDashboard";
+import ManageBranchesScreen from "./screens/ngo/ManageBranchesScreen";
+import CreateBranchScreen from "./screens/ngo/CreateBranchScreen";
+import BranchDetailScreen from "./screens/ngo/BranchDetailScreen";
 import SelectCollegeScreen from "./screens/ngo/SelectCollegeScreen";
 import StudentsListScreen from "./screens/ngo/StudentsListScreen";
 import CollegeClassesScreen from "./screens/college/CollegeClassesScreen";
@@ -15,6 +19,8 @@ import AdminLoginScreen from "./screens/admin/AdminLoginScreen";
 import AdminPanelScreen from "./screens/admin/AdminPanelScreen";
 import RegisterAdminScreen from "./screens/admin/RegisterAdminScreen";
 import AddClassScreen from "./screens/college/AddClassScreen";
+import CollegeExportScreen from "./screens/college/CollegeExportScreen";
+import CollegeEventAttendanceScreen from "./screens/college/CollegeEventAttendanceScreen";
 import AddStudentScreen from "./screens/college/AddStudentScreen";
 import AddCollegeScreen from "./screens/admin/AddCollegeScreen";
 import AddNgoScreen from "./screens/admin/AddNgoScreen";
@@ -23,8 +29,16 @@ import AttendanceRecords from "./screens/ngo/AttendanceRecords";
 import RegisteredStudentsScreen from "./screens/ngo/RegisteredStudentsScreen";
 import EntityDetailScreen from "./screens/admin/EntityDetailScreen";
 import StudentLoginScreen from "./screens/student/StudentLoginScreen";
-import StudentDashboardScreen from "./screens/student/StudentDashboardScreen";
+import StudentDashboardWrapper from "./screens/student/StudentDashboardWrapper";
 import StudentMyEventsScreen from "./screens/student/StudentMyEventsScreen";
+// Internship screens
+import NgoInternshipsScreen from "./screens/ngo/internship/NgoInternshipsScreen";
+import CreateInternshipScreen from "./screens/ngo/internship/CreateInternshipScreen";
+import InternshipApplicantsScreen from "./screens/ngo/internship/InternshipApplicantsScreen";
+import StudentWorkLogsScreen from "./screens/ngo/internship/StudentWorkLogsScreen";
+import StudentInternshipsScreen from "./screens/student/internship/StudentInternshipsScreen";
+import StudentMyInternshipsScreen from "./screens/student/internship/StudentMyInternshipsScreen";
+import SubmitWorkLogScreen from "./screens/student/internship/SubmitWorkLogScreen";
 import { NavigationContext } from "./context/NavigationContext";
 import { AuthContext } from "./context/AuthContext";
 import Toast from "react-native-toast-message";
@@ -40,6 +54,8 @@ export default function AppContainer() {
     if (!loading && isAuthenticated && route.name === "Home") {
       // Only redirect if user is authenticated AND on Home page
       if (userType === "ngo") {
+        navigate("NgoEvents", { ngo: user });
+      } else if (userType === "branch_admin") {
         navigate("NgoEvents", { ngo: user });
       } else if (userType === "college") {
         navigate("CollegeClasses", { college: user });
@@ -80,13 +96,15 @@ export default function AppContainer() {
   // Block access to login screens if already authenticated
   if (isAuthenticated && (route.name === "NgoLogin" || route.name === "CollegeLogin" || route.name === "AdminLogin" || route.name === "StudentLogin")) {
     if (userType === "ngo") {
-      return <NgoEventsScreen ngo={user} />;
+      return <NgoDashboard ngo={user} />;
+    } else if (userType === "branch_admin") {
+      return <NgoDashboard ngo={user} />;
     } else if (userType === "college") {
       return <CollegeClassesScreen college={user} />;
     } else if (userType === "admin") {
       return <AdminPanelScreen />;
     } else if (userType === "student") {
-      return <StudentDashboardScreen student={user} />;
+      return <StudentDashboardWrapper student={user} />;
     }
   }
 
@@ -105,7 +123,7 @@ export default function AppContainer() {
       Screen = <AdminLoginScreen />;
       break;
     case "NgoEvents":
-      Screen = <NgoEventsScreen ngo={route.params?.ngo || user} />;
+      Screen = <NgoDashboard ngo={route.params?.ngo || user} />;
       break;
     case "EventDetail":
       Screen = <EventDetailScreen eventId={route.params?.eventId} />;
@@ -113,8 +131,17 @@ export default function AppContainer() {
     case "EventInfo":
       Screen = <EventInfoScreen event={route.params?.event} route={route} />;
       break;
+    case "ManageBranches":
+      Screen = <ManageBranchesScreen />;
+      break;
+    case "CreateBranch":
+      Screen = <CreateBranchScreen />;
+      break;
+    case "BranchDetail":
+      Screen = <BranchDetailScreen route={route} />;
+      break;
     case "SelectCollege":
-      Screen = <SelectCollegeScreen eventId={route.params?.eventId} />;
+      Screen = <SelectCollegeScreen eventId={route.params?.eventId} event={route.params?.event} />;
       break;
     case "StudentsList":
       Screen = (
@@ -122,6 +149,8 @@ export default function AppContainer() {
           key={`${route.params?.eventId}-${route.params?.college?._id || route.params?.college?.id}`}
           eventId={route.params?.eventId}
           college={route.params?.college}
+          event={route.params?.event}
+          registeredStudents={route.params?.registeredStudents}
           route={route}
         />
       );
@@ -137,6 +166,8 @@ export default function AppContainer() {
         <AddStudentScreen
           college={route.params?.college}
           className={route.params?.className}
+          isNgoVolunteer={route.params?.isNgoVolunteer}
+          ngo={route.params?.ngo}
         />
       );
       break;
@@ -162,6 +193,23 @@ export default function AppContainer() {
         />
       );
       break;
+    case "CollegeExport":
+      Screen = (
+        <CollegeExportScreen
+          college={route.params?.college}
+          eventsList={route.params?.eventsList}
+        />
+      );
+      break;
+    case "CollegeEventAttendance":
+      Screen = (
+        <CollegeEventAttendanceScreen
+          event={route.params?.event}
+          college={route.params?.college}
+          accessToken={route.params?.accessToken}
+        />
+      );
+      break;
     case "AdminPanel":
       Screen = <AdminPanelScreen />;
       break;
@@ -184,11 +232,52 @@ export default function AppContainer() {
       Screen = <StudentLoginScreen />;
       break;
     case "StudentDashboard":
-      Screen = <StudentDashboardScreen student={route.params?.student || user} />;
+      Screen = <StudentDashboardWrapper student={route.params?.student || user} />;
       break;
     case "StudentMyEvents":
       Screen = <StudentMyEventsScreen student={route.params?.student || user} />;
       break;
+    // ─── Internship screens ───────────────────────────────────────────────────
+    case "NgoInternships":
+      Screen = <NgoInternshipsScreen ngo={route.params?.ngo || user} />;
+      break;
+    case "CreateInternship":
+      Screen = <CreateInternshipScreen />;
+      break;
+    case "InternshipApplicants":
+      Screen = <InternshipApplicantsScreen internship={route.params?.internship} />;
+      break;
+    case "StudentWorkLogs":
+      Screen = (
+        <StudentWorkLogsScreen
+          internshipId={route.params?.internshipId}
+          studentId={route.params?.studentId}
+          studentName={route.params?.studentName}
+          startDate={route.params?.startDate}
+          endDate={route.params?.endDate}
+        />
+      );
+      break;
+    case "StudentInternships":
+      Screen = <StudentInternshipsScreen student={route.params?.student || user} />;
+      break;
+    case "StudentMyInternships":
+      Screen = <StudentMyInternshipsScreen student={route.params?.student || user} />;
+      break;
+    case "SubmitWorkLog":
+      Screen = (
+        <SubmitWorkLogScreen
+          internshipId={route.params?.internshipId}
+          internshipTitle={route.params?.internshipTitle}
+          startDate={route.params?.startDate}
+          endDate={route.params?.endDate}
+          allowLateSubmissions={route.params?.allowLateSubmissions}
+          totalDays={route.params?.totalDays}
+          currentLogsCount={route.params?.currentLogsCount}
+        />
+      );
+      break;
+    // ─────────────────────────────────────────────────────────────────────────
     default:
       Screen = <HomeScreen />;
   }

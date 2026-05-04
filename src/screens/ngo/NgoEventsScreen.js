@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { AuthContext } from "../../context/AuthContext";
+import AnimatedSearch from "../../components/AnimatedSearch";
+import CollapsibleFilter from "../../components/CollapsibleFilter";
 
 import { AttendanceContext } from "../../context/AttendanceContext";
 import { NavigationContext } from "../../context/NavigationContext";
@@ -30,7 +32,9 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const [endDate, setEndDate] = useState(null);
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
-  const { logout, accessToken } = useContext(AuthContext);
+  const [sortOrder, setSortOrder] = useState("newest"); // "newest" or "oldest"
+  const { logout, accessToken, userType: loggedInUserType } = useContext(AuthContext);
+  const isBranchAdmin = loggedInUserType === "branch_admin";
 
   useEffect(() => {
     fetchEvents();
@@ -91,38 +95,42 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
     // Text search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const eventDate = event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "";
+      const eventDateRange = `${new Date(event.startDate).toLocaleDateString()} - ${new Date(event.endDate).toLocaleDateString()}`;
       const matchesSearch = (
         event.aim?.toLowerCase().includes(query) ||
         event.location?.toLowerCase().includes(query) ||
         event.description?.toLowerCase().includes(query) ||
-        eventDate.toLowerCase().includes(query)
+        event.spocName?.toLowerCase().includes(query) ||
+        eventDateRange.toLowerCase().includes(query)
       );
       if (!matchesSearch) return false;
     }
 
-    // Date range filter
+    // Date range filter: Show events that OVERLAP with the selected filter range
     if (startDate || endDate) {
-      const eventDate = event.eventDate ? new Date(event.eventDate) : null;
-      if (!eventDate) return false;
+      const eventStart = event.startDate ? new Date(event.startDate) : new Date(event.eventDate);
+      const eventEnd = event.endDate ? new Date(event.endDate) : eventStart;
 
-      // Reset time to compare only dates
-      eventDate.setHours(0, 0, 0, 0);
+      // Reset time for comparison
+      eventStart.setHours(0, 0, 0, 0);
+      eventEnd.setHours(0, 0, 0, 0);
 
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        if (eventDate < start) return false;
-      }
+      const filterStart = startDate ? new Date(startDate) : null;
+      if (filterStart) filterStart.setHours(0, 0, 0, 0);
 
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(0, 0, 0, 0);
-        if (eventDate > end) return false;
-      }
+      const filterEnd = endDate ? new Date(endDate) : null;
+      if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
+
+      // Overlap logic: (EventStart <= FilterEnd) && (EventEnd >= FilterStart)
+      if (filterStart && eventEnd < filterStart) return false;
+      if (filterEnd && eventStart > filterEnd) return false;
     }
 
     return true;
+  }).sort((a, b) => {
+    const dateA = new Date(a.startDate || a.eventDate);
+    const dateB = new Date(b.startDate || b.eventDate);
+    return sortOrder === "newest" ? dateB - dateA : dateA - dateB;
   });
 
   const clearDateRange = () => {
@@ -159,9 +167,9 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
                 flexShrink: 0,
               }}
             >
-              {loggedNgo.profileImage ? (
+              { (loggedNgo.profileImage || loggedNgo.ngoLogo) ? (
                 <Image
-                  source={{ uri: loggedNgo.profileImage }}
+                  source={{ uri: loggedNgo.profileImage || loggedNgo.ngoLogo }}
                   style={{ width: '100%', height: '100%' }}
                   resizeMode="cover"
                 />
@@ -174,21 +182,28 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
               )}
             </View>
 
-            {/* NGO Name & Address */}
+            {/* NGO Name & Branch/Address */}
             <View className="flex-1">
               <Text
-                className="font-bold text-sm leading-5"
-                style={{ color: colors.header }}
-                numberOfLines={1}
-              >
-                {loggedNgo.name.toUpperCase()}
-              </Text>
-              <Text
-                className="text-xs mt-0.5"
+                className="font-bold text-xs leading-4"
                 style={{ color: colors.textSecondary }}
                 numberOfLines={1}
               >
-                {loggedNgo.address}
+                {(loggedNgo.ngoName || loggedNgo.name).toUpperCase()}
+              </Text>
+              <Text
+                className="font-extrabold text-base leading-6"
+                style={{ color: colors.header }}
+                numberOfLines={1}
+              >
+                {isBranchAdmin ? loggedNgo.name : "SUPER ADMIN"}
+              </Text>
+              <Text
+                className="text-[10px] mt-0.5"
+                style={{ color: colors.textSecondary }}
+                numberOfLines={1}
+              >
+                {loggedNgo.ngoAddress || loggedNgo.address}
               </Text>
             </View>
           </View>
@@ -209,7 +224,7 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
         </View>
       </View>
 
-      {/* --- TITLE & ADD BUTTON ROW --- */}
+      {/* --- TITLE ROW --- */}
       <View className="flex-row items-center justify-between mb-3">
         <Text
           className="text-2xl font-extrabold"
@@ -218,41 +233,27 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
           Events
         </Text>
 
-        {/* Add Event Button */}
-        <TouchableOpacity
-          className="px-4 py-2 rounded-xl flex-row items-center"
-          style={{
-            backgroundColor: colors.accent,
-          }}
-          onPress={() => navigate("AddEvent")}
-        >
-          <Text className="text-white text-lg font-bold mr-1">+</Text>
-          <Text className="text-white font-bold text-sm">New</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* --- SEARCH BAR --- */}
-      <View className="mb-3">
-        <TextInput
-          className="px-4 py-3 rounded-xl border"
-          style={{
-            backgroundColor: colors.cardBg,
-            borderColor: colors.border,
-            color: colors.textPrimary,
-          }}
-          placeholder="Search by name, location, or description..."
-          placeholderTextColor={colors.textSecondary}
+        {/* Search icon — compact, doesn't push anything */}
+        <AnimatedSearch
+          placeholder="Search events..."
           value={searchQuery}
           onChangeText={setSearchQuery}
+          colors={colors}
+          containerStyle={{ marginBottom: 0 }}
         />
       </View>
 
-      {/* --- DATE RANGE PICKER --- */}
-      <View className="mb-4">
-        <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>
-          Filter by Date Range
-        </Text>
-        <View className="flex-row gap-2">
+
+
+
+
+
+
+
+
+      {/* --- FILTERS --- */}
+      <CollapsibleFilter colors={colors} title="Filter by Date">
+        <View className="flex-row gap-2 mt-2">
           {/* Start Date */}
           {Platform.OS === 'web' ? (
             <View className="flex-1">
@@ -349,7 +350,34 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+
+        {/* --- Sort Options --- */}
+        <View className="mt-4 pt-3 border-t" style={{ borderTopColor: colors.border }}>
+          <Text className="text-xs font-bold mb-2 uppercase tracking-widest" style={{ color: colors.textSecondary }}>Sort By Date</Text>
+          <View className="flex-row gap-2">
+            <TouchableOpacity
+              onPress={() => setSortOrder("newest")}
+              className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+              style={{
+                backgroundColor: sortOrder === "newest" ? colors.accent : colors.cardBg,
+                borderColor: sortOrder === "newest" ? colors.accent : colors.border,
+              }}
+            >
+              <Text className="text-xs font-bold" style={{ color: sortOrder === "newest" ? "#fff" : colors.textPrimary }}>Newest First</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setSortOrder("oldest")}
+              className="flex-1 py-2.5 rounded-xl border items-center justify-center"
+              style={{
+                backgroundColor: sortOrder === "oldest" ? colors.accent : colors.cardBg,
+                borderColor: sortOrder === "oldest" ? colors.accent : colors.border,
+              }}
+            >
+              <Text className="text-xs font-bold" style={{ color: sortOrder === "oldest" ? "#fff" : colors.textPrimary }}>Oldest First</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </CollapsibleFilter>
 
       {/* Date Pickers - Only for Mobile */}
       {Platform.OS !== 'web' && showStartPicker && (
@@ -426,36 +454,62 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
               activeOpacity={0.8}
             >
               {/* Event Title */}
-              <Text
-                className="text-lg font-bold mb-1"
-                style={{ color: colors.textPrimary }}
-              >
-                {item.aim}
-              </Text>
-
-              {/* Location */}
-              <View className="flex-row items-center mb-2 opacity-90">
-                <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
+            <View className="flex-row justify-between items-start mb-2">
+              <View className="flex-1 pr-3">
                 <Text
-                  className="text-sm font-medium"
-                  style={{ color: colors.textSecondary }}
-                >
-                  {item.location}
-                </Text>
-              </View>
-
-              {/* Date Badge */}
-              <View
-                className="self-start px-2 py-1 rounded-md mb-2"
-                style={{ backgroundColor: colors.iconBg }}
-              >
-                <Text
-                  className="text-xs font-bold"
+                  className="text-lg font-bold mb-1"
                   style={{ color: colors.textPrimary }}
                 >
-                  📅 {new Date(item.eventDate).toLocaleDateString()}
+                  {item.aim}
+                </Text>
+
+                {/* Location */}
+                <View className="flex-row items-center mb-1 opacity-90">
+                  <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
+                  <Text
+                    className="text-sm font-medium"
+                    style={{ color: colors.textSecondary }}
+                  >
+                    {item.location}
+                  </Text>
+                </View>
+
+                {/* SPOC Info (Left Column) */}
+                {item.spocName && (
+                  <View className="mt-1">
+                    <View className="flex-row items-center mb-0.5">
+                      <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Manager:</Text>
+                      <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocName}</Text>
+                    </View>
+                    {item.spocContact && (
+                      <View className="flex-row items-center">
+                        <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Contact:</Text>
+                        <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocContact}</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+
+              {/* Date & Time Badge (Right Column) */}
+              <View
+                className="items-end px-2.5 py-2 rounded-xl"
+                style={{ backgroundColor: colors.iconBg, minWidth: 100 }}
+              >
+                <Text
+                  className="text-[10px] font-bold mb-1 text-right"
+                  style={{ color: colors.textPrimary }}
+                >
+                  📅 {new Date(item.startDate || item.eventDate).toLocaleDateString()}{item.endDate && item.endDate !== item.startDate ? ` - ${new Date(item.endDate).toLocaleDateString()}` : ''}
+                </Text>
+                <Text
+                  className="text-[10px] font-semibold opacity-80 text-right"
+                  style={{ color: colors.textPrimary }}
+                >
+                  ⏰ Daily: {item.startTime || "N/A"} - {item.endTime || "N/A"}
                 </Text>
               </View>
+            </View>
 
               {/* Description Snippet */}
               <Text

@@ -11,8 +11,9 @@ import * as ExcelJS from 'exceljs';
 import * as api from '../../../apis/api';
 import { Buffer } from 'buffer';
 import Toast from 'react-native-toast-message';
+import { ChevronLeft } from "lucide-react-native";
 
-export default function AddStudentScreen({ college, className }) {
+export default function AddStudentScreen({ college, className, isNgoVolunteer, ngo }) {
   const { goBack, navigate } = useContext(NavigationContext);
   const { addStudent } = useContext(AttendanceContext);
   const { accessToken } = useContext(AuthContext);
@@ -267,14 +268,6 @@ export default function AddStudentScreen({ college, className }) {
 
   async function onSave() {
     try {
-      // Find the class ID from college.classes
-      const selectedClass = college.classes.find(c => c.className === className);
-      if (!selectedClass) {
-        Alert.alert('Error', 'Class not found');
-        return;
-      }
-
-      const classId = selectedClass._id;
       const validStudents = students.filter(s => s.name.trim());
 
       if (validStudents.length === 0) {
@@ -282,9 +275,19 @@ export default function AddStudentScreen({ college, className }) {
         return;
       }
 
+      let classId = null;
+      if (!isNgoVolunteer) {
+        // Find the class ID from college.classes for normal colleges
+        const selectedClass = college?.classes?.find(c => c.className === className);
+        if (!selectedClass) {
+          Alert.alert('Error', 'Class not found');
+          return;
+        }
+        classId = selectedClass._id;
+      }
+
       // Prepare the request body
-      const requestBody = {
-        classId: classId,
+      let requestBody = {
         students: validStudents.map(s => ({
           name: s.name.trim(),
           department: s.department.trim(),
@@ -294,8 +297,14 @@ export default function AddStudentScreen({ college, className }) {
         }))
       };
 
+      if (!isNgoVolunteer) {
+        requestBody.classId = classId;
+      }
+
+      const apiEndpoint = isNgoVolunteer ? api.addNgoVolunteerAPI : api.addStudentAPI;
+
       // Call the API
-      const response = await fetch(api.addStudentAPI, {
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -311,8 +320,8 @@ export default function AddStudentScreen({ college, className }) {
         // 1. Fire toast immediately (shows on both web & Android)
         Toast.show({
           type: 'success',
-          text1: '✅ Students Added!',
-          text2: `${validStudents.length} student${validStudents.length > 1 ? 's' : ''} added to ${className} successfully.`,
+          text1: isNgoVolunteer ? '✅ Volunteers Added!' : '✅ Students Added!',
+          text2: `${validStudents.length} ${isNgoVolunteer ? 'volunteer' : 'student'}${validStudents.length > 1 ? 's' : ''} added ${isNgoVolunteer ? 'successfully' : `to ${className}`}.`,
           visibilityTime: 3000,
         });
 
@@ -322,39 +331,50 @@ export default function AddStudentScreen({ college, className }) {
         // 3. Alert with navigate-back option
         Alert.alert(
           'Success',
-          `${validStudents.length} student${validStudents.length > 1 ? 's' : ''} added to ${className}!`,
+          `${validStudents.length} ${isNgoVolunteer ? 'volunteer' : 'student'}${validStudents.length > 1 ? 's' : ''} added ${isNgoVolunteer ? 'successfully' : `to ${className}`}!`,
           [
             { text: 'Add More', style: 'cancel' },
-            { text: 'View Class', onPress: () => navigate('CollegeClasses', { college }) },
+            {
+              text: isNgoVolunteer ? 'View Events' : 'View Class',
+              onPress: () => isNgoVolunteer ? navigate('NgoEvents', { ngo }) : navigate('CollegeClasses', { college })
+            },
           ]
         );
       } else {
-        Toast.show({ type: 'error', text1: 'Failed to add students', text2: result.message || 'Please try again.' });
-        Alert.alert('Error', result.message || 'Failed to add students');
+        Toast.show({ type: 'error', text1: 'Failed to add records', text2: result.message || 'Please try again.' });
+        Alert.alert('Error', result.message || 'Failed to add records');
       }
     } catch (error) {
-      console.error('Error adding students:', error);
-      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to add students. Please try again.' });
-      Alert.alert('Error', 'Failed to add students');
+      console.error('Error adding records:', error);
+      Toast.show({ type: 'error', text1: 'Error', text2: 'Failed to add records. Please try again.' });
+      Alert.alert('Error', 'Failed to add records');
     }
   }
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.backgroundColors ? colors.backgroundColors[0] : '#fff' }}>
-      {/* Header with Back Button and Save */}
-      <View className="px-4 pt-12 pb-3" style={{ backgroundColor: colors.cardBg, borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <View className="flex-row items-center justify-between mb-3">
-          <TouchableOpacity onPress={() => goBack()} className="flex-row items-center">
-            <Text className="text-base" style={{ color: colors.textPrimary }}>← Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity className="p-2 px-4 rounded-lg" style={{ backgroundColor: colors.accent }} onPress={onSave}>
-            <Text className="text-white font-bold">Save ({students.filter(s => s.name.trim()).length})</Text>
-          </TouchableOpacity>
+      {/* Header with Back Button */}
+      <View className="flex-row items-center px-4 pt-12 pb-4 border-b" style={{ backgroundColor: colors.cardBg, borderBottomColor: colors.border }}>
+        <TouchableOpacity
+          onPress={goBack}
+          className="p-2 rounded-full mr-3 border"
+          style={{ borderColor: colors.border }}
+        >
+          <ChevronLeft size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View className="flex-1">
+          <Text className="text-xl font-extrabold" style={{ color: colors.header }}>
+            {isNgoVolunteer ? 'Add NGO Volunteers' : 'Add Students'}
+          </Text>
+          {!isNgoVolunteer && (
+            <Text className="text-xs" style={{ color: colors.textSecondary }}>
+              Class: {className}
+            </Text>
+          )}
         </View>
-        <Text className="text-xl font-bold" style={{ color: colors.header }}>Add Students to {className}</Text>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
         {/* Upload Section */}
         <View className="p-4 rounded-lg mb-4" style={{ backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }}>
           <Text className="text-base font-semibold mb-3" style={{ color: colors.textPrimary }}>Import from File</Text>
@@ -372,15 +392,16 @@ export default function AddStudentScreen({ college, className }) {
         </View>
 
         {/* Summary Card */}
-        <View className="p-4 rounded-lg mb-4" style={{ backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }}>
+        <View className="p-4 rounded-xl mb-4" style={{ backgroundColor: colors.cardBg, borderColor: colors.border, borderWidth: 1 }}>
           <View className="flex-row justify-between items-center">
             <View>
-              <Text className="text-sm" style={{ color: colors.textSecondary }}>Total Students</Text>
-              <Text className="text-2xl font-bold" style={{ color: colors.accent }}>{students.filter(s => s.name.trim()).length}</Text>
+              <Text className="text-xs font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>Total Records Ready</Text>
+              <Text className="text-3xl font-extrabold" style={{ color: colors.accent }}>{students.filter(s => s.name.trim()).length}</Text>
             </View>
-            <TouchableOpacity onPress={addEmptyStudent} className="p-2 px-4 rounded-lg" style={{ backgroundColor: colors.accent }}>
-              <Text className="text-white font-semibold">+ Add Manually</Text>
-            </TouchableOpacity>
+            <View className="items-end">
+              <Text className="text-[10px] italic" style={{ color: colors.textSecondary }}>Fill in at least 'Name'</Text>
+              <Text className="text-[10px] italic" style={{ color: colors.textSecondary }}>to include in save</Text>
+            </View>
           </View>
         </View>
 
@@ -466,8 +487,43 @@ export default function AddStudentScreen({ college, className }) {
           </View>
         ))}
 
-
+        {/* Add Another Button - Placed after the list for better flow */}
+        <TouchableOpacity 
+          onPress={addEmptyStudent} 
+          className="flex-row items-center justify-center py-4 rounded-xl border-2 border-dashed mt-4 mb-10" 
+          style={{ borderColor: colors.accent, backgroundColor: `${colors.accent}10` }}
+        >
+          <Text className="font-bold text-base" style={{ color: colors.accent }}>+ Add Another {isNgoVolunteer ? 'Volunteer' : 'Student'} Manually</Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Sticky Footer for Primary Action */}
+      <View 
+        className="px-6 pt-4 pb-8 border-t" 
+        style={{ 
+          backgroundColor: colors.cardBg, 
+          borderTopColor: colors.border,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: -3 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 10
+        }}
+      >
+        <TouchableOpacity 
+          className="py-4 rounded-2xl items-center" 
+          style={{ backgroundColor: colors.accent }} 
+          onPress={onSave}
+        >
+          <Text className="text-white font-extrabold text-lg">
+            Save {students.filter(s => s.name.trim()).length} {isNgoVolunteer ? 'Volunteers' : 'Students'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

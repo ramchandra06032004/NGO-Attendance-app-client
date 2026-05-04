@@ -11,6 +11,7 @@ import Toast from 'react-native-toast-message';
 import { NavigationContext } from '../../context/NavigationContext';
 import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { ChevronLeft } from 'lucide-react-native';
 import * as api from '../../../apis/api';
 
 const CLASS_PATTERN = /^\d{4}-\d{4}.{1,6}$/;
@@ -86,8 +87,20 @@ export default function AddClassScreen({ college }) {
       keyboardShouldPersistTaps="handled"
     >
       {/* ── Header ── */}
-      <TouchableOpacity onPress={goBack} style={styles.backBtn}>
-        <Text style={{ color: c.accent, fontSize: 13, fontWeight: '600' }}>← Back</Text>
+      <TouchableOpacity
+        onPress={goBack}
+        style={[
+          styles.backBtn,
+          {
+            padding: 6,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: c.border,
+            backgroundColor: darkMode ? '#1e3a50' : '#f0f9f6',
+          }
+        ]}
+      >
+        <ChevronLeft size={20} color={c.textPrimary} />
       </TouchableOpacity>
 
       <Text style={[styles.pageTitle, { color: c.header }]}>Add New Class</Text>

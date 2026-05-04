@@ -5,6 +5,8 @@ import { AttendanceContext } from '../../context/AttendanceContext';
 import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getAllCollegeAPI } from '../../../apis/api';
+import AnimatedSearch from '../../components/AnimatedSearch';
+import { ChevronLeft } from 'lucide-react-native';
 
 export default function ClassStudentsScreen({ college, className }) {
   const { navigate, goBack } = useContext(NavigationContext);
@@ -176,8 +178,11 @@ export default function ClassStudentsScreen({ college, className }) {
     >
       {/* --- 1. HEADER --- */}
       <View
-        className="px-5 pt-10 pb-4 border-b"
         style={{
+          paddingHorizontal: 20,
+          paddingTop: 40,
+          paddingBottom: 16,
+          borderBottomWidth: 1,
           backgroundColor: colors.cardBg,
           borderColor: colors.border,
           elevation: 2,
@@ -186,98 +191,57 @@ export default function ClassStudentsScreen({ college, className }) {
           shadowOpacity: 0.05,
         }}
       >
-        <View className="flex-row items-center mb-4">
+        {/* Single row: back + title + search icon + toggle */}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <TouchableOpacity
             onPress={() => goBack()}
-            className="mr-4 p-2 rounded-full"
-            style={{ backgroundColor: colors.backgroundColors?.[1] || "#F3F4F6" }}
+            style={{
+              marginRight: 12,
+              padding: 6,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: colors.border,
+              backgroundColor: colors.backgroundColors?.[1] || "#F3F4F6",
+            }}
           >
-            <Text
-              style={{
-                fontSize: 18,
-                color: colors.textPrimary,
-                fontWeight: "bold",
-              }}
-            >
-              ←
-            </Text>
+            <ChevronLeft size={20} color={colors.textPrimary} />
           </TouchableOpacity>
-          <View>
-            <Text
-              className="text-xl font-bold"
-              style={{ color: colors.header }}
-            >
-              {className}
-            </Text>
-            <Text
-              className="text-xs"
-              style={{ color: colors.textSecondary }}
-            >
+
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.header }}>{className}</Text>
+            <Text style={{ fontSize: 11, color: colors.textSecondary }}>
               {loading ? 'Loading...' : `${filteredStudents.length} / ${students.length} Students`}
             </Text>
           </View>
-        </View>
 
-        {/* --- 2. SEARCH BAR + TOGGLE BUTTON --- */}
-        <View className="flex-row gap-2">
+          {/* Animated Search */}
+          <AnimatedSearch
+            placeholder="Search by name or PRN"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            colors={colors}
+            containerStyle={{ marginBottom: 0, marginRight: 8 }}
+          />
 
-          {/* Search Input Container */}
-          <View
-            className="flex-1 flex-row items-center px-4 py-2.5 rounded-xl border"
-            style={{
-              backgroundColor: colors.backgroundColors?.[1] || "#F3F4F6",
-              borderColor: colors.border,
-            }}
-          >
-            <Text
-              style={{ fontSize: 22, color: colors.textSecondary, marginRight: 10 }}
-            >
-              ⌕
-            </Text>
-
-            <TextInput
-              className="flex-1 text-base p-0"
-              placeholder="Search by name or PRN"
-              placeholderTextColor={colors.textSecondary}
-              // ✅ FIX: Explicitly remove borders and outlines
-              style={{
-                color: colors.textPrimary,
-                borderWidth: 0,          // Removes border on mobile
-                outlineStyle: 'none',    // Removes black box on Web
-              }}
-              underlineColorAndroid="transparent" // Removes underline on Android
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery("")}>
-                <View className="bg-gray-300 rounded-full w-5 h-5 items-center justify-center">
-                  <Text
-                    style={{ fontSize: 10, color: "#fff", fontWeight: "bold" }}
-                  >
-                    ✕
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* TOGGLE BUTTON */}
+          {/* Grid/List Toggle */}
           <TouchableOpacity
-            className="w-12 items-center justify-center rounded-xl border"
             style={{
+              width: 40,
+              height: 40,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 10,
+              borderWidth: 1,
               backgroundColor: colors.cardBg,
               borderColor: colors.border,
             }}
             onPress={() => setIsGridLayout(!isGridLayout)}
           >
-            <Text style={{ fontSize: 22, color: colors.textPrimary }}>
+            <Text style={{ fontSize: 20, color: colors.textPrimary }}>
               {isGridLayout ? "☰" : "⊞"}
             </Text>
           </TouchableOpacity>
         </View>
-
       </View>
 
       {/* --- 3. DYNAMIC STUDENT LIST --- */}

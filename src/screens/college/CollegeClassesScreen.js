@@ -1,5 +1,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform as RNPlatform, ActivityIndicator, FlatList, Image, Modal } from 'react-native';
+import { FileText } from 'lucide-react-native';
+import AnimatedSearch from '../../components/AnimatedSearch';
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -12,12 +14,35 @@ import { AuthContext } from "../../context/AuthContext";
 import { college_host, getAllCollegeAPI } from "../../../apis/api";
 
 // And ensure FileSystem/Sharing are required for mobile (as in your previous code)
-// Platform-specific imports
-let RealFileSystem, RealSharing;
-if (RNPlatform.OS !== "web") {
-  RealFileSystem = require("expo-file-system/legacy");
-  RealSharing = require("expo-sharing");
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function toDateString(date) {
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
+function formatDateLabel(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+function getEventDates(startDate, endDate) {
+  const start = new Date(startDate); start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate || startDate); end.setHours(0, 0, 0, 0);
+  const dates = [];
+  const cur = new Date(start);
+  while (cur <= end) { dates.push(toDateString(cur)); cur.setDate(cur.getDate() + 1); }
+  return dates;
+}
+const isDatePast = (dateStr) => {
+  if (!dateStr) return false;
+  const targetDate = new Date(dateStr);
+  targetDate.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return targetDate < today;
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function CollegeClassesScreen({ college }) {
   const { route, navigate, goBack } = useContext(NavigationContext);
@@ -40,25 +65,47 @@ export default function CollegeClassesScreen({ college }) {
   const [classSearch, setClassSearch] = useState('');
   const [tableSearch, setTableSearch] = useState('');
   const [tableStatusFilter, setTableStatusFilter] = useState('All');
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const eventDates = React.useMemo(() => {
+    const start = selectedEvent?.startDate || selectedEvent?.eventDate;
+    const end = selectedEvent?.endDate || start;
+    if (!start) return [];
+    return getEventDates(start, end);
+  }, [selectedEvent]);
+
+  const isMultiDay = eventDates.length > 1;
+
+  // Default to today (or first day) when event dates are computed
+  useEffect(() => {
+    if (eventDates.length > 0 && selectedDate === null) {
+      const today = toDateString(new Date());
+      setSelectedDate(eventDates.includes(today) ? today : eventDates[0]);
+    }
+  }, [eventDates]);
+
+  // Refetch when selectedDate changes and modal is open
+  useEffect(() => {
+    if (showAttendanceTable && selectedEvent && selectedDate) {
+      handleEventSelect(selectedEvent, selectedDate);
+    }
+  }, [selectedDate, showAttendanceTable]);
   const classes = collegeData.classes || [];
   const filteredClasses = classes.filter(c =>
     c.className?.toLowerCase().includes(classSearch.toLowerCase())
   );
 
   // Helper to determine status based on attendance mark and date
-  const getEventStatus = (eventObj, attendanceDateStr) => {
+  const getEventStatus = (eventObj, attendanceDateStr, checkingDate) => {
     // 1. If marked present, it's "Present"
     if (attendanceDateStr && attendanceDateStr !== "N/A") return "Present";
 
     // 2. If not marked, check if date is past
-    if (!eventObj || !eventObj.eventDate) return "Registered"; // Default fallback
+    const dateToCheck = checkingDate || eventObj?.eventDate;
+    if (!dateToCheck) return "Registered";
 
-    const eventDate = new Date(eventObj.eventDate);
-    eventDate.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    return eventDate < today ? "Absent" : "Registered";
+    return isDatePast(dateToCheck) ? "Absent" : "Registered";
   };
 
   // Helper function to save file to local storage
@@ -151,6 +198,8 @@ export default function CollegeClassesScreen({ college }) {
               createdBy: event.eventId?.createdBy?.name || "Unknown NGO",
               location: event.eventId?.location || "N/A",
               eventDate: event.eventId?.eventDate,
+              startDate: event.eventId?.startDate,
+              endDate: event.eventId?.endDate,
             });
           }
         });
@@ -164,33 +213,28 @@ export default function CollegeClassesScreen({ college }) {
     navigate("Home");
   };
 
-  const handleEventSelect = async (event) => {
+  const handleEventSelect = async (event, dateOverride = null) => {
+    const dateToFetch = dateOverride || selectedDate;
     setSelectedEvent(event);
     setShowEventModal(false);
     setShowAttendanceTable(true);
-    setEventAttendanceList([]);
     setEventLoading(true);
 
     try {
-      // Fetch fresh data from the API — returns ALL registered students
-      // (both those who marked attendance and those who didn't)
-      const response = await fetch(
-        `${college_host}/event/${event._id}/attendance`,
-        {
-          method: "GET",
-          credentials: "include",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const url = `${college_host}/event/${event._id}/attendance${dateToFetch ? `?date=${dateToFetch}` : ""}`;
+      const response = await fetch(url, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
       if (!response.ok) throw new Error("Failed to fetch attendance");
 
       const data = await response.json();
-      // data.data.attendance is an array of college objects, each with a students array
       const students = data?.data?.attendance?.[0]?.students || [];
 
       const attendanceList = students.map((student) => {
@@ -203,7 +247,7 @@ export default function CollegeClassesScreen({ college }) {
           department: student.department || "N/A",
           className: student.className || "N/A",
           attendanceDate: attDate,
-          status: getEventStatus(event, attDate),
+          status: getEventStatus(event, attDate, dateToFetch),
         };
       });
 
@@ -503,12 +547,12 @@ export default function CollegeClassesScreen({ college }) {
   //Exports specific event attendance data to excel file
   const exportEventAttendanceToExcel = async () => {
     try {
-      if (!selectedEvent || eventAttendanceList.length === 0) {
-        alert("No attendance records to export");
+      if (!selectedEvent) {
+        alert("No event selected to export");
         return;
       }
 
-      setLoading(true);
+      setIsExporting(true);
 
       const workbook = new ExcelJS.Workbook();
       const collegeName = collegeData.name?.toUpperCase() || "College";
@@ -521,13 +565,9 @@ export default function CollegeClassesScreen({ college }) {
         try {
           let base64Data = "";
           let extension = "png";
-
-          if (logoUrl.toLowerCase().includes("jpg") || logoUrl.toLowerCase().includes("jpeg")) {
-            extension = "jpeg";
-          }
+          if (logoUrl.toLowerCase().includes("jpg") || logoUrl.toLowerCase().includes("jpeg")) extension = "jpeg";
 
           if (RNPlatform.OS === "web") {
-            // 🌍 WEB
             const response = await fetch(logoUrl);
             const blob = await response.blob();
             const reader = new FileReader();
@@ -539,193 +579,144 @@ export default function CollegeClassesScreen({ college }) {
               };
             });
           } else {
-            // 📱 MOBILE
             const fileUri = `${FileSystem.cacheDirectory}college_logo_temp.${extension}`;
             await FileSystem.downloadAsync(logoUrl, fileUri);
-            base64Data = await FileSystem.readAsStringAsync(fileUri, {
-              encoding: FileSystem.EncodingType.Base64,
-            });
+            base64Data = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.Base64 });
           }
 
           if (base64Data) {
-            logoImageId = workbook.addImage({
-              base64: base64Data,
-              extension: extension,
-            });
+            logoImageId = workbook.addImage({ base64: base64Data, extension: extension });
           }
         } catch (err) {
           console.warn("Could not load logo:", err);
         }
       }
 
-      // --- 2. CREATE SHEET ---
-      const eventName = selectedEvent.aim || "Event";
-      const safeSheetName = (eventName.replace(/[\\/?*[\]]/g, "")).slice(0, 30);
-      const worksheet = workbook.addWorksheet(safeSheetName);
+      // Helper to fetch attendance without updating state
+      const fetchAttendanceForSheet = async (date) => {
+        try {
+          const url = `${college_host}/event/${selectedEvent._id}/attendance${date ? `?date=${date}` : ""}`;
+          const res = await fetch(url, {
+            method: "GET",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          });
+          if (!res.ok) return [];
+          const json = await res.json();
+          const students = json?.data?.attendance?.[0]?.students || [];
+          return students.map(s => ({
+            studentName: s.name,
+            prn: s.prn,
+            department: s.department || "N/A",
+            className: s.className || "N/A",
+            attendanceDate: s.attendanceMarkedAt ? new Date(s.attendanceMarkedAt).toLocaleDateString() : "N/A",
+            status: getEventStatus(selectedEvent, s.attendanceMarkedAt ? new Date(s.attendanceMarkedAt).toDateString() : null, date),
+          }));
+        } catch (e) { return []; }
+      };
 
-      // --- A. INSERT IMAGE ---
-      if (logoImageId !== null) {
-        worksheet.addImage(logoImageId, {
-          tl: { col: 0, row: 0 }, // A1
-          br: { col: 1, row: 4 }, // B5 (Covers A1:A4 approx)
-          editAs: "oneCell",
+      // 2. Loop through all dates to create sheets
+      const datesToExport = eventDates.length > 0 ? eventDates : [null];
+      let hasData = false;
+
+      for (const date of datesToExport) {
+        const sheetData = await fetchAttendanceForSheet(date);
+        if (sheetData.length === 0) continue;
+        hasData = true;
+
+        const sheetName = date ? formatDateLabel(date).replace(/,/g, "").replace(/\s+/g, "_") : "Attendance";
+        const worksheet = workbook.addWorksheet(sheetName.slice(0, 31));
+
+        // Insert Logo
+        if (logoImageId !== null) {
+          worksheet.addImage(logoImageId, { tl: { col: 0, row: 0 }, br: { col: 1, row: 4 }, editAs: "oneCell" });
+        }
+
+        // Header
+        worksheet.mergeCells("B2:E2");
+        const nc = worksheet.getCell("B2");
+        nc.value = collegeName;
+        nc.font = { bold: true, size: 18 };
+        nc.alignment = { vertical: "middle", horizontal: "center" };
+
+        worksheet.mergeCells("B3:E3");
+        const ac = worksheet.getCell("B3");
+        ac.value = collegeAddress;
+        ac.font = { color: { argb: "FF666666" }, size: 12 };
+        ac.alignment = { vertical: "top", horizontal: "center" };
+
+        // Event Details Card
+        worksheet.mergeCells("A6:E6");
+        const tr = worksheet.getCell("A6");
+        tr.value = "EVENT ATTENDANCE LOG";
+        tr.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
+        tr.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+        tr.alignment = { horizontal: "center", vertical: "middle" };
+
+        const addInfo = (lbl, val, idx, isB = false) => {
+          worksheet.mergeCells(`A${idx}:E${idx}`);
+          const cell = worksheet.getCell(`A${idx}`);
+          cell.value = `${lbl}: ${val}`;
+          cell.alignment = { horizontal: "center" };
+          cell.font = { size: 12, bold: isB };
+        };
+
+        addInfo("Event", selectedEvent.aim || "Event", 7, true);
+        addInfo("Date", date ? new Date(date).toLocaleDateString() : "N/A", 8);
+        addInfo("Status", `Present: ${sheetData.filter(s => s.status === "Present").length} / Registered: ${sheetData.length}`, 9);
+
+        // Table Headers
+        const hr = worksheet.getRow(11);
+        hr.values = ["Student Name", "PRN", "Department", "Class", "Status", "Attended Time"];
+        hr.eachCell(c => {
+          c.font = { bold: true, color: { argb: "FFFFFFFF" } };
+          c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF4472C4" } };
+          c.alignment = { horizontal: "center" };
         });
-      } else {
-        worksheet.getCell("A2").value = "No Logo";
+
+        // Data Rows
+        sheetData.forEach((rec, idx) => {
+          const row = worksheet.addRow([rec.studentName, rec.prn, rec.department, rec.className, rec.status, rec.attendanceDate]);
+          const isEven = idx % 2 === 0;
+          row.eachCell((c, col) => {
+            if (col === 5) {
+              const color = rec.status === "Present" ? "FF10b981" : (rec.status === "Absent" ? "FFef4444" : "FFf59e0b");
+              c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
+              c.font = { color: { argb: "FFFFFFFF" }, bold: true };
+            } else {
+              c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" } };
+            }
+            c.alignment = { horizontal: "center" };
+            c.border = { top: { style: "thin" }, left: { style: "thin" }, bottom: { style: "thin" }, right: { style: "thin" } };
+          });
+        });
+
+        worksheet.columns = [{ width: 25 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }, { width: 20 }];
       }
 
-      // --- B. HEADER INFORMATION ---
-      // College Name (Merged B2:E2)
-      worksheet.mergeCells("B2:E2");
-      const nameCell = worksheet.getCell("B2");
-      nameCell.value = collegeName;
-      nameCell.font = { bold: true, size: 18 };
-      nameCell.alignment = { vertical: "middle", horizontal: "center" };
+      if (!hasData) {
+        alert("No attendance records found for any date.");
+        setIsExporting(false);
+        return;
+      }
 
-      // College Address (Merged B3:E3)
-      worksheet.mergeCells("B3:E3");
-      const addrCell = worksheet.getCell("B3");
-      addrCell.value = collegeAddress;
-      addrCell.font = { color: { argb: "FF666666" }, size: 12 };
-      addrCell.alignment = { vertical: "top", horizontal: "center" };
-
-      // EVENT DETAILS Header (Merged A6:E6)
-      worksheet.mergeCells("A6:E6");
-      const titleRow = worksheet.getCell("A6");
-      titleRow.value = "EVENT DETAILS";
-      titleRow.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
-      titleRow.fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FF4472C4" }, // Blue
-      };
-      titleRow.alignment = { horizontal: "center", vertical: "middle" };
-
-      // Event Metadata Rows (Centered)
-      const addInfoRow = (label, value, rowIndex, isBold = false) => {
-        const row = worksheet.getRow(rowIndex);
-        row.values = [`${label}: ${value}`];
-        worksheet.mergeCells(`A${rowIndex}:E${rowIndex}`);
-        const cell = row.getCell(1);
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.font = { size: 12, bold: isBold };
-        if (isBold) cell.font.size = 14;
-      };
-
-      addInfoRow("Event", eventName, 7, true);
-      addInfoRow("NGO", selectedEvent.createdBy?.name || selectedEvent.createdBy || "N/A", 8);
-      addInfoRow("Location", selectedEvent.location || "N/A", 9);
-      addInfoRow("Date", new Date(selectedEvent.eventDate).toLocaleDateString(), 10);
-      addInfoRow("Total Registered", eventAttendanceList.length, 11);
-      addInfoRow("Total Present", eventAttendanceList.filter(r => r.status === "Present").length, 12);
-
-      // --- C. TABLE HEADERS (Row 14) ---
-      const headerRow = worksheet.getRow(14);
-      headerRow.values = ["Student Name", "PRN", "Department", "Class", "Status", "Attendance Date"];
-
-      headerRow.eachCell((cell) => {
-        cell.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
-        cell.fill = {
-          type: "pattern",
-          pattern: "solid",
-          fgColor: { argb: "FF4472C4" }, // Blue
-        };
-        cell.alignment = { horizontal: "center", vertical: "middle" };
-        cell.border = {
-          top: { style: "thin" },
-          left: { style: "thin" },
-          bottom: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
-      headerRow.height = 25;
-
-      // --- D. DATA ROWS ---
-      eventAttendanceList.forEach((record, idx) => {
-        const row = worksheet.addRow([
-          record.studentName || record.name || "",
-          record.prn || "",
-          record.department || "",
-          record.className || record.classId?.className || "",
-          record.status || "Registered",
-          record.attendanceDate || new Date().toLocaleDateString(),
-        ]);
-
-        // Alternating Row Colors
-        const isEven = idx % 2 === 0;
-        row.eachCell((cell, colNumber) => {
-          if (colNumber === 5) {
-            // Status Color
-            const s = record.status || "Registered";
-            const color = s === "Present" ? "FF10b981" : (s === "Absent" ? "FFef4444" : "FFf59e0b");
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: color } };
-            cell.font = { color: { argb: "FFFFFFFF" }, bold: true };
-          } else {
-            cell.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: isEven ? "FFFFFFFF" : "FFF2F2F2" },
-            };
-          }
-          cell.alignment = { horizontal: "center", vertical: "middle" };
-          cell.border = {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          };
-        });
-      });
-
-      // Set Column Widths
-      worksheet.columns = [
-        { width: 25 }, // Name
-        { width: 15 }, // PRN
-        { width: 20 }, // Dept
-        { width: 20 }, // Class
-        { width: 15 }, // Status
-        { width: 20 }, // Date
-      ];
-
-      // --- 3. WRITE & SAVE FILE ---
-      const filename = `event_attendance_${selectedEvent.aim?.replace(/\s+/g, "_")}.xlsx`;
+      const filename = `attendance_${selectedEvent.aim?.replace(/\s+/g, "_")}.xlsx`;
       const buffer = await workbook.xlsx.writeBuffer();
 
       if (RNPlatform.OS === "web") {
         const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
         const url = window.URL.createObjectURL(blob);
-        const anchor = document.createElement("a");
-        anchor.href = url;
-        anchor.download = filename;
-        anchor.click();
+        const a = document.createElement("a");
+        a.href = url; a.download = filename; a.click();
         window.URL.revokeObjectURL(url);
-        alert("Event attendance exported successfully!");
       } else {
-        // Mobile: Use Storage Access Framework for Android, Share for iOS
         const base64 = Buffer.from(buffer).toString("base64");
-
-        if (RNPlatform.OS === "android") {
-          // Android: Let user choose where to save
-          await saveFile(filename, base64);
-        } else {
-          // iOS: Use share sheet
-          const fileUri = `${RealFileSystem.documentDirectory}${filename}`;
-          await RealFileSystem.writeAsStringAsync(fileUri, base64, {
-            encoding: RealFileSystem.EncodingType.Base64
-          });
-          await RealSharing.shareAsync(fileUri, {
-            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            dialogTitle: "Export Event Attendance",
-            UTI: "com.microsoft.excel.xlsx",
-          });
-        }
+        await saveFile(filename, base64);
       }
-
-      setLoading(false);
+      setIsExporting(false);
     } catch (error) {
-      setLoading(false);
-      console.error("Error exporting to Excel:", error);
-      alert("Failed to export event attendance: " + error.message);
+      setIsExporting(false);
+      console.error("Export Error:", error);
+      alert("Failed to export: " + error.message);
     }
   };
 
@@ -1188,501 +1179,26 @@ export default function CollegeClassesScreen({ college }) {
         </View>
 
 
-        {/* --- 2. DATA EXPORT ACTIONS --- */}
-        <View className="flex-row gap-3 mb-6">
-          <TouchableOpacity
-            className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
-            style={{
-              backgroundColor: colors.accent,
-              borderColor: colors.accent
-            }}
-            onPress={exportToExcel}
-          >
-            <Text className="text-white font-semibold text-xs text-center uppercase tracking-wide">
-              Export Class Data
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className="flex-1 py-3.5 px-2 rounded-lg items-center justify-center border"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: colors.accent,
-              borderWidth: 1
-            }}
-            onPress={exportAllEventsToExcel}
-          >
-            <Text
-              className="font-semibold text-xs text-center uppercase tracking-wide"
-              style={{ color: colors.accent }}
-            >
-              Export All Events
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* --- 3. EVENT ANALYTICS --- */}
-        <View
-          className="rounded-xl border mb-6 overflow-hidden"
-          style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
-        >
-          <View className="p-4 border-b" style={{ borderColor: colors.border }}>
-            <Text
-              className="text-base font-bold"
-              style={{ color: colors.header }}
-            >
-              Event Attendance
-            </Text>
-          </View>
-
-          <View
-            className="p-4"
-            onStartShouldSetResponder={() => true}
-            onTouchEnd={(e) => e.stopPropagation()}
-          >
-            {/* --- Event Picker Button --- */}
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setShowEventModal(true)}
-              className="flex-row justify-between items-center p-3 rounded-lg border mb-4"
-              style={{
-                backgroundColor: colors.iconBg,
-                borderColor: selectedEvent ? colors.accent : colors.border,
-              }}
-            >
-              <View style={{ flex: 1, marginRight: 8 }}>
-                {selectedEvent ? (
-                  <>
-                    <Text style={{ color: colors.textPrimary, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
-                      {selectedEvent.aim}
-                    </Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>
-                      {new Date(selectedEvent.eventDate).toDateString()} · {selectedEvent.createdBy || 'NGO'}
-                    </Text>
-                  </>
-                ) : (
-                  <Text style={{ color: colors.textSecondary, fontSize: 14 }}>
-                    {dataLoading ? 'Loading events...' : `Select an event (${eventsList.length} available)`}
-                  </Text>
-                )}
-              </View>
-              <Text style={{ color: colors.accent, fontSize: 12, fontWeight: '600' }}>
-                {selectedEvent ? '✎ Change' : '▼ Pick'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* --- Searchable Event Picker Modal --- */}
-            <Modal
-              visible={showEventModal}
-              animationType="slide"
-              transparent
-              onRequestClose={() => setShowEventModal(false)}
-            >
-              <View style={{
-                flex: 1,
-                backgroundColor: 'rgba(0,0,0,0.45)',
-                justifyContent: 'flex-end',
-              }}>
-                <View style={{
-                  backgroundColor: colors.cardBg,
-                  borderTopLeftRadius: 20,
-                  borderTopRightRadius: 20,
-                  maxHeight: '85%',
-                  paddingTop: 12,
-                }}>
-                  {/* Handle bar */}
-                  <View style={{ alignItems: 'center', marginBottom: 8 }}>
-                    <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border }} />
-                  </View>
-
-                  {/* Modal Header */}
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingHorizontal: 16,
-                    paddingBottom: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.border,
-                  }}>
-                    <Text style={{ fontSize: 16, fontWeight: '700', color: colors.header }}>
-                      Select Event
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => { setShowEventModal(false); setEventSearch(''); }}
-                      style={{
-                        backgroundColor: colors.iconBg,
-                        borderRadius: 16,
-                        paddingHorizontal: 12,
-                        paddingVertical: 5,
-                      }}
-                    >
-                      <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 13 }}>✕ Close</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Search Bar */}
-                  <View style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    margin: 12,
-                    paddingHorizontal: 12,
-                    paddingVertical: 8,
-                    borderRadius: 10,
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                    backgroundColor: colors.iconBg,
-                  }}>
-                    <Text style={{ color: colors.textSecondary, marginRight: 8, fontSize: 16 }}>⌕</Text>
-                    <TextInput
-                      placeholder="Search by event name, NGO, or location..."
-                      placeholderTextColor={colors.textSecondary}
-                      value={eventSearch}
-                      onChangeText={setEventSearch}
-                      autoFocus
-                      style={{ flex: 1, color: colors.textPrimary, fontSize: 13, outlineStyle: 'none' }}
-                    />
-                    {eventSearch.length > 0 && (
-                      <TouchableOpacity onPress={() => setEventSearch('')}>
-                        <Text style={{ color: colors.textSecondary, fontSize: 16, paddingLeft: 6 }}>✕</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  {/* Results count */}
-                  {eventSearch.length > 0 && (
-                    <Text style={{ color: colors.textSecondary, fontSize: 11, paddingHorizontal: 16, marginBottom: 6 }}>
-                      {eventsList.filter(e =>
-                        e.aim?.toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        (e.createdBy?.name || e.createdBy || '').toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        e.location?.toLowerCase().includes(eventSearch.toLowerCase())
-                      ).length} result(s)
-                    </Text>
-                  )}
-
-                  {/* Event List */}
-                  {dataLoading ? (
-                    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                      <ActivityIndicator size="large" color={colors.accent} />
-                      <Text style={{ color: colors.textSecondary, marginTop: 10, fontSize: 13 }}>Loading events...</Text>
-                    </View>
-                  ) : (
-                    <FlatList
-                      data={eventsList.filter(e =>
-                        e.aim?.toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        (e.createdBy?.name || e.createdBy || '').toLowerCase().includes(eventSearch.toLowerCase()) ||
-                        e.location?.toLowerCase().includes(eventSearch.toLowerCase())
-                      )}
-                      keyExtractor={(item) => item._id}
-                      keyboardShouldPersistTaps="handled"
-                      contentContainerStyle={{ paddingBottom: 30 }}
-                      ListEmptyComponent={
-                        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                          <Text style={{ fontSize: 32 }}>🔍</Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 10 }}>
-                            {eventSearch ? `No events matching "${eventSearch}"` : 'No events found'}
-                          </Text>
-                        </View>
-                      }
-                      renderItem={({ item, index }) => {
-                        const isSelected = selectedEvent?._id === item._id;
-                        return (
-                          <TouchableOpacity
-                            activeOpacity={0.7}
-                            onPress={() => {
-                              setShowEventModal(false);
-                              setEventSearch('');
-                              handleEventSelect(item);
-                            }}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingHorizontal: 16,
-                              paddingVertical: 12,
-                              borderBottomWidth: 1,
-                              borderBottomColor: colors.border,
-                              backgroundColor: isSelected ? (colors.iconBg) : colors.cardBg,
-                            }}
-                          >
-                            {/* Index badge */}
-                            <View style={{
-                              width: 32,
-                              height: 32,
-                              borderRadius: 16,
-                              backgroundColor: isSelected ? colors.accent : colors.iconBg,
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              marginRight: 12,
-                              flexShrink: 0,
-                            }}>
-                              <Text style={{ fontSize: 12, fontWeight: '700', color: isSelected ? '#fff' : colors.textSecondary }}>
-                                {index + 1}
-                              </Text>
-                            </View>
-
-                            {/* Event Info */}
-                            <View style={{ flex: 1 }}>
-                              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }} numberOfLines={2}>
-                                {item.aim}
-                              </Text>
-                              <View style={{ flexDirection: 'row', gap: 10, marginTop: 3, flexWrap: 'wrap' }}>
-                                <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                                  📅 {new Date(item.eventDate).toDateString()}
-                                </Text>
-                                {(item.createdBy?.name || item.createdBy) && (
-                                  <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>
-                                    🏢 {item.createdBy?.name || item.createdBy}
-                                  </Text>
-                                )}
-                                {item.location && (
-                                  <Text style={{ fontSize: 11, color: colors.textSecondary }} numberOfLines={1}>
-                                    📍 {item.location}
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
-
-                            {/* Selected checkmark */}
-                            {isSelected && (
-                              <Text style={{ color: colors.accent, fontSize: 18, marginLeft: 8 }}>✓</Text>
-                            )}
-                          </TouchableOpacity>
-                        );
-                      }}
-                    />
-                  )}
-                </View>
-              </View>
-            </Modal>
-
-            {/* Selected Event Data */}
-            {showAttendanceTable && selectedEvent && (
-              <View>
-                {eventLoading ? (
-                  <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-                    <ActivityIndicator size="small" color={colors.accent} />
-                    <Text style={{ color: colors.textSecondary, marginTop: 8, fontSize: 12 }}>Loading attendance...</Text>
-                  </View>
-                ) : eventAttendanceList.length === 0 ? (
-                  <Text style={{ color: colors.textSecondary, textAlign: 'center', paddingVertical: 16, fontSize: 13, fontStyle: 'italic' }}>
-                    No students registered for this event.
-                  </Text>
-                ) : (() => {
-                  // Derived filtered list (computed inline so it stays reactive)
-                  const statusFiltered = tableStatusFilter === 'All'
-                    ? eventAttendanceList
-                    : eventAttendanceList.filter(r => r.status === tableStatusFilter);
-                  const tableFiltered = tableSearch.trim()
-                    ? statusFiltered.filter(r =>
-                      (r.studentName || '').toLowerCase().includes(tableSearch.toLowerCase()) ||
-                      (r.prn || '').toLowerCase().includes(tableSearch.toLowerCase()) ||
-                      (r.className || '').toLowerCase().includes(tableSearch.toLowerCase())
-                    )
-                    : statusFiltered;
-
-                  const STATUS_PILLS = [
-                    { label: 'All', color: colors.accent, count: eventAttendanceList.length },
-                    { label: 'Present', color: '#10b981', count: eventAttendanceList.filter(r => r.status === 'Present').length },
-                    { label: 'Absent', color: '#ef4444', count: eventAttendanceList.filter(r => r.status === 'Absent').length },
-                    { label: 'Registered', color: '#f59e0b', count: eventAttendanceList.filter(r => r.status === 'Registered').length },
-                  ];
-
-                  return (
-                    <>
-                      {/* --- Stat pills (tap to filter) + Download --- */}
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
-                        {STATUS_PILLS.map(pill => {
-                          const active = tableStatusFilter === pill.label;
-                          return (
-                            <TouchableOpacity
-                              key={pill.label}
-                              onPress={() => setTableStatusFilter(pill.label)}
-                              style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                paddingHorizontal: 10,
-                                paddingVertical: 5,
-                                borderRadius: 20,
-                                borderWidth: 1.5,
-                                borderColor: pill.color,
-                                backgroundColor: active ? pill.color : 'transparent',
-                                gap: 5,
-                              }}
-                            >
-                              <Text style={{ fontSize: 11, fontWeight: '700', color: active ? '#fff' : pill.color }}>
-                                {pill.label}
-                              </Text>
-                              <View style={{
-                                backgroundColor: active ? 'rgba(255,255,255,0.3)' : pill.color,
-                                borderRadius: 10,
-                                minWidth: 18,
-                                paddingHorizontal: 4,
-                                alignItems: 'center',
-                              }}>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{pill.count}</Text>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
-
-                        {/* Spacer + Download button */}
-                        <View style={{ flex: 1, alignItems: 'flex-end' }}>
-                          <TouchableOpacity
-                            onPress={exportEventAttendanceToExcel}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingHorizontal: 10,
-                              paddingVertical: 5,
-                              borderRadius: 8,
-                              backgroundColor: colors.iconBg,
-                              borderWidth: 1,
-                              borderColor: colors.accent,
-                              gap: 4,
-                            }}
-                          >
-                            <Text style={{ fontSize: 12, color: colors.accent }}>⬇</Text>
-                            <Text style={{ fontSize: 11, fontWeight: '700', color: colors.accent }}>Report</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      {/* --- Search bar --- */}
-                      <View style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        paddingHorizontal: 10,
-                        paddingVertical: 7,
-                        borderRadius: 8,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        backgroundColor: colors.iconBg,
-                        marginBottom: 8,
-                      }}>
-                        <Text style={{ color: colors.textSecondary, marginRight: 6, fontSize: 14 }}>⌕</Text>
-                        <TextInput
-                          placeholder="Search by name, PRN or class..."
-                          placeholderTextColor={colors.textSecondary}
-                          value={tableSearch}
-                          onChangeText={setTableSearch}
-                          style={{ flex: 1, color: colors.textPrimary, fontSize: 12, outlineStyle: 'none', padding: 0 }}
-                        />
-                        {tableSearch.length > 0 && (
-                          <TouchableOpacity onPress={() => setTableSearch('')}>
-                            <Text style={{ color: colors.textSecondary, fontSize: 14, paddingLeft: 6 }}>✕</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-
-                      {/* --- Row count badge --- */}
-                      <Text style={{ fontSize: 11, color: colors.textSecondary, marginBottom: 6, paddingLeft: 2 }}>
-                        Showing {tableFiltered.length} of {eventAttendanceList.length} student{eventAttendanceList.length !== 1 ? 's' : ''}
-                        {tableStatusFilter !== 'All' ? ` · ${tableStatusFilter}` : ''}
-                      </Text>
-
-                      {/* --- Student Cards (no horizontal scroll needed) --- */}
-                      {tableFiltered.length === 0 ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                          <Text style={{ fontSize: 24 }}>🔍</Text>
-                          <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8 }}>No students match your filter.</Text>
-                        </View>
-                      ) : (
-                        <FlatList
-                          data={tableFiltered}
-                          keyExtractor={(_, i) => i.toString()}
-                          scrollEnabled={false}
-                          ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
-                          renderItem={({ item: record, index }) => {
-                            const statusColor = record.status === 'Present' ? '#10b981' : record.status === 'Absent' ? '#ef4444' : '#f59e0b';
-                            const initials = (record.studentName || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-                            return (
-                              <View style={{
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                padding: 10,
-                                borderRadius: 10,
-                                borderWidth: 1,
-                                borderColor: colors.border,
-                                backgroundColor: colors.cardBg,
-                              }}>
-                                {/* Avatar with index */}
-                                <View style={{ alignItems: 'center', marginRight: 10, width: 38 }}>
-                                  <View style={{
-                                    width: 36, height: 36, borderRadius: 18,
-                                    backgroundColor: colors.iconBg,
-                                    alignItems: 'center', justifyContent: 'center',
-                                    borderWidth: 1.5, borderColor: statusColor,
-                                  }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.accent }}>{initials}</Text>
-                                  </View>
-                                  <Text style={{ fontSize: 9, color: colors.textSecondary, marginTop: 2 }}>#{index + 1}</Text>
-                                </View>
-
-                                {/* Main info */}
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textPrimary }} numberOfLines={1}>
-                                    {record.studentName}
-                                  </Text>
-                                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3, flexWrap: 'wrap' }}>
-                                    <Text style={{ fontSize: 11, color: colors.textSecondary }}>{record.prn}</Text>
-                                    {record.className ? (
-                                      <View style={{ backgroundColor: colors.iconBg, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                                        <Text style={{ fontSize: 10, color: colors.textSecondary }}>{record.className}</Text>
-                                      </View>
-                                    ) : null}
-                                    {record.attendanceDate && record.attendanceDate !== 'N/A' ? (
-                                      <Text style={{ fontSize: 10, color: colors.textSecondary }}>📅 {record.attendanceDate}</Text>
-                                    ) : null}
-                                  </View>
-                                </View>
-
-                                {/* Status pill */}
-                                <View style={{ backgroundColor: statusColor, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, marginLeft: 8 }}>
-                                  <Text style={{ fontSize: 10, fontWeight: '700', color: '#fff' }}>{record.status}</Text>
-                                </View>
-                              </View>
-                            );
-                          }}
-                        />
-                      )}
-                    </>
-                  );
-                })()}
-              </View>
-            )}
-
-          </View>
-        </View>
+        {/* Event Attendance section moved to CollegeExport flow */}
 
         {/* --- 4. CLASS MANAGEMENT --- */}
         <View>
-          <View className="flex-row justify-between items-center mb-3">
+          {/* --- 4. CLASS MANAGEMENT HEADER --- */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <Text
-              className="text-base font-bold"
-              style={{ color: colors.header }}
+              style={{ fontSize: 15, fontWeight: '700', color: colors.header }}
             >
               Classes
             </Text>
-          </View>
 
-          {/* Class Search Bar */}
-          <View
-            className="flex-row items-center p-2.5 rounded-lg border mb-4"
-            style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}
-          >
-            <Text style={{ color: colors.textSecondary, marginRight: 8, fontSize: 14 }}>⌕</Text>
-            <TextInput
+            {/* AnimatedSearch replaces the full-width bar */}
+            <AnimatedSearch
               placeholder="Search classes..."
               value={classSearch}
               onChangeText={setClassSearch}
-              style={{ flex: 1, color: colors.textPrimary, fontSize: 13, outlineStyle: 'none' }}
-              placeholderTextColor={colors.textSecondary}
+              colors={colors}
+              containerStyle={{ marginBottom: 0 }}
             />
-            {classSearch.length > 0 && (
-              <TouchableOpacity onPress={() => setClassSearch('')}>
-                <Text style={{ color: colors.textSecondary, fontSize: 16, paddingHorizontal: 4 }}>✕</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
           {/* Classes Grid — skeleton while loading */}
@@ -1743,6 +1259,35 @@ export default function CollegeClassesScreen({ college }) {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* --- CONSOLIDATED EXPORT ACTION (Moved to bottom) --- */}
+          <TouchableOpacity
+            className="mt-8 mb-10 py-4 px-4 rounded-xl border flex-row items-center justify-between"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              borderStyle: 'dashed',
+              opacity: 0.9
+            }}
+            onPress={() => navigate("CollegeExport", { college: collegeData, eventsList, accessToken })}
+          >
+            <View className="flex-row items-center gap-3">
+              <View 
+                style={{ 
+                  width: 38, height: 38, borderRadius: 10, 
+                  backgroundColor: colors.iconBg, 
+                  alignItems: 'center', justifyContent: 'center' 
+                }}
+              >
+                <FileText size={20} color={colors.accent} />
+              </View>
+              <View>
+                <Text className="font-bold text-sm" style={{ color: colors.header }}>Export Attendance</Text>
+                <Text className="text-[10px]" style={{ color: colors.textSecondary }}>View reports and data exports</Text>
+              </View>
+            </View>
+            <Text className="text-xs" style={{ color: colors.accent, fontWeight: 'bold' }}>OPEN →</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </TouchableOpacity>

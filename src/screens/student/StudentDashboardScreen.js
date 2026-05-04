@@ -16,8 +16,10 @@ import { NavigationContext } from "../../context/NavigationContext";
 import { useTheme } from "../../context/ThemeContext";
 import * as api from "../../../apis/api";
 import { Calendar, LogOut } from "lucide-react-native";
+import AnimatedSearch from "../../components/AnimatedSearch";
+import CollapsibleFilter from "../../components/CollapsibleFilter";
 
-export default function StudentDashboardScreen({ student: loggedStudent }) {
+export default function StudentDashboardScreen({ student: loggedStudent, isTab }) {
     const { navigate } = useContext(NavigationContext);
     const { darkMode, lightTheme, darkTheme } = useTheme();
     const colors = darkMode ? darkTheme : lightTheme;
@@ -78,11 +80,6 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
     const handleRegisterForEvent = async (event) => {
         try {
-            console.log("=== REGISTRATION START ===");
-            console.log("Event ID:", event._id);
-            console.log("Access Token:", accessToken ? "Present" : "Missing");
-            console.log("API Endpoint:", api.studentRegisterEventAPI);
-
             const response = await fetch(api.studentRegisterEventAPI, {
                 method: "POST",
                 credentials: "include",
@@ -94,24 +91,14 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                 body: JSON.stringify({ eventId: event._id }),
             });
 
-            console.log("Response status:", response.status);
-            console.log("Response ok:", response.ok);
-
             if (!response.ok) {
                 const errorData = await response.json();
-                console.error("Registration failed - Error data:", errorData);
                 throw new Error(errorData.message || "Registration failed");
             }
 
-            const data = await response.json();
-            console.log("Registration successful - Response data:", data);
             Alert.alert("Success", "Successfully registered for event!");
             fetchEvents(); // Refresh the list
         } catch (error) {
-            console.error("=== REGISTRATION ERROR ===");
-            console.error("Error type:", error.name);
-            console.error("Error message:", error.message);
-            console.error("Full error:", error);
             Alert.alert("Error", error.message || "Failed to register for event");
         }
     };
@@ -130,36 +117,36 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
         // Text search filter
         if (searchQuery.trim()) {
             const query = searchQuery.toLowerCase();
-            const eventDate = event.eventDate ? new Date(event.eventDate).toLocaleDateString() : "";
+            const eventDateRange = `${new Date(event.startDate).toLocaleDateString()} - ${new Date(event.endDate).toLocaleDateString()}`;
             const matchesSearch = (
                 event.aim?.toLowerCase().includes(query) ||
                 event.location?.toLowerCase().includes(query) ||
                 event.description?.toLowerCase().includes(query) ||
                 event.createdBy?.name?.toLowerCase().includes(query) ||
-                eventDate.toLowerCase().includes(query)
+                event.spocName?.toLowerCase().includes(query) ||
+                eventDateRange.toLowerCase().includes(query)
             );
             if (!matchesSearch) return false;
         }
 
         // Date range filter
         if (startDate || endDate) {
-            const eventDate = event.eventDate ? new Date(event.eventDate) : null;
-            if (!eventDate) return false;
+            const eventStart = event.startDate ? new Date(event.startDate) : new Date(event.eventDate);
+            const eventEnd = event.endDate ? new Date(event.endDate) : eventStart;
+            eventStart.setHours(0, 0, 0, 0);
+            eventEnd.setHours(0, 0, 0, 0);
 
-            eventDate.setHours(0, 0, 0, 0);
+            const filterStart = startDate ? new Date(startDate) : null;
+            if (filterStart) filterStart.setHours(0, 0, 0, 0);
+            const filterEnd = endDate ? new Date(endDate) : null;
+            if (filterEnd) filterEnd.setHours(0, 0, 0, 0);
 
-            if (startDate) {
-                const start = new Date(startDate);
-                start.setHours(0, 0, 0, 0);
-                if (eventDate < start) return false;
-            }
-
-            if (endDate) {
-                const end = new Date(endDate);
-                end.setHours(0, 0, 0, 0);
-                if (eventDate > end) return false;
-            }
+            if (filterStart && eventEnd < filterStart) return false;
+            if (filterEnd && eventStart > filterEnd) return false;
         }
+
+        // Exclude registered events from Explore
+        if (event.isRegistered) return false;
 
         return true;
     });
@@ -176,75 +163,32 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
     return (
         <View
-            className="flex-1 px-5 pt-8"
+            className={`flex-1 px-5 ${isTab ? "pt-2" : "pt-8"}`}
             style={{
                 backgroundColor:
                     (colors.backgroundColors && colors.backgroundColors[0]) || "#eef2ff",
             }}
         >
-            {/* Header Card */}
-            <View className="mb-4 p-4 rounded-xl border" style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}>
-                <View className="flex-row items-center justify-between">
-                    <View className="flex-1">
-                        <Text className="text-lg font-bold" style={{ color: colors.header }}>
-                            Welcome, {loggedStudent?.name || "Student"}
-                        </Text>
-                        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                            PRN: {loggedStudent?.prn || "N/A"}
-                        </Text>
-                    </View>
-                    <TouchableOpacity
-                        className="px-3 py-1.5 rounded-full border ml-2"
-                        style={{ borderColor: colors.error || "#ef4444", borderWidth: 1 }}
-                        onPress={handleLogout}
-                    >
-                        <Text className="text-xs font-bold" style={{ color: colors.error || "#ef4444" }}>
-                            Logout
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Title & My Events Button */}
-            <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-2xl font-extrabold" style={{ color: colors.header }}>
-                    Upcoming Events
+            {/* Title + Search Row */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: colors.header, flex: 1 }}>
+                    Explore Events
                 </Text>
-                <TouchableOpacity
-                    className="px-4 py-2 rounded-xl flex-row items-center"
-                    style={{ backgroundColor: colors.accent }}
-                    onPress={() => navigate("StudentMyEvents", { student: loggedStudent })}
-                >
-                    <Calendar size={16} color="white" style={{ marginRight: 6 }} />
-                    <Text className="text-white font-bold text-sm">My Events</Text>
-                </TouchableOpacity>
-            </View>
-
-            {/* Search Bar */}
-            <View className="mb-3">
-                <TextInput
-                    className="px-4 py-3 rounded-xl border"
-                    style={{
-                        backgroundColor: colors.cardBg,
-                        borderColor: colors.border,
-                        color: colors.textPrimary,
-                    }}
-                    placeholder="Search by name, location, NGO..."
-                    placeholderTextColor={colors.textSecondary}
+                <AnimatedSearch
+                    placeholder="Search events..."
                     value={searchQuery}
                     onChangeText={setSearchQuery}
+                    colors={colors}
+                    containerStyle={{ marginBottom: 0 }}
                 />
             </View>
 
-            {/* Date Range Picker */}
-            <View className="mb-4">
-                <Text className="text-xs font-semibold mb-2" style={{ color: colors.textSecondary }}>
-                    Filter by Date Range
-                </Text>
-                <View className="flex-row gap-2">
+            {/* Collapsible Date Filter */}
+            <CollapsibleFilter colors={colors} title="Filter by Date" containerStyle={{ marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                     {/* Start Date */}
                     {Platform.OS === 'web' ? (
-                        <View className="flex-1">
+                        <View style={{ flex: 1 }}>
                             <input
                                 type="date"
                                 value={startDate ? startDate.toISOString().split('T')[0] : ''}
@@ -256,12 +200,12 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                                     }
                                 }}
                                 style={{
-                                    padding: '10px 12px',
-                                    borderRadius: '12px',
+                                    padding: '8px 12px',
+                                    borderRadius: '10px',
                                     border: `1px solid ${colors.border}`,
                                     backgroundColor: colors.cardBg,
                                     color: colors.textPrimary,
-                                    fontSize: '14px',
+                                    fontSize: '13px',
                                     width: '100%',
                                     fontFamily: 'inherit',
                                 }}
@@ -269,14 +213,21 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                         </View>
                     ) : (
                         <TouchableOpacity
-                            className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
                             style={{
+                                flex: 1,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
                                 backgroundColor: colors.cardBg,
                                 borderColor: colors.border,
                             }}
                             onPress={() => setShowStartPicker(true)}
                         >
-                            <Text className="text-sm" style={{ color: startDate ? colors.textPrimary : colors.textSecondary }}>
+                            <Text style={{ fontSize: 12, color: startDate ? colors.textPrimary : colors.textSecondary }}>
                                 {formatDate(startDate)}
                             </Text>
                             <Text style={{ color: colors.textSecondary }}>📅</Text>
@@ -285,7 +236,7 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
                     {/* End Date */}
                     {Platform.OS === 'web' ? (
-                        <View className="flex-1">
+                        <View style={{ flex: 1 }}>
                             <input
                                 type="date"
                                 value={endDate ? endDate.toISOString().split('T')[0] : ''}
@@ -297,12 +248,12 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                                     }
                                 }}
                                 style={{
-                                    padding: '10px 12px',
-                                    borderRadius: '12px',
+                                    padding: '8px 12px',
+                                    borderRadius: '10px',
                                     border: `1px solid ${colors.border}`,
                                     backgroundColor: colors.cardBg,
                                     color: colors.textPrimary,
-                                    fontSize: '14px',
+                                    fontSize: '13px',
                                     width: '100%',
                                     fontFamily: 'inherit',
                                 }}
@@ -310,14 +261,21 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                         </View>
                     ) : (
                         <TouchableOpacity
-                            className="flex-1 px-3 py-2.5 rounded-xl border flex-row items-center justify-between"
                             style={{
+                                flex: 1,
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                borderWidth: 1,
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
                                 backgroundColor: colors.cardBg,
                                 borderColor: colors.border,
                             }}
                             onPress={() => setShowEndPicker(true)}
                         >
-                            <Text className="text-sm" style={{ color: endDate ? colors.textPrimary : colors.textSecondary }}>
+                            <Text style={{ fontSize: 12, color: endDate ? colors.textPrimary : colors.textSecondary }}>
                                 {formatDate(endDate)}
                             </Text>
                             <Text style={{ color: colors.textSecondary }}>📅</Text>
@@ -327,20 +285,21 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                     {/* Clear Button */}
                     {(startDate || endDate) && (
                         <TouchableOpacity
-                            className="px-3 py-2.5 rounded-xl border"
                             style={{
-                                backgroundColor: colors.error || "#ef4444",
-                                borderColor: colors.error || "#ef4444",
+                                paddingHorizontal: 12,
+                                paddingVertical: 10,
+                                borderRadius: 10,
+                                backgroundColor: '#ef4444',
                             }}
                             onPress={clearDateRange}
                         >
-                            <Text className="text-white font-bold text-sm">✕</Text>
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>✕</Text>
                         </TouchableOpacity>
                     )}
                 </View>
-            </View>
+            </CollapsibleFilter>
 
-            {/* Date Pickers - Only for Mobile */}
+            {/* Mobile Date Pickers */}
             {Platform.OS !== 'web' && showStartPicker && (
                 <DateTimePicker
                     value={startDate || new Date()}
@@ -405,46 +364,70 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
                                 elevation: 2,
                             }}
                         >
-                            {/* Event Title */}
-                            <Text
-                                className="text-lg font-bold mb-1"
-                                style={{ color: colors.textPrimary }}
-                            >
-                                {item.aim}
-                            </Text>
+                            <View className="flex-row justify-between items-start mb-2">
+                                <View className="flex-1 pr-3">
+                                    <Text
+                                        className="text-lg font-bold mb-1"
+                                        style={{ color: colors.header || colors.textPrimary }}
+                                    >
+                                        {item.aim}
+                                    </Text>
 
-                            {/* NGO Name */}
-                            {item.createdBy && (
-                                <Text
-                                    className="text-xs font-semibold mb-2"
-                                    style={{ color: colors.accent }}
-                                >
-                                    by {item.createdBy.name}
-                                </Text>
-                            )}
+                                    {item.createdBy && (
+                                        <Text
+                                            className="text-[11px] font-semibold mb-2"
+                                            style={{ color: colors.accent }}
+                                        >
+                                            by {item.createdBy.name}
+                                        </Text>
+                                    )}
 
-                            {/* Location */}
-                            <View className="flex-row items-center mb-2 opacity-90">
-                                <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
-                                <Text
-                                    className="text-sm font-medium"
-                                    style={{ color: colors.textSecondary }}
-                                >
-                                    {item.location}
-                                </Text>
-                            </View>
+                                    {/* Location */}
+                                    <View className="flex-row items-center mb-1 opacity-90">
+                                        <Text style={{ fontSize: 13, marginRight: 4 }}>📍</Text>
+                                        <Text
+                                            className="text-[13px] font-medium"
+                                            style={{ color: colors.textSecondary }}
+                                        >
+                                            {item.location}
+                                        </Text>
+                                    </View>
 
-                            {/* Date Badge */}
-                            <View
-                                className="self-start px-2 py-1 rounded-md mb-2"
-                                style={{ backgroundColor: colors.iconBg }}
-                            >
-                                <Text
-                                    className="text-xs font-bold"
-                                    style={{ color: colors.textPrimary }}
+                                    {/* SPOC Info (Left Column) */}
+                                    {item.spocName && (
+                                        <View className="mt-1">
+                                            <View className="flex-row items-center mb-0.5">
+                                                <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Manager:</Text>
+                                                <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocName}</Text>
+                                            </View>
+                                            {item.spocContact && (
+                                                <View className="flex-row items-center">
+                                                    <Text className="text-[11px] font-bold mr-1" style={{ color: colors.accent }}>Contact:</Text>
+                                                    <Text className="text-[11px] font-medium" style={{ color: colors.textSecondary }}>{item.spocContact}</Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    )}
+                                </View>
+
+                                {/* Date & Time Badge (Right Column) */}
+                                <View
+                                    className="items-end px-2.5 py-2 rounded-xl"
+                                    style={{ backgroundColor: colors.iconBg, minWidth: 100 }}
                                 >
-                                    📅 {new Date(item.eventDate).toLocaleDateString()}
-                                </Text>
+                                    <Text
+                                        className="text-[10px] font-bold mb-1 text-right"
+                                        style={{ color: colors.textPrimary }}
+                                    >
+                                        📅 {new Date(item.startDate || item.eventDate).toLocaleDateString()}{item.endDate && item.endDate !== item.startDate ? ` - ${new Date(item.endDate).toLocaleDateString()}` : ''}
+                                    </Text>
+                                    <Text
+                                        className="text-[10px] font-semibold opacity-80 text-right"
+                                        style={{ color: colors.textPrimary }}
+                                    >
+                                        ⏰ Daily: {item.startTime || "N/A"} - {item.endTime || "N/A"}
+                                    </Text>
+                                </View>
                             </View>
 
                             {/* Description Snippet */}
@@ -458,17 +441,19 @@ export default function StudentDashboardScreen({ student: loggedStudent }) {
 
                             {/* Register Button */}
                             <TouchableOpacity
-                                className="py-2 rounded-lg items-center"
-                                style={{ backgroundColor: colors.accent }}
+                                className="py-2 rounded-lg items-center flex-row justify-center"
+                                style={{ backgroundColor: item.isRegistered ? "#eab308" : colors.accent }}
                                 onPress={() => {
-                                    console.log("Register button pressed for event:", item._id);
-                                    // Direct registration without confirmation dialog for web compatibility
-                                    handleRegisterForEvent(item);
+                                    if (!item.isRegistered) {
+                                        console.log("Register button pressed for event:", item._id);
+                                        // Direct registration without confirmation dialog for web compatibility
+                                        handleRegisterForEvent(item);
+                                    }
                                 }}
-                                activeOpacity={0.7}
+                                activeOpacity={item.isRegistered ? 1 : 0.7}
                             >
                                 <Text className="text-white font-semibold text-xs">
-                                    Register
+                                    {item.isRegistered ? "✓ Registered" : "Register"}
                                 </Text>
                             </TouchableOpacity>
                         </View>

@@ -15,45 +15,87 @@ import {
   Mail,
   BadgeCheck,
   GraduationCap,
+  Shield,
 } from 'lucide-react-native';
-import { NavigationContext } from '../context/NavigationContext'; // ✅ imported navigation context
+import { NavigationContext } from '../context/NavigationContext';
 import { AuthContext } from '../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  FadeInDown,
+  FadeInUp,
+} from 'react-native-reanimated';
 
 // --- Card Component ---
-const LoginCard = ({ icon: Icon, title, subtitle, iconColor, onPress, darkMode, disabled }) => {
+const LoginCard = ({ icon: Icon, title, subtitle, color = '#64748b', onPress, darkMode, disabled }) => {
+  const scale = useSharedValue(1);
+  const shadow = useSharedValue(0.05);
+  const glow = useSharedValue(0);
+
+  const { lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
+  const activeColor = color || '#64748b';
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    shadowOpacity: shadow.value,
+    borderColor: glow.value === 0 ? colors.border : `${activeColor}66`,
+    borderWidth: glow.value === 0 ? 1 : 2,
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.97);
+    shadow.value = withSpring(0.15);
+    glow.value = withTiming(1, { duration: 200 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1);
+    shadow.value = withSpring(0.05);
+    glow.value = withTiming(0, { duration: 200 });
+  };
+
   return (
     <Pressable
       onPress={disabled ? null : onPress}
-      className={`p-5 border rounded-2xl ${disabled ? '' : 'active:shadow-xl'}`}
-      style={{
-        backgroundColor: darkMode ? '#1e3a5fff' : '#ffffff',
-        borderColor: colors.border,
-        borderWidth: 1,
-        shadowColor: '#000',
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 3,
-        opacity: disabled ? 0.5 : 1,
-      }}
-      onPressIn={(pressed) => { }}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      className="flex-1"
     >
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center flex-1">
-          <View className="p-3 rounded-full" style={{ backgroundColor: colors.iconBg }}>
-            <Icon color={iconColor} size={32} strokeWidth={2.5} />
-          </View>
-          <View className="flex-1 ml-4">
-            <Text className="text-lg font-bold leading-5" style={{ color: colors.textPrimary }}>{title}</Text>
-            <Text className="text-xs mt-1.5 leading-[16px]" style={{ color: colors.textSecondary }}>{subtitle}</Text>
-          </View>
+      <Animated.View
+        className="p-6 rounded-[28px] items-center justify-center overflow-hidden"
+        style={[
+          animatedStyle,
+          {
+            backgroundColor: colors.cardBg,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowRadius: 24,
+            elevation: 4,
+            opacity: disabled ? 0.4 : 1,
+            height: 180,
+          },
+        ]}
+      >
+        {/* Modern Icon Container */}
+        <View
+          className="w-16 h-16 rounded-full items-center justify-center mb-4"
+          style={{ backgroundColor: `${activeColor}15` }}
+        >
+          <Icon color={activeColor} size={32} strokeWidth={2} />
         </View>
-        <View className="ml-2">
-          <ChevronRight color={colors.accent} size={24} />
-        </View>
-      </View>
+
+        <Text className="text-lg font-bold text-center mb-1" style={{ color: colors.header }}>
+          {title}
+        </Text>
+        <Text className="text-xs text-center font-medium leading-4 px-2 opacity-60" style={{ color: colors.textSecondary }}>
+          {subtitle}
+        </Text>
+      </Animated.View>
     </Pressable>
   );
 };
@@ -65,209 +107,213 @@ export default function HomeScreen() {
   const systemDark = useColorScheme() === 'dark';
   const { darkMode, setTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
-
-  const iconColors = {
-    ngo: darkMode ? '#f97316' : '#ea580c',
-    college: darkMode ? '#3b82f6' : '#2563eb',
-    admin: darkMode ? '#22c55e' : '#16a34a',
-    student: darkMode ? '#a855f7' : '#9333ea',
+  const roleColors = {
+    ngo: '#059669',     // Emerald 600
+    college: '#0284c7', // Sky 600
+    admin: '#475569',   // Slate 600 (Neutral)
+    student: '#7c3aed', // Violet 600
   };
 
   return (
     <LinearGradient
       colors={colors.backgroundColors}
-      start={colors.backgroundStart}
-      end={colors.backgroundEnd}
       style={{ flex: 1 }}
     >
       <SafeAreaView style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, paddingBottom: 32, alignItems: 'center' }} showsVerticalScrollIndicator={false}>
-          {/* Header */}
-          <View className="w-full flex-row justify-between items-center border-b pb-2 mb-8" style={{ borderBottomColor: colors.border }}>
-            <View className="flex-row items-center gap-3">
-              <View>
-                <Image
-                  source={require('../../assets/CODER_HIVE_logo.png')}
-                  style={{ width: 80, height: 80 }}
-                  resizeMode="contain"
-                />
-              </View>
-              <View>
-                <View className="flex-row items-center gap-1">
-                  <Text className="text-2xl font-black leading-7" style={{ color: colors.header }}>MarkIn
-
-                  </Text>
-                  <BadgeCheck color={colors.accent} size={24} />
-                </View>
-
-                <Text className="text-xs font-medium leading-4" style={{ color: colors.textSecondary }}>
-                  Seamlessly Mark • Track • Verify Attendance
-                </Text>
-              </View>
-
-
-            </View>
+        <ScrollView
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 100 }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Theme Toggle - Absolute top right */}
+          <Animated.View 
+            entering={FadeInUp.duration(600).delay(100)}
+            style={{ position: 'absolute', top: 10, right: 20, zIndex: 10 }}
+          >
             <Pressable
               onPress={() => setTheme(!darkMode)}
-              className="p-3 border rounded-full active:scale-95"
-              style={{ backgroundColor: colors.toggleBg, borderColor: colors.border }}
+              className="p-3 rounded-full active:scale-95"
+              style={{ backgroundColor: colors.toggleBg }}
             >
-              {darkMode ? <Sun size={24} color="#facc15" strokeWidth={2} /> : <Moon size={24} color="#1e293b" strokeWidth={2} />}
+              {darkMode ? <Sun size={20} color="#facc15" strokeWidth={2.5} /> : <Moon size={20} color="#64748b" strokeWidth={2.5} />}
             </Pressable>
+          </Animated.View>
 
-          </View>
-
-          {/* Role Section */}
-          <Text className="text-2xl font-black mb-6 self-start leading-7" style={{ color: colors.header }}>Select Your Role</Text>
-
-          <View className="w-full gap-5">
-            <LoginCard
-              icon={HeartHandshake}
-              title="NGO Login"
-              subtitle="Manage events and mark attendance"
-              iconColor={iconColors.ngo}
-              darkMode={darkMode}
-              onPress={() => navigate('NgoLogin')} // ✅ navigation added
-              disabled={isAuthenticated && userType !== 'ngo'}
+          {/* Header Section */}
+          <Animated.View 
+            entering={FadeInDown.duration(600).delay(100)}
+            className="items-center mb-12"
+          >
+            <Image
+              source={require('../../assets/CODER_HIVE_logo.png')}
+              style={{ width: 110, height: 110 }}
+              resizeMode="contain"
             />
+            <View className="flex-row items-center mt-3 gap-1.5">
+              <Text className="text-3xl font-black tracking-tight" style={{ color: colors.header }}>MarkIn</Text>
+              <BadgeCheck color={colors.accent} size={26} />
+            </View>
+            <Text className="text-sm font-semibold mt-1.5 opacity-60" style={{ color: colors.textSecondary }}>
+              Seamlessly Mark • Track • Verify Attendance
+            </Text>
+          </Animated.View>
 
-            <LoginCard
-              icon={School}
-              title="College Login"
-              subtitle="View student attendance records"
-              iconColor={iconColors.college}
-              darkMode={darkMode}
-              onPress={() => navigate('CollegeLogin')} // ✅ navigation added
-              disabled={isAuthenticated && userType !== 'college'}
-            />
+          {/* Role Grid Section */}
+          <View className="w-full px-1">
+            <Animated.Text 
+              entering={FadeInDown.duration(600).delay(200)}
+              className="text-lg font-bold mb-8 text-center" 
+              style={{ color: colors.header }}
+            >
+              Choose your role
+            </Animated.Text>
 
-            <LoginCard
-              icon={ShieldUser}
-              title="Admin Login"
-              subtitle="Manage colleges and NGOs"
-              iconColor={iconColors.admin}
-              darkMode={darkMode}
-              onPress={() => navigate('AdminLogin')} // ✅ navigation added
-              disabled={isAuthenticated && userType !== 'admin'}
-            />
+            {/* Row 1 */}
+            <Animated.View 
+              entering={FadeInDown.duration(600).delay(300)}
+              className="flex-row gap-5 mb-5"
+            >
+              <LoginCard
+                icon={HeartHandshake}
+                title="NGO"
+                subtitle="Manage events & mark attendance"
+                color={roleColors.ngo}
+                darkMode={darkMode}
+                onPress={() => navigate('NgoLogin')}
+                disabled={isAuthenticated && userType !== 'ngo'}
+              />
+              <LoginCard
+                icon={School}
+                title="College"
+                subtitle="Monitor student attendance records"
+                color={roleColors.college}
+                darkMode={darkMode}
+                onPress={() => navigate('CollegeLogin')}
+                disabled={isAuthenticated && userType !== 'college'}
+              />
+            </Animated.View>
 
-            <LoginCard
-              icon={GraduationCap}
-              title="Student Login"
-              subtitle="View and register for events"
-              iconColor={iconColors.student}
-              darkMode={darkMode}
-              onPress={() => navigate('StudentLogin')} // ✅ navigation added
-              disabled={isAuthenticated && userType !== 'student'}
-            />
+            {/* Row 2 */}
+            <Animated.View 
+              entering={FadeInDown.duration(600).delay(400)}
+              className="flex-row justify-center"
+            >
+              <View style={{ width: '48%' }}>
+                <LoginCard
+                  icon={GraduationCap}
+                  title="Student"
+                  subtitle="Browse events and register yourself"
+                  color={roleColors.student}
+                  darkMode={darkMode}
+                  onPress={() => navigate('StudentLogin')}
+                  disabled={isAuthenticated && userType !== 'student'}
+                />
+              </View>
+            </Animated.View>
           </View>
 
           {/* Footer */}
-          <View className="border-t pt-7 mt-12 items-center px-4 mb-4" style={{ borderTopColor: colors.border }}>
-            <Text className="text-xs font-medium tracking-wide mb-2" style={{ color: colors.textSecondary }}>
-              Developed by Team
+          <Animated.View 
+            entering={FadeInDown.duration(600).delay(500)}
+            className="pt-16 items-center px-4"
+          >
+            <Text className="text-[10px] font-extrabold uppercase tracking-[3px] mb-4 opacity-20" style={{ color: colors.textSecondary }}>
+              Developed by
             </Text>
             <Image
               source={darkMode ? require('../../assets/coderzhive-dark.png') : require('../../assets/coderzhive-light.png')}
-              style={{ height: 30 }}
+              style={{ height: 22, opacity: 0.3 }}
               resizeMode="contain"
             />
-          </View>
+          </Animated.View>
         </ScrollView>
 
         {/* Help Button - Fixed at bottom-left */}
-        <Pressable
-          onPress={() => {
-            const helpUrl = 'https://ngo-website-1-d3az.onrender.com/'; // Replace this URL with your actual help page link
-            Linking.openURL(helpUrl).catch(err => console.error('Failed to open URL:', err));
-          }}
-          className="px-4 py-2 rounded-full flex-row active:opacity-70"
-          style={{
-            position: 'absolute',
-            bottom: 35,
-            left: 20,
-            backgroundColor: colors.iconBg,
-            borderColor: colors.border,
-            borderWidth: 1,
-            shadowColor: '#000',
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-            elevation: 5,
-          }}
+        <Animated.View 
+          entering={FadeInUp.duration(600).delay(600)}
+          style={{ position: 'absolute', bottom: 25, left: 20 }}
         >
-          <HelpCircle size={18} color={colors.accent} strokeWidth={2} />
-          <Text className="ml-2 text-sm font-semibold" style={{ color: colors.textPrimary }}>
-            Help ?
-          </Text>
-        </Pressable>
+          <Pressable
+            onPress={() => {
+              const helpUrl = 'https://ngo-website-1-d3az.onrender.com/';
+              Linking.openURL(helpUrl).catch(err => console.error('Failed to open URL:', err));
+            }}
+            className="px-3 py-1.5 rounded-full flex-row items-center active:opacity-70"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              borderWidth: 1,
+              shadowColor: '#000',
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <HelpCircle size={14} color={colors.textSecondary} strokeWidth={2.5} />
+            <Text className="ml-1.5 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+              Help Center
+            </Text>
+          </Pressable>
+        </Animated.View>
 
         {/* Report/Mail Bugs Button - Fixed at bottom-right */}
-        <Pressable
-          onPress={() => {
-            // On web, open Gmail compose directly; on mobile, use mailto
-            if (Platform.OS === 'web') {
-              const email = 'coderzhiveai@gmail.com';
-              const subject = encodeURIComponent('Bug Report');
-              const body = encodeURIComponent('Please describe the bug you encountered:');
-              const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`;
-              window.open(gmailUrl, '_blank');
-            } else {
-              const bugReportEmail = 'mailto:coderzhiveai@gmail.com?subject=Bug Report&body=Please describe the bug you encountered:';
-              Linking.openURL(bugReportEmail).catch(err => console.error('Failed to open email:', err));
-            }
-          }}
-          className="px-4 py-2 rounded-full flex-row active:opacity-70"
-          style={{
-            position: 'absolute',
-            bottom: 35,
-            right: 20,
-            backgroundColor: colors.iconBg,
-            borderColor: colors.border,
-            borderWidth: 1,
-            shadowColor: '#000',
-            shadowOpacity: 0.2,
-            shadowRadius: 4,
-            elevation: 5,
-          }}
+        <Animated.View 
+          entering={FadeInUp.duration(600).delay(600)}
+          style={{ position: 'absolute', bottom: 25, right: 20 }}
         >
-          <Mail size={18} color={colors.accent} strokeWidth={2} />
-          <Text className="ml-2 text-sm font-semibold" style={{ color: colors.textPrimary }}>
-            Report Bug
-          </Text>
-        </Pressable>
+          <Pressable
+            onPress={() => {
+              if (Platform.OS === 'web') {
+                const email = 'coderzhiveai@gmail.com';
+                const subject = encodeURIComponent('Bug Report');
+                const body = encodeURIComponent('Please describe the bug you encountered:');
+                const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${email}&su=${subject}&body=${body}`;
+                window.open(gmailUrl, '_blank');
+              } else {
+                const bugReportEmail = 'mailto:coderzhiveai@gmail.com?subject=Bug Report&body=Please describe the bug you encountered:';
+                Linking.openURL(bugReportEmail).catch(err => console.error('Failed to open email:', err));
+              }
+            }}
+            className="px-3 py-1.5 rounded-full flex-row items-center active:opacity-70"
+            style={{
+              backgroundColor: colors.cardBg,
+              borderColor: colors.border,
+              borderWidth: 1,
+              shadowColor: '#000',
+              shadowOpacity: 0.05,
+              shadowRadius: 4,
+              elevation: 2,
+            }}
+          >
+            <Mail size={14} color={colors.textSecondary} strokeWidth={2.5} />
+            <Text className="ml-1.5 text-[11px] font-bold" style={{ color: colors.textSecondary }}>
+              Report Issue
+            </Text>
+          </Pressable>
+        </Animated.View>
       </SafeAreaView>
     </LinearGradient>
   );
 }
 
-
-
 // --- Themes ---
 const lightTheme = {
-  backgroundColors: ['#ffffff', '#cde4fbff'],
-  backgroundStart: [0, 0],
-  backgroundEnd: [1, 1],
-  cardBg: '#f0f9ffff',
-  border: '#bfdbfeff',
-  textPrimary: '#2c3e50',
-  textSecondary: '#7f8c8d',
-  accent: '#1abc9c',
-  header: '#296e9cff',
-  iconBg: '#e0f2feff',
-  toggleBg: '#dbeafe',
+  backgroundColors: ['#f8fafc', '#f1f5f9'],
+  cardBg: '#ffffff',
+  border: '#e2e8f0',
+  textPrimary: '#0f172a',
+  textSecondary: '#475569',
+  accent: '#10b981',
+  header: '#1e293b',
+  toggleBg: '#f1f5f9',
 };
 
 const darkTheme = {
-  backgroundColors: ['#122d42ff', '#041728ff'],
-  backgroundStart: [0, 0],
-  backgroundEnd: [1, 1],
-  background: '#091828ff',
-  cardBg: '#1e3a5fff',
-  border: '#3b5998ff',
-  textPrimary: '#ecf0f1',
-  textSecondary: '#bdc3c7',
-  accent: '#1abc9c',
-  header: '#5dadec',
-  iconBg: '#2d5a8cff',
-  toggleBg: '#1e3a5fff',
+  backgroundColors: ['#0f172a', '#020617'],
+  cardBg: '#1e293b',
+  border: '#334155',
+  textPrimary: '#f8fafc',
+  textSecondary: '#94a3b8',
+  accent: '#10b981',
+  header: '#f1f5f9',
+  toggleBg: '#334155',
 };
