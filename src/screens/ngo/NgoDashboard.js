@@ -12,18 +12,24 @@ import {
 import { NavigationContext } from "../../context/NavigationContext";
 import { AuthContext } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
-import { Calendar, Briefcase, Plus, CalendarPlus, UserPlus, X } from "lucide-react-native";
+import { Calendar, Briefcase, Plus, CalendarPlus, UserPlus, X, Building } from "lucide-react-native";
 import NgoEventsScreen from "./NgoEventsScreen";
 import NgoInternshipsScreen from "./internship/NgoInternshipsScreen";
+import ManageBranchesScreen from "./ManageBranchesScreen";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function NgoDashboard({ ngo }) {
   const { navigate } = useContext(NavigationContext);
+  const { userType } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
-  const [activeTab, setActiveTab] = useState("Events");
+  // Super Admin: only Branches tab. Branch Admin / regular NGO: Events + Internships.
+  const isSuperAdmin = userType === "ngo" && ngo?.is_hierarchical;
+  const isBranchAdmin = userType === "branch_admin";
+
+  const [activeTab, setActiveTab] = useState(isSuperAdmin ? "Branches" : "Events");
   const [showSheet, setShowSheet] = useState(false);
 
   // Animation values
@@ -68,10 +74,13 @@ export default function NgoDashboard({ ngo }) {
   };
 
   const renderContent = () => {
-    if (activeTab === "Events") {
-      return <NgoEventsScreen ngo={ngo} hideHeaderBack={true} />;
+    if (activeTab === "Branches") {
+      return <ManageBranchesScreen isTab={true} ngo={ngo} />;
     }
-    return <NgoInternshipsScreen ngo={ngo} hideHeaderBack={true} />;
+    if (activeTab === "Internships") {
+      return <NgoInternshipsScreen ngo={ngo} hideHeaderBack={true} />;
+    }
+    return <NgoEventsScreen ngo={ngo} hideHeaderBack={true} />;
   };
 
   return (
@@ -104,41 +113,87 @@ export default function NgoDashboard({ ngo }) {
           },
         ]}
       >
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab("Events")}
-        >
-          <Calendar
-            size={24}
-            color={activeTab === "Events" ? colors.accent : colors.textSecondary}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              { color: activeTab === "Events" ? colors.accent : colors.textSecondary },
-            ]}
-          >
-            Events
-          </Text>
-        </TouchableOpacity>
+        {/* Super Admin: Branches + Internships tabs */}
+        {isSuperAdmin && (
+          <>
+            <TouchableOpacity
+              style={styles.navItem}
+              onPress={() => setActiveTab("Branches")}
+            >
+              <Building
+                size={24}
+                color={activeTab === "Branches" ? colors.accent : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.navLabel,
+                  { color: activeTab === "Branches" ? colors.accent : colors.textSecondary },
+                ]}
+              >
+                Branches
+              </Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveTab("Internships")}
-        >
-          <Briefcase
-            size={24}
-            color={activeTab === "Internships" ? colors.accent : colors.textSecondary}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              { color: activeTab === "Internships" ? colors.accent : colors.textSecondary },
-            ]}
-          >
-            Internships
-          </Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.navItem}
+              onPress={() => setActiveTab("Internships")}
+            >
+              <Briefcase
+                size={24}
+                color={activeTab === "Internships" ? colors.accent : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.navLabel,
+                  { color: activeTab === "Internships" ? colors.accent : colors.textSecondary },
+                ]}
+              >
+                Internships
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Branch Admin / regular NGO: Events + Internships */}
+        {!isSuperAdmin && (
+          <>
+            <TouchableOpacity
+              style={styles.navItem}
+              onPress={() => setActiveTab("Events")}
+            >
+              <Calendar
+                size={24}
+                color={activeTab === "Events" ? colors.accent : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.navLabel,
+                  { color: activeTab === "Events" ? colors.accent : colors.textSecondary },
+                ]}
+              >
+                Events
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.navItem}
+              onPress={() => setActiveTab("Internships")}
+            >
+              <Briefcase
+                size={24}
+                color={activeTab === "Internships" ? colors.accent : colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.navLabel,
+                  { color: activeTab === "Internships" ? colors.accent : colors.textSecondary },
+                ]}
+              >
+                Internships
+              </Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {/* Bottom Sheet Overlay */}
@@ -174,7 +229,30 @@ export default function NgoDashboard({ ngo }) {
           <View style={styles.sheetContent}>
             <Text style={[styles.sheetTitle, { color: colors.header }]}>Quick Actions</Text>
             
-            {activeTab === "Events" ? (
+            {/* Super Admin: Branches → Add Branch | Internships → Add Internship */}
+            {isSuperAdmin ? (
+              activeTab === "Branches" ? (
+                <TouchableOpacity
+                  style={styles.option}
+                  onPress={() => handleOptionPress("CreateBranch")}
+                >
+                  <View style={[styles.optionIcon, { backgroundColor: "#8b5cf615" }]}>
+                    <Building size={20} color="#8b5cf6" />
+                  </View>
+                  <Text style={[styles.optionText, { color: colors.textPrimary }]}>Add New Branch</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.option}
+                  onPress={() => handleOptionPress("CreateInternship")}
+                >
+                  <View style={[styles.optionIcon, { backgroundColor: colors.accent + "15" }]}>
+                    <Briefcase size={20} color={colors.accent} />
+                  </View>
+                  <Text style={[styles.optionText, { color: colors.textPrimary }]}>Add New Internship</Text>
+                </TouchableOpacity>
+              )
+            ) : activeTab === "Events" ? (
               <>
                 <TouchableOpacity
                   style={styles.option}
@@ -197,15 +275,22 @@ export default function NgoDashboard({ ngo }) {
                 </TouchableOpacity>
               </>
             ) : (
-              <TouchableOpacity
-                style={styles.option}
-                onPress={() => handleOptionPress("CreateInternship")}
-              >
-                <View style={[styles.optionIcon, { backgroundColor: colors.accent + "15" }]}>
-                  <Briefcase size={20} color={colors.accent} />
-                </View>
-                <Text style={[styles.optionText, { color: colors.textPrimary }]}>Add New Internship</Text>
-              </TouchableOpacity>
+              /* Internships tab — only Super Admin can create, branch admins just manage */
+              !isBranchAdmin ? (
+                <TouchableOpacity
+                  style={styles.option}
+                  onPress={() => handleOptionPress("CreateInternship")}
+                >
+                  <View style={[styles.optionIcon, { backgroundColor: colors.accent + "15" }]}>
+                    <Briefcase size={20} color={colors.accent} />
+                  </View>
+                  <Text style={[styles.optionText, { color: colors.textPrimary }]}>Add New Internship</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={[{ color: colors.textSecondary, fontSize: 13, textAlign: "center", paddingVertical: 12 }]}>
+                  Internship creation is managed by the NGO Super Admin.
+                </Text>
+              )
             )}
           </View>
         </Animated.View>

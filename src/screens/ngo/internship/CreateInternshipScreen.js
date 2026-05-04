@@ -1,4 +1,4 @@
-import React, { useContext, useState } from "react";
+import React, { useContext, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -54,9 +54,44 @@ const Field = ({ label, value, onChangeText, placeholder, multiline, keyboardTyp
 
 export default function CreateInternshipScreen() {
   const { goBack, navigate } = useContext(NavigationContext);
-  const { accessToken } = useContext(AuthContext);
+  const { accessToken, user, userType } = useContext(AuthContext);
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
+
+  const isSuperAdmin = userType === "ngo" && user?.is_hierarchical;
+
+  const [branches, setBranches] = useState([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [selectedBranch, setSelectedBranch] = useState(null);
+
+  useEffect(() => {
+    if (isSuperAdmin) {
+      fetchBranches();
+    }
+  }, []);
+
+  const fetchBranches = async () => {
+    setLoadingBranches(true);
+    try {
+      const response = await fetch(`${api.getAllBranchesAPI}?ngo_id=${user._id}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setBranches(data.data || []);
+      }
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+    } finally {
+      setLoadingBranches(false);
+    }
+  };
 
   const [form, setForm] = useState({
     title: "",
@@ -125,6 +160,7 @@ export default function CreateInternshipScreen() {
           spocName,
           spocContact,
           allowLateSubmissions: form.allowLateSubmissions,
+          branchId: selectedBranch?.branch_id || null,
         }),
       });
 
@@ -195,6 +231,67 @@ export default function CreateInternshipScreen() {
           multiline={true}
           colors={colors}
         />
+
+        {/* Branch picker (Super Admin only) */}
+        {isSuperAdmin && (
+          <View className="mb-4">
+            <Text className="text-xs font-bold mb-1.5" style={{ color: colors.textSecondary }}>
+              Branch (Optional for NGO-wide, select for Branch-specific)
+            </Text>
+            <TouchableOpacity
+              className="px-4 py-3 rounded-xl border flex-row justify-between items-center"
+              style={{ backgroundColor: colors.cardBg, borderColor: colors.border }}
+              onPress={() => setShowBranchPicker(!showBranchPicker)}
+            >
+              <Text style={{ color: selectedBranch ? colors.textPrimary : colors.textSecondary }}>
+                {selectedBranch ? selectedBranch.name : "Select Branch (NGO-wide)"}
+              </Text>
+              <Text style={{ color: colors.textSecondary }}>▼</Text>
+            </TouchableOpacity>
+            {showBranchPicker && (
+              <View
+                className="rounded-xl border mt-1 overflow-hidden"
+                style={{
+                  backgroundColor: colors.cardBg,
+                  borderColor: colors.border,
+                }}
+              >
+                <TouchableOpacity
+                  className="px-4 py-3 border-b"
+                  style={{ borderBottomColor: colors.border }}
+                  onPress={() => {
+                    setSelectedBranch(null);
+                    setShowBranchPicker(false);
+                  }}
+                >
+                  <Text style={{ color: !selectedBranch ? colors.accent : colors.textPrimary }}>
+                    NGO-wide (No specific branch)
+                  </Text>
+                </TouchableOpacity>
+                {branches.map((b) => (
+                  <TouchableOpacity
+                    key={b.branch_id}
+                    className="px-4 py-3 border-b"
+                    style={{ borderBottomColor: colors.border }}
+                    onPress={() => {
+                      setSelectedBranch(b);
+                      setShowBranchPicker(false);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selectedBranch?.branch_id === b.branch_id ? colors.accent : colors.textPrimary,
+                        fontWeight: selectedBranch?.branch_id === b.branch_id ? "bold" : "normal",
+                      }}
+                    >
+                      {b.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Domain picker */}
         <View className="mb-4">

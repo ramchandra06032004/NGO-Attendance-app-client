@@ -33,7 +33,8 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
   const [sortOrder, setSortOrder] = useState("newest"); // "newest" or "oldest"
-  const { logout, accessToken } = useContext(AuthContext);
+  const { logout, accessToken, userType: loggedInUserType } = useContext(AuthContext);
+  const isBranchAdmin = loggedInUserType === "branch_admin";
 
   useEffect(() => {
     fetchEvents();
@@ -166,9 +167,9 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
                 flexShrink: 0,
               }}
             >
-              {loggedNgo.profileImage ? (
+              { (loggedNgo.profileImage || loggedNgo.ngoLogo) ? (
                 <Image
-                  source={{ uri: loggedNgo.profileImage }}
+                  source={{ uri: loggedNgo.profileImage || loggedNgo.ngoLogo }}
                   style={{ width: '100%', height: '100%' }}
                   resizeMode="cover"
                 />
@@ -181,21 +182,28 @@ export default function NgoEventsScreen({ ngo: loggedNgo }) {
               )}
             </View>
 
-            {/* NGO Name & Address */}
+            {/* NGO Name & Branch/Address */}
             <View className="flex-1">
               <Text
-                className="font-bold text-sm leading-5"
-                style={{ color: colors.header }}
-                numberOfLines={1}
-              >
-                {loggedNgo.name.toUpperCase()}
-              </Text>
-              <Text
-                className="text-xs mt-0.5"
+                className="font-bold text-xs leading-4"
                 style={{ color: colors.textSecondary }}
                 numberOfLines={1}
               >
-                {loggedNgo.address}
+                {(loggedNgo.ngoName || loggedNgo.name).toUpperCase()}
+              </Text>
+              <Text
+                className="font-extrabold text-base leading-6"
+                style={{ color: colors.header }}
+                numberOfLines={1}
+              >
+                {isBranchAdmin ? loggedNgo.name : "SUPER ADMIN"}
+              </Text>
+              <Text
+                className="text-[10px] mt-0.5"
+                style={{ color: colors.textSecondary }}
+                numberOfLines={1}
+              >
+                {loggedNgo.ngoAddress || loggedNgo.address}
               </Text>
             </View>
           </View>

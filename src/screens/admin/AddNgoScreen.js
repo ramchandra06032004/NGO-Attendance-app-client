@@ -8,6 +8,7 @@ import {
   Image,
   Platform,
   Alert,
+  Switch,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker"; 
 import { AttendanceContext } from "../../context/AttendanceContext";
@@ -29,6 +30,7 @@ export default function AddNgoScreen() {
   const [mobile, setMobile] = useState("");
   const [reg, setReg] = useState("");
   const [logo, setLogo] = useState(null); 
+  const [isHierarchical, setIsHierarchical] = useState(false);
 
   // Function to pick image
   const pickImage = async () => {
@@ -69,6 +71,7 @@ export default function AddNgoScreen() {
     formData.append("password", password);
     formData.append("mobile", mobile);
     formData.append("registrationNumber", reg);
+    formData.append("is_hierarchical", isHierarchical ? 'true' : 'false');
 // 3. DEFINE FILENAME HERE (So it is available for BOTH Web and Mobile)
     let filename = logo.split('/').pop();
     
@@ -280,6 +283,19 @@ export default function AddNgoScreen() {
           }}
           placeholderTextColor={colors.textSecondary}
         />
+
+        <View className="flex-row items-center justify-between p-3 rounded-lg border mb-5" style={{ backgroundColor: colors.iconBg, borderColor: colors.border }}>
+          <View>
+            <Text className="font-bold text-base" style={{ color: colors.textPrimary }}>Hierarchical NGO</Text>
+            <Text className="text-xs" style={{ color: colors.textSecondary }}>Enable multi-branch management</Text>
+          </View>
+          <Switch
+            value={isHierarchical}
+            onValueChange={setIsHierarchical}
+            trackColor={{ false: "#767577", true: colors.accent }}
+            thumbColor={isHierarchical ? "#fff" : "#f4f3f4"}
+          />
+        </View>
 
         <TouchableOpacity
           className="p-3 rounded-lg items-center mt-2"

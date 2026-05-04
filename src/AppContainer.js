@@ -5,6 +5,9 @@ import NgoEventsScreen from "./screens/ngo/NgoEventsScreen";
 import EventDetailScreen from "./screens/ngo/EventDetailScreen";
 import EventInfoScreen from "./screens/ngo/EventInfoScreen";
 import NgoDashboard from "./screens/ngo/NgoDashboard";
+import ManageBranchesScreen from "./screens/ngo/ManageBranchesScreen";
+import CreateBranchScreen from "./screens/ngo/CreateBranchScreen";
+import BranchDetailScreen from "./screens/ngo/BranchDetailScreen";
 import SelectCollegeScreen from "./screens/ngo/SelectCollegeScreen";
 import StudentsListScreen from "./screens/ngo/StudentsListScreen";
 import CollegeClassesScreen from "./screens/college/CollegeClassesScreen";
@@ -52,6 +55,8 @@ export default function AppContainer() {
       // Only redirect if user is authenticated AND on Home page
       if (userType === "ngo") {
         navigate("NgoEvents", { ngo: user });
+      } else if (userType === "branch_admin") {
+        navigate("NgoEvents", { ngo: user });
       } else if (userType === "college") {
         navigate("CollegeClasses", { college: user });
       } else if (userType === "admin") {
@@ -92,6 +97,8 @@ export default function AppContainer() {
   if (isAuthenticated && (route.name === "NgoLogin" || route.name === "CollegeLogin" || route.name === "AdminLogin" || route.name === "StudentLogin")) {
     if (userType === "ngo") {
       return <NgoDashboard ngo={user} />;
+    } else if (userType === "branch_admin") {
+      return <NgoDashboard ngo={user} />;
     } else if (userType === "college") {
       return <CollegeClassesScreen college={user} />;
     } else if (userType === "admin") {
@@ -123,6 +130,15 @@ export default function AppContainer() {
       break;
     case "EventInfo":
       Screen = <EventInfoScreen event={route.params?.event} route={route} />;
+      break;
+    case "ManageBranches":
+      Screen = <ManageBranchesScreen />;
+      break;
+    case "CreateBranch":
+      Screen = <CreateBranchScreen />;
+      break;
+    case "BranchDetail":
+      Screen = <BranchDetailScreen route={route} />;
       break;
     case "SelectCollege":
       Screen = <SelectCollegeScreen eventId={route.params?.eventId} event={route.params?.event} />;

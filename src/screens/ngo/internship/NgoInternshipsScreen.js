@@ -20,7 +20,8 @@ import CollapsibleFilter from "../../../components/CollapsibleFilter";
 
 export default function NgoInternshipsScreen({ ngo, hideHeaderBack }) {
   const { navigate, goBack } = useContext(NavigationContext);
-  const { accessToken, logout } = useContext(AuthContext);
+  const { logout, accessToken, userType: loggedInUserType } = useContext(AuthContext);
+  const isBranchAdmin = loggedInUserType === "branch_admin";
   const { darkMode, lightTheme, darkTheme } = useTheme();
   const colors = darkMode ? darkTheme : lightTheme;
 
@@ -144,9 +145,9 @@ export default function NgoInternshipsScreen({ ngo, hideHeaderBack }) {
                 flexShrink: 0,
               }}
             >
-              {ngo?.profileImage ? (
+              { (ngo?.profileImage || ngo?.ngoLogo) ? (
                 <Image
-                  source={{ uri: ngo.profileImage }}
+                  source={{ uri: ngo.profileImage || ngo.ngoLogo }}
                   style={{ width: '100%', height: '100%' }}
                   resizeMode="cover"
                 />
@@ -159,21 +160,28 @@ export default function NgoInternshipsScreen({ ngo, hideHeaderBack }) {
               )}
             </View>
 
-            {/* NGO Name & Address */}
+            {/* NGO Name & Branch/Address */}
             <View className="flex-1">
               <Text
-                className="font-bold text-sm leading-5"
-                style={{ color: colors.header }}
-                numberOfLines={1}
-              >
-                {ngo?.name?.toUpperCase() || "NGO NAME"}
-              </Text>
-              <Text
-                className="text-xs mt-0.5"
+                className="font-bold text-xs leading-4"
                 style={{ color: colors.textSecondary }}
                 numberOfLines={1}
               >
-                {ngo?.address || "NGO Address"}
+                {(ngo?.ngoName || ngo?.name || "NGO NAME").toUpperCase()}
+              </Text>
+              <Text
+                className="font-extrabold text-base leading-6"
+                style={{ color: colors.header }}
+                numberOfLines={1}
+              >
+                {isBranchAdmin ? ngo.name : "SUPER ADMIN"}
+              </Text>
+              <Text
+                className="text-[10px] mt-0.5"
+                style={{ color: colors.textSecondary }}
+                numberOfLines={1}
+              >
+                {ngo?.ngoAddress || ngo?.address || "NGO Address"}
               </Text>
             </View>
           </View>
@@ -309,6 +317,19 @@ export default function NgoInternshipsScreen({ ngo, hideHeaderBack }) {
                         {statusLabel}
                       </Text>
                     </View>
+                    {item.branchId?.name && (
+                      <View
+                        className="flex-row items-center px-2 py-0.5 rounded-full self-start mt-1"
+                        style={{ backgroundColor: "#8b5cf615" }}
+                      >
+                        <Text
+                          className="text-[10px] font-bold"
+                          style={{ color: "#8b5cf6" }}
+                        >
+                          🏛 {item.branchId.name}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   {/* Slots badge */}
                   <View
